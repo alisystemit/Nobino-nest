@@ -2,7 +2,7 @@ import { Controller, Post, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '@/common/guards/admin.guard';
 import { AiLlmService } from '@/modules/ai/llm/llm.service';
 
-@Controller('admin/ai/test')
+@Controller('api/admin/ai/test')
 @UseGuards(AdminGuard)
 export class AiTestController {
   constructor(private readonly aiLlm: AiLlmService) {}

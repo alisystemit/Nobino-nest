@@ -1,8 +1,46 @@
 // جزئیات کامل یک سالن برای سوپرادمین (مالک، تماس، شبکه‌های اجتماعی، نقشه، نوبت، درآمد، اشتراک، کارکنان، وضعیت)
+import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import { json, apiError } from "@/lib/utils";
 import { salonPublicUrl } from "@/lib/salon-url";
+
+const socialPatchSchema = z
+  .object({
+    instagram: z.string().trim().max(300).optional().nullable(),
+  })
+  .refine((b) => Object.prototype.hasOwnProperty.call(b, "instagram"), {
+    message: "instagram required",
+  });
+
+/** سوپرادمین: تنظیم سریع لینک اینستاگرام یک سالن */
+export async function PATCH(req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {
+  try {
+    const user = await requireRole(["ADMIN"]);
+    const { id } = await params;
+    const body = socialPatchSchema.parse(await req.json());
+
+    const before = await prisma.salon.findUnique({ where: { id } });
+    if (!before) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
+
+    const salon = await prisma.salon.update({ where: { id }, data: { instagram: body.instagram ?? null } });
+    await logAudit({
+      actorId: user.id,
+      actorPhone: user.phone,
+      action: "update_salon_instagram",
+      entityType: "Salon",
+      entityId: id,
+      before: { instagram: before.instagram },
+      after: { instagram: salon.instagram },
+    });
+
+    return json({ success: true, salon: { id: salon.id, instagram: salon.instagram } });
+  } catch (err) {
+    if (err instanceof z.ZodError) return json({ success: false, error: "فیلد instagram لازم است" }, { status: 400 });
+    return apiError(err);
+  }
+}
 
 export async function GET(_req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {
   try {

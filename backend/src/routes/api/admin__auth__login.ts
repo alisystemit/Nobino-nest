@@ -17,7 +17,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     const body = schema.parse(await req.json());
     const result = await adminPasswordLogin(body.email, body.password);
     if (!result.ok) return json({ success: false, error: result.error }, { status: 401 });
-    return json({ success: true, user: result.user });
+    return json({ success: true, token: result.token, user: result.user });
   } catch (err) {
     return apiError(err);
   }

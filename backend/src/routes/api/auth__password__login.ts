@@ -51,9 +51,9 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     await clearFailedLogins(login);
 
-    await issueSession(user);
+    const token = await issueSession(user);
 
-    return json({ success: true, user: publicUser(user) });
+    return json({ success: true, token, user: publicUser(user) });
   } catch (err) {
     return apiError(err);
   }

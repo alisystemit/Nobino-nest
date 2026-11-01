@@ -8,10 +8,15 @@ export class NotificationsController {
   constructor(private readonly svc: NotificationsService) {}
 
   @Get()
-  async list(@Query('status') status?: string, @Query('channel') channel?: string) {
+  async list(@Query('status') status?: string, @Query('channel') channel?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
     await requireRole(['ADMIN']);
-    const notifications = await this.svc.list({ status, channel });
-    return json({ success: true, notifications });
+    const result = await this.svc.list({
+      status,
+      channel,
+      page: Number(page) || 1,
+      limit: Number(limit) || 50,
+    });
+    return json({ success: true, ...result });
   }
 
   @Post()

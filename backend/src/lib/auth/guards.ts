@@ -1,4 +1,4 @@
-import { cookies } from "@/compat/next-headers";
+import { cookies, headers } from "@/compat/next-headers";
 import { prisma } from "@/lib/prisma";
 import { verifyToken, JwtPayload } from "@/lib/auth/jwt";
 import { httpError } from "@/lib/utils";
@@ -6,12 +6,25 @@ import { httpError } from "@/lib/utils";
 export const AUTH_COOKIE = "nobino_token";
 
 /**
- * دریافت کاربر جاری با بررسی نشست فعال. اگر نشست منقضی/ابطال شده باشد،
- * توکن معتبر هم پذیرفته نمی‌شود.
+ * استخراج توکن نشست از کوکی (وب) یا هدر Authorization (موبایل/سرویس).
+ * به این ترتیب همهٔ روت‌های محافظت‌شده هم برای وب و هم برای اپ‌های موبایل
+ * (Bearer token) کار می‌کنند.
  */
-export async function getCurrentUser() {
+export async function resolveToken(): Promise<string | null> {
   const store = await cookies();
-  const token = store.get(AUTH_COOKIE)?.value;
+  const cookieToken = store.get(AUTH_COOKIE)?.value;
+  if (cookieToken) return cookieToken;
+
+  const auth = (await headers()).get("authorization");
+  if (auth && auth.startsWith("Bearer ")) {
+    const t = auth.slice(7).trim();
+    if (t) return t;
+  }
+  return null;
+}
+
+export async function getCurrentUser() {
+  const token = await resolveToken();
   if (!token) return null;
 
   const payload = await verifyToken(token);

@@ -116,7 +116,8 @@
     "url": "/api/admin/salons/:id",
     "module": "@/routes/api/admin__salons__id",
     "methods": [
-      "GET"
+      "GET",
+      "PATCH"
     ]
   },
   {
@@ -731,6 +732,14 @@
     "module": "@/routes/api/loyalty__redeem",
     "methods": [
       "POST"
+    ]
+  },
+  {
+    "path": "mini/config",
+    "url": "/api/mini/config",
+    "module": "@/routes/api/mini__config",
+    "methods": [
+      "GET"
     ]
   },
   {

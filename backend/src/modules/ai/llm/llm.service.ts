@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SettingsService } from '@/modules/settings/settings.service';
 import { PrismaService } from '@/common/database/prisma.service';
+import { normalizeChatUrl } from './llm-helpers';
 
 export type LlmProviderId = 'openai' | 'groq' | 'deepseek' | 'custom';
 
@@ -194,7 +195,7 @@ export class AiLlmService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? 20000);
     try {
-      const res = await fetch(llm.baseUrl, {
+      const res = await fetch(normalizeChatUrl(llm.baseUrl), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llm.key}` },
         body: JSON.stringify(body),

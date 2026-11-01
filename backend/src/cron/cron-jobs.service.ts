@@ -7,7 +7,6 @@
  */
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
-import { cronSecret } from "@/lib/auth/cron-guard";
 import * as C0 from "@/routes/api/cron__holds";
 import * as C1 from "@/routes/api/cron__notifications";
 import * as C2 from "@/routes/api/cron__reminders";
@@ -54,7 +53,7 @@ export class CronJobsService {
   private async fire(name: string) {
     const job = CRON_JOBS.find((j) => j.name === name);
     if (!job) return;
-    const secret = await cronSecret();
+    const secret = process.env.CRON_SECRET ?? "";
     if (!secret) {
       this.log.warn("CRON_SECRET تنظیم نشده — کران اجرا نشد");
       return;

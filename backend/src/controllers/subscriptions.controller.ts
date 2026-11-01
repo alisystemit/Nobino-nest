@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Query } from '@nestjs/common';
 import { requireRole } from '@/lib/auth/guards';
 import { SubscriptionsService } from '@/modules/subscriptions/subscriptions.service';
 import { json } from '@/lib/utils';
@@ -8,10 +8,10 @@ export class SubscriptionsController {
   constructor(private readonly svc: SubscriptionsService) {}
 
   @Get()
-  async list() {
+  async list(@Query('page') page?: string, @Query('limit') limit?: string) {
     await requireRole(['ADMIN']);
-    const subscriptions = await this.svc.list();
-    return json({ success: true, subscriptions });
+    const result = await this.svc.list({ page: Number(page) || 1, limit: Number(limit) || 50 });
+    return json({ success: true, ...result });
   }
 
   @Patch()

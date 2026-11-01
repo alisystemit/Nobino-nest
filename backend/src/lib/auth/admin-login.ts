@@ -11,7 +11,7 @@ import { issueSession, publicUser } from "@/lib/auth/session";
 const GENERIC_ERROR = "ایمیل یا رمز عبور اشتباه است.";
 
 export type AdminLoginResult =
-  | { ok: true; user: ReturnType<typeof publicUser> }
+  | { ok: true; user: ReturnType<typeof publicUser>; token: string }
   | { ok: false; error: string };
 
 /**
@@ -42,6 +42,6 @@ export async function adminPasswordLogin(email: string, password: string): Promi
   }
 
   await clearFailedLogins(login);
-  await issueSession(user);
-  return { ok: true, user: publicUser(user) };
+  const token = await issueSession(user);
+  return { ok: true, user: publicUser(user), token };
 }

@@ -142,6 +142,27 @@ const aiSection = (): CatalogSection => ({
         { key: "stt.order", label: "ترتیب ربات‌های تبدیل گفتار", type: "string", placeholder: "groq,huggingface,cloudflare,deepgram,openai", hint: "با کاما جدا کنید؛ نام‌های ناشناخته نادیده گرفته می‌شوند." },
       ],
     },
+    {
+      id: "llm",
+      title: "سرویس تولید متن (LLM)",
+      description: "سرویسی که جملات هوشمند را می‌سازد (دستیار سایت، تحلیل کسب‌وکار، تولید محتوا). خالی = خودکار (اولین سرویسی که کلیدش پر باشد).",
+      fields: [
+        {
+          key: "ai.provider",
+          label: "سرویس متن",
+          type: "select",
+          options: ["", "openai", "groq", "deepseek", "custom"],
+          hint: "openai | groq | deepseek | custom — خالی یعنی انتخاب خودکار.",
+        },
+        { key: "ai.model", label: "مدل سراسری (اختیاری)", type: "string", placeholder: "خالی = پیش‌فرض هر سرویس", hint: "اگر مدل مخصوص یک سرویس خالی باشد، این مقدار جایگزین می‌شود." },
+        { key: "ai.openai.model", label: "مدل OpenAI", type: "string", placeholder: "gpt-4o-mini" },
+        { key: "ai.deepseek.key", label: "کلید DeepSeek", type: "secret", env: "DEEPSEEK_API_KEY", hint: "از platform.deepseek.com بگیرید؛ قیمت پایین و کیفیت فارسی خوب." },
+        { key: "ai.deepseek.model", label: "مدل DeepSeek", type: "string", placeholder: "deepseek-chat" },
+        { key: "ai.custom.key", label: "کلید سرویس سفارشی", type: "secret", env: "AI_CUSTOM_API_KEY", hint: "هر سرویس سازگار با OpenAI: OpenRouter، آوال‌ای، پروکسی داخلی…" },
+        { key: "ai.custom.base_url", label: "آدرس سرویس سفارشی", type: "string", env: "AI_CUSTOM_BASE_URL", placeholder: "http://localhost:11434/v1", hint: "بدون /chat/completions در انتها؛ مثلاً پایانهٔ Ollama یا OpenRouter." },
+        { key: "ai.custom.model", label: "مدل سرویس سفارشی", type: "string", placeholder: "مثلاً llama3 یا gpt-4o-mini" },
+      ],
+    },
     ...sttProviderMeta.map((p) => ({
       id: `stt-${p.id}`,
       title: p.label,
@@ -273,9 +294,74 @@ const generalSection = (): CatalogSection => ({
       description: "بنر اطلاعیه و فوتر/راهنمای سایت از همین مقادیر خوانده می‌شوند.",
       fields: [
         { key: "general.announcement", label: "متن اطلاعیه (بنر سایت)", type: "string", hint: "خالی = بنر نمایش داده نمی‌شود." },
+        { key: "home.sample_salons", label: "اسلاگ سالن‌های نمونه", type: "string", placeholder: "mah,bahar", hint: "با کاما جدا کنید؛ همین‌ها در بخش «سالن نمونه» صفحهٔ اصلی نمایش داده می‌شوند. خالی = mah." },
         { key: "contact.email", label: "ایمیل پشتیبانی", type: "string", placeholder: "support@nobino.ir" },
         { key: "contact.phone", label: "شماره تلفن", type: "string", placeholder: "021-12000000" },
         { key: "contact.address", label: "آدرس", type: "string", placeholder: "تهران، ایران" },
+      ],
+    },
+  ],
+});
+
+/* ─── ۸) مینی‌اپ پیام‌رسان‌ها ───────────────────────────────────────── */
+
+const miniappsSection = (): CatalogSection => ({
+  id: "miniapps",
+  title: "مینی‌اپ پیام‌رسان‌ها",
+  emoji: "🧩",
+  description:
+    "نسخهٔ مینی‌اپِ صفحهٔ «سالن‌ها» و «مدیریت سالن» برای داخل بله، تلگرام و وایتا. آدرس /mini روی سایت همیشه ساخته می‌شود؛ اینجا مشخص می‌کنید کدام پیام‌رسان فعال باشد و لینک رسمی نصبش از پنل پیام‌رسان چه باشد. تنظیمات هر سالن (مثل صفحهٔ عمومی) در همان سالن می‌ماند و این‌جا فقط سطح پلتفرم است.",
+  cards: [
+    {
+      id: "miniapps-base",
+      title: "تنظیمات پایه",
+      fields: [
+        {
+          key: "miniapps.base_url",
+          label: "دامنهٔ عمومی مینی‌اپ",
+          type: "string",
+          placeholder: "خالی = آدرس اصلی سایت",
+          hint: "اگر مینی‌اپ را روی دامنه/ساب‌دامین دیگری بالا می‌آورید اینجا بنویسید (با https). خالی = SITE_URL.",
+        },
+        boolField("miniapps.manage_tab", "تب «مدیریت سالن» برای آرایشگران فعال باشد", {
+          hint: "با خاموش کردن، مشتری‌ها فقط سالن‌ها و نوبت‌های خودشان را می‌بینند.",
+        }),
+      ],
+    },
+    {
+      id: "miniapps-telegram",
+      title: "تلگرام (Telegram Mini App)",
+      description: "از @BotFather با دستور /newapp ساخته می‌شود؛ آدرس رسمی به شکل t.me/<ربات>/<نام‌اپ> است.",
+      fields: [
+        boolField("miniapps.telegram.enabled", "مینی‌اپ تلگرام فعال باشد"),
+        { key: "miniapps.telegram.bot", label: "نام کاربری ربات (بدون @)", type: "string", placeholder: "nobinobot" },
+        { key: "miniapps.telegram.app", label: "نام اپلیکیشن (app shortname)", type: "string", placeholder: "nobino", hint: "همان نامی که BotFather در /newapp می‌سازد." },
+        { key: "miniapps.telegram.link", label: "لینک نهایی (اختیاری)", type: "string", placeholder: "https://t.me/nobinobot/nobino", hint: "اگر پر شود، همین لینک نمایش داده می‌شود؛ وگرنه از الگوی t.me/<ربات>/<نام‌اپ> ساخته می‌شود." },
+        { key: "miniapps.telegram.token", label: "توکن ربات (راستی‌آزمایی initData)", type: "secret", hint: "اختیاری؛ فقط برای اعتبارسنجی امضای داده‌های ورودی تلگرام." },
+      ],
+    },
+    {
+      id: "miniapps-bale",
+      title: "بله (Bale Mini App)",
+      description: "از @BotFather بله ثبت می‌شود؛ آدرس رسمی به شکل ble.ir/<ربات>?startapp=<پارامتر> است (docs.bale.ai/miniapp).",
+      fields: [
+        boolField("miniapps.bale.enabled", "مینی‌اپ بله فعال باشد"),
+        { key: "miniapps.bale.bot", label: "نام کاربری ربات (بدون @)", type: "string", placeholder: "nobino_bot" },
+        { key: "miniapps.bale.app", label: "پارامتر startapp", type: "string", placeholder: "nobino", hint: "مقداری که هنگام ثبت مینی‌اپ در بله تعیین کرده‌اید." },
+        { key: "miniapps.bale.link", label: "لینک نهایی (اختیاری)", type: "string", placeholder: "https://ble.ir/nobino_bot?startapp=nobino", hint: "اگر پر شود، همین لینک نمایش داده می‌شود." },
+        { key: "miniapps.bale.token", label: "توکن ربات (اختیاری)", type: "secret", hint: "اختیاری؛ برای راستی‌آزمایی initData بله." },
+      ],
+    },
+    {
+      id: "miniapps-wita",
+      title: "وایتا (WITA)",
+      description: "اپ وایتا لینک نصب متفاوتی دارد؛ لینک نهایی را از پنل توسعه‌دهندهٔ وایتا کپی کنید.",
+      fields: [
+        boolField("miniapps.wita.enabled", "مینی‌اپ وایتا فعال باشد"),
+        { key: "miniapps.wita.bot", label: "نام کاربری ربات/کانال (بدون @)", type: "string", placeholder: "nobino" },
+        { key: "miniapps.wita.app", label: "نام اپ در وایتا", type: "string", placeholder: "nobino" },
+        { key: "miniapps.wita.link", label: "لینک نهایی وایتا", type: "string", placeholder: "https://wita.ir/…", hint: "برخلاف تلگرام/بله، لینک وایتا را باید خودتان از پنل وایتا وارد کنید." },
+        { key: "miniapps.wita.token", label: "توکن (اختیاری)", type: "secret" },
       ],
     },
   ],
@@ -290,6 +376,7 @@ export function settingsSections(): CatalogSection[] {
     automationSection(),
     storageSection(),
     generalSection(),
+    miniappsSection(),
   ];
   // فیلد select «سرویس/درگاه فعال» به‌صورت یکنواخت از activeLabels ساخته می‌شود
   for (const s of sections) {

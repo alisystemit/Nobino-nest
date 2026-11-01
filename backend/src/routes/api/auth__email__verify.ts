@@ -57,7 +57,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    return json({ success: true, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    return json({ success: true, token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {
     return apiError(err);
   }

@@ -130,6 +130,11 @@ export class AdminController {
     await runRoute(req, res, (r, c) => R13.GET(r as never, c as never));
   }
 
+  @Patch("/api/admin/salons/:id")
+  async patchAdminSalonsIdRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R13.PATCH(r as never, c as never));
+  }
+
   @Patch("/api/admin/salons/:id/status")
   async patchAdminSalonsIdStatusRoute(@Req() req: Request, @Res() res: Response) {
     await runRoute(req, res, (r, c) => R14.PATCH(r as never, c as never));

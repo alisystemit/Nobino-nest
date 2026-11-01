@@ -1,13 +1,33 @@
 import { prisma } from "@/lib/prisma";
 import { TransactionReason } from "@prisma/client";
 
-/** موجودی و خلاصه تراکنش‌های کیف پول کاربر */
-export async function getWalletSummary(userId: string) {
+/** موجودی و خلاصه تراکنش‌های کیف پول کاربر (صفحه‌بندی‌شده) */
+export async function getWalletSummary(userId: string, page = 1, limit = 25) {
   const wallet = await prisma.wallet.findUnique({
     where: { ownerId: userId },
-    include: { transactions: { orderBy: { createdAt: "desc" }, take: 50 } },
   });
-  return wallet;
+  if (!wallet) return null;
+
+  const skip = (page - 1) * limit;
+  const [transactions, transactionsTotal, sums] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { walletId: wallet.id },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.transaction.count({ where: { walletId: wallet.id } }),
+    prisma.transaction.groupBy({
+      by: ["kind"],
+      where: { walletId: wallet.id },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const credit = sums.find((s) => s.kind === "CREDIT")?._sum.amount ?? 0;
+  const debit = sums.find((s) => s.kind === "DEBIT")?._sum.amount ?? 0;
+
+  return { ...wallet, transactions, transactionsTotal, summary: { credit, debit } };
 }
 
 export async function getCommissionSummary(agentId: string) {

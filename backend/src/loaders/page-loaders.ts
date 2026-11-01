@@ -9,6 +9,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/guards";
+import { getSetting } from "@/lib/settings";
 import { httpError } from "@/lib/utils";
 import { SITE_URL } from "@/lib/site";
 import { loadAgenda } from "@/lib/appointments/agenda";
@@ -23,10 +24,14 @@ const q = (url: URL, key: string) => url.searchParams.get(key) ?? undefined;
 /* ------------------------------------------------------------------ home */
 
 async function loadHome() {
-  const salons = await prisma.salon.findMany({
-    where: { isApproved: true, isActive: true },
-    orderBy: { createdAt: "desc" },
-    take: 6,
+  // سالن‌های نمونه از تنظیمات ادمین (home.sample_salons) خوانده می‌شوند؛ خالی = mah
+  const cfg = (await getSetting("home.sample_salons"))?.trim();
+  const sampleSlugs = cfg
+    ? cfg.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : ["mah"];
+
+  const sampleSalons = await prisma.salon.findMany({
+    where: { slug: { in: sampleSlugs }, isActive: true, isApproved: true },
     select: {
       id: true,
       slug: true,
@@ -39,25 +44,30 @@ async function loadHome() {
       services: { where: { isActive: true }, take: 3, select: { name: true, price: true } },
     },
   });
-  const [activeSalons, totalAppointments, customerCount, avgRatingAgg, reviewCount] = await Promise.all([
-    prisma.salon.count({ where: { isApproved: true, isActive: true } }),
-    prisma.appointment.count(),
-    prisma.user.count({ where: { role: "CUSTOMER" } }),
-    prisma.review.aggregate({ _avg: { rating: true } }),
-    prisma.review.count(),
-  ]);
-  const salonIds = salons.map((s) => s.id);
-  const ratings = salonIds.length
+  // همان ترتیبی که ادمین در تنظیمات نوشته حفظ می‌شود
+  sampleSalons.sort((a, b) => sampleSlugs.indexOf(a.slug) - sampleSlugs.indexOf(b.slug));
+
+  // میانگین امتیاز واقعی هر سالن نمونه (برچسب ★ روی کارت‌ها)
+  const ratings = sampleSalons.length
     ? await prisma.review.groupBy({
         by: ["salonId"],
-        where: { salonId: { in: salonIds } },
+        where: { salonId: { in: sampleSalons.map((s) => s.id) } },
         _avg: { rating: true },
         _count: { _all: true },
       })
     : [];
-  const ratingMap = Object.fromEntries(
-    ratings.map((r) => [r.salonId, { avg: r._avg.rating, count: r._count._all }]),
+  const ratingMap: Record<string, { avg: number | null; count: number }> = Object.fromEntries(
+    sampleSalons.map((s) => [s.id, { avg: null, count: 0 }])
   );
+  for (const r of ratings) ratingMap[r.salonId] = { avg: r._avg.rating, count: r._count._all };
+
+  // برای آمار از داده‌های سالن‌های نمونه استفاده کن (یا مقادیر نمایشی)
+  const activeSalons = sampleSalons.length;
+  const totalAppointments = 100;
+  const customerCount = 100;
+  const rated = Object.values(ratingMap).find((v) => v.avg != null);
+  const avgRating = rated ? Number(rated.avg!.toFixed(1)) : 4.8;
+  const reviewCount = rated ? rated.count : 12;
 
   const activePackages = await prisma.package.findMany({
     where: { isActive: true },
@@ -72,13 +82,13 @@ async function loadHome() {
   );
 
   return {
-    salons,
+    salons: sampleSalons,
     ratingMap,
     stats: {
       activeSalons,
       totalAppointments,
       customerCount,
-      avgRating: avgRatingAgg._avg.rating,
+      avgRating,
       reviewCount,
     },
     packages,
@@ -133,17 +143,21 @@ async function loadSalon(url: URL) {
   });
   if (!salon || !salon.isActive || !salon.isApproved) return { found: false };
 
-  const [reviews, reviewAgg] = await Promise.all([
+  // نظرات صفحه‌به‌صفحه تحویل داده می‌شوند (صفحهٔ عمومی سالن)
+  const reviewPage = Math.max(1, parseInt(q(url, "reviewsPage") || "1", 10) || 1);
+  const reviewLimit = 12;
+  const [reviews, reviewCount] = await Promise.all([
     prisma.review.findMany({
       where: { salonId: salon.id },
       include: { customer: { select: { name: true } }, staff: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 12,
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      skip: (reviewPage - 1) * reviewLimit,
+      take: reviewLimit,
     }),
-    prisma.review.aggregate({ where: { salonId: salon.id }, _avg: { rating: true }, _count: { _all: true } }),
+    prisma.review.count({ where: { salonId: salon.id } }),
   ]);
+  const reviewAgg = await prisma.review.aggregate({ where: { salonId: salon.id }, _avg: { rating: true } });
   const averageRating = Number((reviewAgg._avg.rating ?? 0).toFixed(1));
-  const reviewCount = reviewAgg._count._all;
 
   const schemaDays = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const siteUrl = SITE_URL;
@@ -202,7 +216,18 @@ async function loadSalon(url: URL) {
       : {}),
   };
 
-  return { found: true, salon, reviews, averageRating, reviewCount, jsonLd, meta: await buildSalonSeo(slug) };
+  return {
+    found: true,
+    salon,
+    reviews,
+    averageRating,
+    reviewCount,
+    reviewsPage: reviewPage,
+    reviewsLimit: reviewLimit,
+    reviewsTotalPages: Math.max(1, Math.ceil(reviewCount / reviewLimit)),
+    jsonLd,
+    meta: await buildSalonSeo(slug),
+  };
 }
 
 /* ------------------------------------------------------------- wa-salon */
@@ -303,8 +328,41 @@ async function loadDashboardSalon(url: URL) {
   if (!user) return { redirect: "/login" };
   if (user.role !== "SALON_OWNER" && user.role !== "ADMIN") return { redirect: "/dashboard" };
 
-  const sp = { salon: q(url, "salon") ?? null, new: q(url, "new") ?? null };
+  const sp = { salon: q(url, "salon") ?? null, new: q(url, "new") ?? null, edit: q(url, "edit") ?? null };
   const mySalons = await listOwnerSalons(user.id);
+
+  // حالت «ویرایش تنظیمات» از بخش ساخت سالن (?edit=1) — همان فرم، با دادهٔ سالن موجود
+  if (sp.edit === "1") {
+    const editId = await resolveDashboardSalonId(user.id, sp.salon, user.role === "ADMIN");
+    if (editId) {
+      const s = await prisma.salon.findUnique({ where: { id: editId } });
+      if (s) {
+        return {
+          mode: "create" as const,
+          mySalons,
+          editSalon: {
+            id: s.id,
+            name: s.name,
+            slug: s.slug,
+            phone: s.phone,
+            city: s.city,
+            address: s.address,
+            description: s.description,
+            email: s.email,
+            whatsapp: s.whatsapp,
+            instagram: s.instagram,
+            website: s.website,
+            mapUrl: s.mapUrl,
+            baladUrl: s.baladUrl,
+            neshanUrl: s.neshanUrl,
+            latitude: s.latitude,
+            longitude: s.longitude,
+            coverColor: s.coverColor,
+          },
+        };
+      }
+    }
+  }
 
   if (sp.new === "1" && mySalons.length > 0) return { mode: "create" as const, mySalons };
 
@@ -359,6 +417,41 @@ async function loadAdmin(url: URL) {
 
 /* -------------------------------------------------------------- seo list */
 
+/** صفحه مدیریت مشتریان */
+async function loadDashboardCustomers(url: URL) {
+  const user = await getCurrentUser();
+  if (!user) return { redirect: "/login" };
+  if (user.role !== "SALON_OWNER" && user.role !== "ADMIN") return { redirect: "/dashboard" };
+
+  const sp = { salon: q(url, "salon") ?? null };
+  const mySalons = await listOwnerSalons(user.id);
+  
+  // اگر salonId نیست، اولین سالن رو انتخاب میکنیم
+  const salonId = sp.salon || (mySalons.length > 0 ? mySalons[0].id : null);
+  if (!salonId) return { redirect: "/dashboard/salon" };
+
+  return { salonId, mySalons };
+}
+
+/* -------------------------------------------------------------- dashboard-staff */
+
+async function loadDashboardStaff(url: URL) {
+  const user = await getCurrentUser();
+  if (!user) return { redirect: "/login" };
+  if (user.role !== "SALON_OWNER" && user.role !== "ADMIN") return { redirect: "/dashboard" };
+
+  const sp = { salon: q(url, "salon") ?? null };
+  const mySalons = await listOwnerSalons(user.id);
+  
+  // اگر salonId نیست، اولین سالن رو انتخاب میکنیم
+  const salonId = sp.salon || (mySalons.length > 0 ? mySalons[0].id : null);
+  if (!salonId) return { redirect: "/dashboard/salon" };
+
+  return { salonId, mySalons };
+}
+
+/* -------------------------------------------------------------- seo list */
+
 /** فهرست صفحات عمومی برای prerender (اسلاگ‌های فعال/تأییدشده + متادیتا) */
 async function loadSeoSalons() {
   const salons = await prisma.salon.findMany({
@@ -394,6 +487,8 @@ export const PAGE_LOADERS: Record<string, Loader> = {
   "new-appointment": () => loadNewAppointment(),
   "voice-booking": () => loadVoiceBooking(),
   "dashboard-salon": (u) => loadDashboardSalon(u),
+  "dashboard-customers": (u) => loadDashboardCustomers(u),
+  "dashboard-staff": (u) => loadDashboardStaff(u),
   admin: (u) => loadAdmin(u),
   "seo-salons": () => loadSeoSalons(),
   "seo-salon": (u) => loadSeoSalon(u),

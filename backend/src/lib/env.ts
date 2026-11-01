@@ -21,6 +21,12 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().default(""),
   OPENAI_MODEL: z.string().default("whisper-1"),
 
+  // سرویس‌های متن هوشمند (LLM) — جایگزین env برای کلیدهای پنل تنظیمات
+  GROQ_API_KEY: z.string().default(""),
+  DEEPSEEK_API_KEY: z.string().default(""),
+  AI_CUSTOM_API_KEY: z.string().default(""),
+  AI_CUSTOM_BASE_URL: z.string().default(""),
+
   PAYMENT_DEFAULT_GATEWAY: z.string().default("sandbox"),
   PAYMENT_SANDBOX: z.string().default("true"),
   PAYMENT_CALLBACK_BASE: z.string().default("http://localhost:3000/api/payments/callback"),

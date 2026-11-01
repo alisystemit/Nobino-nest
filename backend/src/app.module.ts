@@ -11,6 +11,7 @@ import { FinanceController } from '@/controllers/finance.controller';
 import { EngagementController } from '@/controllers/engagement.controller';
 import { CronController } from '@/controllers/cron.controller';
 import { PagesController } from '@/controllers/pages.controller';
+import { AiController } from '@/controllers/ai.controller';
 
 import { AuthModule } from '@/modules/auth/auth.module';
 import { SettingsModule } from '@/modules/settings/settings.module';
@@ -60,6 +61,7 @@ import { AdminSubscriptionsController } from '@/controllers/admin/subscriptions.
     EngagementController,
     CronController,
     PagesController,
+    AiController,
     AiStatusController,
     AiTestController,
     AiChatController,

@@ -64,6 +64,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     return json({
       success: true,
+      token,
       user: { id: user.id, phone: user.phone, name: user.name, role: user.role },
     });
   } catch (err) {

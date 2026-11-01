@@ -3,7 +3,7 @@ import { AdminGuard } from '@/common/guards/admin.guard';
 import { SettingsService } from '@/modules/settings/settings.service';
 import { AiLlmService } from '@/modules/ai/llm/llm.service';
 
-@Controller('admin/ai/status')
+@Controller('api/admin/ai/status')
 @UseGuards(AdminGuard)
 export class AiStatusController {
   constructor(
