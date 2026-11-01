@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<title>پیشنمایش — راهاندازی سالن (طراحی جدید)</title>
+<style>
+  body { font-family:'Vazirmatn', system-ui, Tahoma, sans-serif; }
+  h1,h2,h3,h4 { font-family:'Vazirmatn', system-ui, sans-serif; letter-spacing:0; }
+</style>
+</head>
+<body class="min-h-screen bg-neutral-100">
+
+  <div class="mx-auto max-w-3xl px-4 py-10">
+
+    <!-- برندینگ -->
+    <div class="mb-8 text-center">
+      <div class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 text-2xl text-white shadow-lg">💈</div>
+      <h1 class="mt-4 text-2xl font-black text-neutral-900">راهاندازی آرایشگاه مهرازا</h1>
+      <p class="mt-2 text-sm text-neutral-500">مراحل زیر را کامل کنید تا سالن شما آماده پذیرش نوبت شود.</p>
+    </div>
+
+    <!-- نوار پیشرفت -->
+    <div class="mb-6">
+      <div class="mb-1.5 flex items-center justify-between text-xs font-bold text-neutral-500">
+        <span>۱ از ۶</span>
+        <span class="text-pink-600">👤 پروفایل کاری</span>
+      </div>
+      <div class="h-2 overflow-hidden rounded-full bg-neutral-200">
+        <div class="h-full w-1/6 rounded-full bg-gradient-to-l from-pink-500 to-purple-600"></div>
+      </div>
+    </div>
+
+    <!-- چیپ‌های مراحل -->
+    <div class="mb-6 flex flex-wrap items-center justify-center gap-2">
+      <span class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#1c2434] px-3 text-xs font-bold text-white"><span>👤</span><span>پروفایل کاری</span></span>
+      <span class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-bold text-neutral-500 shadow-sm"><span>🌐</span><span>لینکهای آنلاین</span></span>
+      <span class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-bold text-neutral-500 shadow-sm"><span>📍</span><span>موقعیت مکانی</span></span>
+      <span class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-bold text-neutral-500 shadow-sm"><span>⏰</span><span>ساعات و قوانین</span></span>
+      <span class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-bold text-neutral-500 shadow-sm"><span>✂️</span><span>خدمات و کارکنان</span></span>
+      <span class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-bold text-neutral-500 shadow-sm"><span>🚀</span><span>پایان</span></span>
+    </div>
+
+    <!-- کارت مرحله -->
+    <div class="rounded-3xl border border-neutral-200 bg-white p-6 shadow-xl">
+      <h3 class="text-base font-black text-neutral-900">پروفایل کاری</h3>
+      <p class="mt-1 text-xs text-neutral-500">اطلاعات پایه سالن و تماس.</p>
+
+      <div class="mt-5 grid gap-4 sm:grid-cols-2">
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-xs font-bold text-neutral-500">نام سالن *</label>
+          <input class="h-11 w-full rounded-xl border border-neutral-200 bg-white px-3.5 text-sm" value="آرایشگاه مهرازا" readonly />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold text-neutral-500">شماره تلفن *</label>
+          <input class="h-11 w-full rounded-xl border border-neutral-200 bg-white px-3.5 text-sm" dir="ltr" value="02112345678" readonly />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold text-neutral-500">شهر</label>
+          <input class="h-11 w-full rounded-xl border border-neutral-200 bg-white px-3.5 text-sm" value="تهران" readonly />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-xs font-bold text-neutral-500">آدرس کامل</label>
+          <input class="h-11 w-full rounded-xl border border-neutral-200 bg-white px-3.5 text-sm" value="تهران، سعادتآباد، خیابان دریا، پلاک ۱۲" readonly />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-xs font-bold text-neutral-500">معرفی سالن</label>
+          <textarea class="min-h-[80px] w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-sm" readonly>تجربه ۱۰ ساله در خدمات آرایشی و زیبایی، با تیم حرفهای و محصولات برندهای معتبر.</textarea>
+        </div>
+      </div>
+
+      <p class="mt-5 text-center text-[11px] text-neutral-400">ذخیره‌کردن همهٔ مراحل در انتهای ویزارد انجام می‌شود.</p>
+    </div>
+
+    <!-- ناوبری -->
+    <div class="mt-6 flex items-center justify-between">
+      <button disabled class="h-11 rounded-xl border border-neutral-300 bg-white px-5 text-sm font-bold text-neutral-400">← قبلی</button>
+      <button class="h-11 rounded-xl bg-[#1c2434] px-6 text-sm font-black text-white">بعدی →</button>
+    </div>
+
+    <p class="mt-8 text-center text-[11px] text-neutral-400">غ پیشنمایش طراحی (استاتیک) — بدون منوی بالا/کنار، تمامصفحه.</p>
+  </div>
+
+</body>
+</html>

@@ -16,3 +16,9 @@ backend/public/uploads/
 deploy/ecosystem.config.cjs
 logs/
 .pm2/
+
+# فایل‌های آپلودی کاربر در محیط لوکال (روی سرور volume/دایرکتوری جدا هستند)
+public/uploads/*
+public/voice/*
+!public/uploads/.gitkeep
+!public/voice/.gitkeep
