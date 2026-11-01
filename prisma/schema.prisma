@@ -1,4 +1,4 @@
-// Nobino ΓÇö Prisma Schema
+// Nobino - Prisma Schema
 // PostgreSQL database. Model covers multi-tenant salons, voice AI,
 // OTP auth, finance (wallet/commission/payout) and payments.
 
@@ -14,10 +14,10 @@ datasource db {
 // ΓöÇΓöÇΓöÇ Enums ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 enum Role {
-  CUSTOMER // ┘à╪┤╪¬╪▒█î
-  SALON_OWNER // ╪ó╪▒╪º█î╪┤┌»╪▒ / ╪╡╪º╪¡╪¿ ╪│╪º┘ä┘å
-  AGENT // ┘å┘à╪º█î┘å╪»┘ç (┌⌐┘à█î╪│█î┘ê┘å ╪»╪▒╪╡╪»█î)
-  ADMIN // ╪│┘ê┘╛╪▒╪º╪»┘à█î┘å
+  CUSTOMER // مشتری
+  SALON_OWNER // مالک سالن / مدیر
+  AGENT // نماینده (فقط برای ارسال پیامک)
+  ADMIN // سوپرادمین
 }
 
 enum AppointmentStatus {
