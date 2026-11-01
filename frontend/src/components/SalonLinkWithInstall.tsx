@@ -26,28 +26,31 @@ export default function SalonLinkWithInstall({
   const [showMenu, setShowMenu] = useState(false);
   
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  // لینک به صفحه اختصاصی سالن (ساب‌دامین یا دامنه اختصاصی)
   let href = `/s/${slug}`;
   
   if (customDomain && domainStatus === "VERIFIED") {
     href = `https://${customDomain}`;
-  } else if (origin && subdomainMode(origin)) {
+  } else if (origin && isSalonSubdomainOrigin(origin)) {
     href = salonUrlFromOrigin(slug, origin);
   }
 
-  function subdomainMode(origin: string): boolean {
+  function isSalonSubdomainOrigin(origin: string): boolean {
     const host = new URL(origin).hostname;
+    // localhost با پورت هم می‌تواند به صورت ساب‌دامین باشد (mah.localhost:5175)
     return host !== "localhost" && host !== "127.0.0.1" && host.split(".").length > 2;
   }
 
   function salonUrlFromOrigin(slug: string, origin: string): string {
-    const host = new URL(origin).hostname;
-    return `https://${slug}.${host}`;
+    const { hostname, port } = new URL(origin);
+    const portSuffix = port ? `:${port}` : "";
+    return `https://${slug}.${hostname}${portSuffix}`;
   }
 
   function handleInstall(e: React.MouseEvent) {
     e.preventDefault();
-    // ذخیره مسیر برای نصب اپلیکیشن
-    localStorage.setItem("nobino.launchPath", `/s/${slug}`);
+    // ذخیره مسیر برای نصب اپلیکیشن - لینک به صفحه اختصاصی سالن
+    localStorage.setItem("nobino.launchPath", href);
     // نمایش پیام موفقیت
     alert("لینک دقیق سالن کپی شد و قابل نصب است!");
   }

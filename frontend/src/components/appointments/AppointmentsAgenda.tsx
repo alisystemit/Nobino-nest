@@ -196,7 +196,7 @@ export default function AppointmentsAgenda({ items: serverItems, dayISO, todayIS
   return (
     <div className="pb-28 sm:pb-6">
       {/* ═══ نوار روز: انتخاب تاریخ، فیلتر وضعیت، جستجو ═══ */}
-      <div className="sticky top-14 z-10 -mx-4 mb-4 border-b border-neutral-200 bg-[#f3f5f9]/95 px-4 py-2.5 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95 sm:mx-0 sm:rounded-2xl sm:border sm:bg-white/95 sm:px-3 sm:shadow-sm lg:top-32 dark:sm:bg-neutral-900/95">
+      <div className="-mx-4 mb-4 border-b border-neutral-200 bg-[#f3f5f9]/95 px-4 py-2.5 dark:border-neutral-800 dark:bg-neutral-950/95 sm:mx-0 sm:rounded-2xl sm:border sm:bg-white/95 sm:px-3 sm:shadow-sm dark:sm:bg-neutral-900/95">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => navigate({ date: shiftDay(dayISO, -1) })} className={DAY_BTN} aria-label="روز قبل">
             <ChevronRight className="h-5 w-5" />

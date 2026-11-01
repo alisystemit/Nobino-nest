@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/lib/theme";
 import { LangSwitch } from "@/lib/i18n";
 import NotificationBell from "@/components/NotificationBell";
 import LogoutButton from "@/components/LogoutButton";
+import Logo from "@/components/Logo";
 
 const NAV = [
   { href: "/admin", label: "داشبورد", icon: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm2 4v2h4V7H6Zm6 0v2h6V7h-6Zm-6 4v2h4v-2H6Zm6 0v2h6v-2h-6Zm-6 4v2h4v-2H6Zm6 0v2h6v-2h-6Z" },
@@ -17,6 +18,7 @@ const NAV = [
   { href: "/admin?tab=support", label: "پشتیبانی", icon: "M12 3c4.97 0 9 3.58 9 8 0 4.42-4.03 8-9 8a9.9 9.9 0 0 1-3.7-.72L4 20l1.2-3.1A7.6 7.6 0 0 1 3 11c0-4.42 4.03-8 9-8Z" },
   { href: "/admin?tab=security", label: "امنیت", icon: "M12 2a5 5 0 0 0-5 5v3H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Zm2 6v-2h2v2h-2Z" },
   { href: "/admin?tab=notifications", label: "گزارش پیامک", icon: "M4 4h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H8l-4 4V5a1 1 0 0 1 1-1Z" },
+  { href: "/admin?tab=ai", label: "هوش مصنوعی", icon: "M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h-2a5 5 0 0 0-5-5h-.42c.27.61.42 1.29.42 2a5 5 0 0 1-5 5h-1v2h3v2H7v-2h3v-2H9a5 5 0 0 1-5-5c0-.71.15-1.39.42-2H4a5 5 0 0 0 5 5h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2Zm-5 9a3 3 0 0 1-3 3H6a3 3 0 0 1 3-3h3Zm5.5 2.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" },
   { href: "/admin?tab=users", label: "کاربران", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm4 14v-2a4 4 0 0 0-8 0v2H6v-2a6 6 0 0 1 12 0v2h-2Z" },
   { href: "/admin?tab=packages", label: "پکیج‌ها", icon: "M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h10v2H4v-2Zm14-2 3 3-3 3-1.4-1.4L17.2 17H14v-2h3.2l-.6-.6L18 14Z" },
   { href: "/admin?tab=limits", label: "محدودیت‌ها", icon: "M3 5h18v2H3V5Zm0 4h12v2H3V9Zm0 4h18v2H3v-2Zm0 4h12v2H3v-2Z" },
@@ -54,12 +56,16 @@ export default function AdminShell({ title, children }: { title: string; childre
   const Sidebar = (
     <aside className={`flex h-full flex-col border-l border-white/5 bg-[#1c2434] text-neutral-400 transition-all duration-200 ${collapsedWidth ? "w-[88px]" : "w-72"}`}>
       <div className="flex h-16 items-center gap-3 border-b border-white/5 px-5">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 text-white">🛡️</span>
-        {!collapsedWidth && (
-          <div>
-            <div className="text-sm font-black text-white">سوپرادمین</div>
-            <div className="text-[10px] text-neutral-500">مدیریت پلتفرم</div>
-          </div>
+        {collapsedWidth ? (
+          <Logo className="h-9 w-9 text-white" />
+        ) : (
+          <>
+            <Logo className="h-9 w-9 text-white" />
+            <div>
+              <div className="text-sm font-black text-white">سوپرادمین</div>
+              <div className="text-[10px] text-neutral-500">مدیریت پلتفرم</div>
+            </div>
+          </>
         )}
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -135,9 +141,7 @@ export default function AdminShell({ title, children }: { title: string; childre
           <div className="flex items-center gap-2">
             <NotificationBell />
             <ThemeToggle />
-            <span className="hidden rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-500 sm:block dark:border-neutral-700 dark:text-neutral-300">
-              <LogoutButton />
-            </span>
+            <LogoutButton />
             <Link href="/" className="hidden items-center gap-1.5 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 sm:flex dark:bg-neutral-800 dark:text-neutral-300">
               🏠 خروج به سایت
             </Link>

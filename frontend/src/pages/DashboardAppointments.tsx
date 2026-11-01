@@ -38,7 +38,7 @@ export default function DashboardAppointments() {
   const agenda = data.agenda;
 
   return (
-    <DashboardShell role={me.role} title="نوبت‌ها">
+    <DashboardShell role={me.role} title="نوبت‌ها" bare>
       <AppointmentsAgenda
         items={agenda.rows}
         dayISO={agenda.dayISO}

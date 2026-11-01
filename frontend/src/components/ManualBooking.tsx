@@ -12,12 +12,6 @@ type Service = { id: string; name: string; durationMin: number; price: number };
 type Staff = { id: string; name: string; title?: string | null };
 type Branch = { id: string; name: string };
 
-const CHANNELS = [
-  { value: "MANUAL", label: "تلفنی / حضوری" },
-  { value: "WEBAPP", label: "شبکه اجتماعی / وب" },
-  { value: "VOICE", label: "گفتاری (رزرو صوتی)" },
-] as const;
-
 /**
  * رزرو دستی نوبت — کاملاً جدا از جریان صوتی.
  * ثبت نهایی از `POST /api/appointments` و در سرویس‌لایر `createAppointmentSafe`
@@ -35,7 +29,6 @@ export default function ManualBooking({ salonId, timezone }: { salonId: string; 
   const [phone, setPhone] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [channel, setChannel] = useState<string>("MANUAL");
   const [processing, setProcessing] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -80,7 +73,7 @@ export default function ManualBooking({ salonId, timezone }: { salonId: string; 
           customerPhone: phone.trim(),
           // ساعت سالن (نه ساعت مرورگر) — وگرنه نوبت چند ساعت جابه‌جا و رد می‌شود
           startAt: zonedTimeToIso(date, time, timezone),
-          channel,
+          // کانال به‌صورت خودکار MANUAL است (پیش‌فرض سرور)
         }),
       });
       const data = await res.json();
@@ -158,16 +151,6 @@ export default function ManualBooking({ salonId, timezone }: { salonId: string; 
                 </select>
               </div>
             )}
-            <div className={staff.length > 0 && branches.length > 1 ? "" : "sm:col-span-2"}>
-              <span className={label}>کانال دریافت نوبت</span>
-              <select className={input} value={channel} onChange={(e) => setChannel(e.target.value)}>
-                {CHANNELS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
 
           <button

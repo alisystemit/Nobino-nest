@@ -3,13 +3,11 @@ import { Navigate, Link, useSearchParams } from "@/router-shim";
 import { toPersianDigits } from "@/lib/utils";
 import { UNLIMITED_FROM } from "@/lib/plans/limit-defs";
 import { displayUrl } from "@/lib/site";
-import SalonSettings from "@/components/SalonSettings";
-import CreateSalon from "@/components/CreateSalon";
 import SalonManager from "@/components/SalonManager";
 import DailyBoard from "@/components/DailyBoard";
 import DashboardShell from "@/components/DashboardShell";
 import { StatCard, PanelCard, Badge } from "@/components/ui/Stats";
-import { CalendarDays, Scissors, Images, Star, Settings, Rocket, ClipboardList, Mic, PenLine, Store, Gauge, Plus } from "lucide-react";
+import { CalendarDays, Scissors, Images, Star, Settings, Rocket, ClipboardList, Mic, PenLine, Store, Gauge, Plus,Megaphone } from "lucide-react";
 import { useAuth } from "@/auth";
 import { usePageData } from "@/lib/page-data";
 
@@ -52,31 +50,9 @@ export default function DashboardSalon() {
   if (data?.redirect) return <Navigate to={data.redirect} replace />;
   if (!data) return null;
 
-  // حالت ساخت سالن (بدون سالن یا درخواست ?new=1)
+  // حالت ساخت سالن (بدون سالن یا درخواست ?new=1) — دقیقاً همان ویزارد کامل راه‌اندازی
   if (data.mode === "create") {
-    const hasSalons = (data.mySalons?.length ?? 0) > 0;
-    return (
-      <DashboardShell role={me.role} title="ساخت سالن">
-        <div className="mx-auto max-w-lg">
-          <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-100">ساخت سالن جدید</h1>
-          {hasSalons ? (
-            <p className="mt-2 text-neutral-500 dark:text-neutral-400">
-              در حال حاضر {toPersianDigits(data.mySalons!.length)} سالن دارید. سقف پلن شما از بخش اشتراک قابل ارتقاست.
-            </p>
-          ) : (
-            <p className="mt-2 text-neutral-500 dark:text-neutral-400">هنوز سالنی ندارید. همین حالا بسازید:</p>
-          )}
-          <div className="mt-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <CreateSalon />
-          </div>
-          {hasSalons && (
-            <Link href="/dashboard/salon" className="mt-4 inline-block text-sm font-bold text-pink-600 hover:underline">
-              بازگشت به سالن‌ها
-            </Link>
-          )}
-        </div>
-      </DashboardShell>
-    );
+    return <Navigate to="/dashboard/setup?new=1" replace />;
   }
 
   const s = data.salon;
@@ -225,36 +201,15 @@ export default function DashboardSalon() {
         <div className="lg:col-span-2">
           <PanelCard
             title="تنظیمات سالن"
-            subtitle="اطلاعات عمومی، ساعات کاری، قوانین رزرو و دامنه اختصاصی"
+            subtitle="مدیریت اطلاعات عمومی، ساعات کاری، قوانین رزرو و دامنه اختصاصی"
             icon={<Settings className="h-5 w-5" />}
           >
-            <SalonSettings
-              salon={{
-                id: s.id,
-                name: s.name,
-                slug: s.slug,
-                phone: s.phone,
-                city: s.city,
-                address: s.address,
-                description: s.description,
-                coverColor: s.coverColor,
-                isActive: s.isActive,
-                logoUrl: s.logoUrl,
-                bannerUrl: s.bannerUrl,
-                timezone: s.timezone,
-                instagram: s.instagram,
-                latitude: s.latitude,
-                longitude: s.longitude,
-                mapUrl: s.mapUrl,
-                baladUrl: s.baladUrl,
-                neshanUrl: s.neshanUrl,
-                customDomain: s.customDomain,
-                minNoticeMinutes: s.minNoticeMinutes,
-                maxAdvanceDays: s.maxAdvanceDays,
-                cancelDeadlineHours: s.cancelDeadlineHours,
-                bufferMinutes: s.bufferMinutes,
-              }}
-            />
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              تنظیمات سالن به صفحهٔ اختصاصی منتقل شده است.
+            </p>
+            <Link href="/dashboard/settings" className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-[#1c2434] px-6 text-sm font-black text-white transition hover:bg-[#2a3450]">
+              باز کردن تنظیمات سالن
+            </Link>
           </PanelCard>
         </div>
 
@@ -305,17 +260,6 @@ export default function DashboardSalon() {
             </Link>
           </PanelCard>
 
-          <PanelCard title="نظرات مشتریان" subtitle="امتیاز و بازخورد صفحه عمومی" icon={<Star className="h-5 w-5" />}>
-            <div className="text-3xl font-black text-neutral-900 dark:text-neutral-100">{toPersianDigits(s._count.reviews)}</div>
-            <div className="mt-1 text-sm text-neutral-500">نظر ثبت‌شده</div>
-            <Link
-              href={`/s/${s.slug}#reviews`}
-              className="mt-4 inline-flex h-10 items-center rounded-xl bg-neutral-100 px-4 text-sm font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-            >
-              مشاهده نظرات
-            </Link>
-          </PanelCard>
-
           <PanelCard title="اشتراک و پلن" subtitle="ارتقا یا تمدید اشتراک" icon={<Rocket className="h-5 w-5" />}>
             <div className="text-sm font-black text-neutral-900 dark:text-neutral-100">{plan.label}</div>
             {subEnd && <div className="mt-1 text-xs text-neutral-500">اشتراک تا {subEnd}</div>}
@@ -328,16 +272,6 @@ export default function DashboardSalon() {
             </Link>
           </PanelCard>
         </div>
-      </div>
-
-      <div className="mt-6">
-        <PanelCard
-          title="مدیریت سالن"
-          subtitle="خدمات، کارکنان، مشتریان، تقویم، صندوق، گزارش و کمپین‌ها"
-          icon={<Store className="h-5 w-5" />}
-        >
-          <SalonManager salonId={s.id} salonSlug={s.slug} timezone={s.timezone} />
-        </PanelCard>
       </div>
     </DashboardShell>
   );

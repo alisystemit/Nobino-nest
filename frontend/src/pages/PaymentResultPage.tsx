@@ -1,5 +1,6 @@
 /** صفحهٔ نتیجهٔ پرداخت — معادل src/app/payment/result/page.tsx (پارامترها از query) */
-import { Link, useSearchParams } from "@/router-shim";
+import { useEffect, useState } from "react";
+import { Link, Navigate, useSearchParams } from "@/router-shim";
 import { toPersianDigits } from "@/lib/utils";
 
 export default function PaymentResultPage() {
@@ -7,6 +8,24 @@ export default function PaymentResultPage() {
   const success = sp.get("status") === "success";
   const ref = sp.get("ref") ?? "";
   const reason = sp.get("reason") ?? "پرداخت انجام نشد";
+
+  // بعد از خرید موفق، اگر سالن نداشته باشد مستقیم به راه‌اندازی هدایت می‌شود
+  const [redirectSetup, setRedirectSetup] = useState(false);
+  useEffect(() => {
+    if (!success) return;
+    let cancelled = false;
+    fetch("/api/salons")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d.success && (!d.salons || d.salons.length === 0)) setRedirectSetup(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [success]);
+
+  if (redirectSetup) return <Navigate to="/dashboard/setup" replace />;
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">

@@ -9,6 +9,7 @@ import HomeHero from "@/components/HomeHero";
 import SafeImage from "@/components/SafeImage";
 import SalonIcon from "@/components/icons/SalonIcon";
 import { formatToman, toPersianDigits } from "@/lib/utils";
+import { subdomainUrl } from "@/lib/subdomain";
 import { usePageData } from "@/lib/page-data";
 
 type HomeData = {
@@ -75,7 +76,6 @@ const faqs = [
   { q: "می‌توانم چند شعبه داشته باشم؟", a: "بله. تعداد شعبه‌ها و کارکنان بر اساس پلن شما تعیین می‌شود و از پنل مدیریت قابل ارتقاست." },
 ];
 
-/** ترکیب شهر و آدرس بدون تکرار نام شهر (مثلاً «تهران — سعادت‌آباد، بلوار دریا») */
 function joinLocation(city: string | null | undefined, address: string | null | undefined): string {
   const c = (city ?? "").trim();
   const a = (address ?? "").trim();
@@ -136,6 +136,50 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* سالن نمونه */}
+      {salons.length > 0 && (
+        <section className="mx-auto max-w-7xl px-6 py-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <span className="inline-block rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">روی نوبینو</span>
+              <h2 className="mt-3 text-3xl font-black text-neutral-900 dark:text-neutral-100">سالن نمونه نوبینو</h2>
+            </div>
+          </div>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {salons.map((s) => {
+              const r = ratingMap[s.id];
+              return (
+                <Link key={s.id} href={subdomainUrl(s.slug)} className="group overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
+                  <div className="relative h-36 overflow-hidden" style={{ background: `linear-gradient(135deg, ${s.coverColor}, #7c3aed)` }}>
+                    <SafeImage src={s.bannerUrl ?? "/seed/hero.svg"} alt={s.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" fallback={<SalonIcon className="h-10 w-10 opacity-60" />} fallbackClassName="absolute inset-0 !bg-transparent" />
+                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-neutral-700 backdrop-blur">📍 {s.city ?? "سالن زیبایی"}</span>
+                  </div>
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">{s.name}</h3>
+                      {r?.avg != null && (
+                        <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                          ★ {toPersianDigits(r.avg.toFixed(1))} ({toPersianDigits(r.count)})
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">📍 {joinLocation(s.city, s.address)}</p>
+                    {s.description && <p className="mt-2 line-clamp-2 text-sm text-neutral-400 dark:text-neutral-500">{s.description}</p>}
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {s.services.map((svc) => (
+                        <span key={svc.name} className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                          {svc.name} · {formatToman(svc.price)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* ویژگی‌ها */}
       <section className="relative mx-auto max-w-7xl px-6 py-20">
         <div className="pointer-events-none absolute -right-32 top-10 h-72 w-72 rounded-full bg-pink-200/30 blur-3xl dark:bg-pink-900/20" />
@@ -188,7 +232,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* ماکت گفتگو و استخراج */}
           <div className="relative">
             <div className="absolute -inset-4 -z-10 rounded-[2.5rem] bg-gradient-to-br from-pink-300/30 to-purple-300/30 blur-2xl" />
             <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-2xl shadow-pink-500/10 dark:border-neutral-800 dark:bg-neutral-900">
@@ -254,13 +297,12 @@ export default function HomePage() {
               <Link href="/login" className="rounded-2xl bg-gradient-to-l from-pink-600 to-purple-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-pink-500/25 transition hover:scale-[1.03]">
                 ورود به پنل
               </Link>
-              <Link href="/s/mah" className="rounded-2xl border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+              <Link href="https://mah.localhost:5175" className="rounded-2xl border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
                 دیدن صفحه نمونه
               </Link>
             </div>
           </div>
 
-          {/* ماکت داشبورد */}
           <div className="relative">
             <div className="absolute -inset-4 -z-10 rounded-[2.5rem] bg-gradient-to-br from-pink-300/30 to-purple-300/30 blur-2xl" />
             <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-2xl shadow-purple-500/10 dark:border-neutral-800 dark:bg-neutral-900">
@@ -309,51 +351,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* سالن‌های فعال */}
-      {salons.length > 0 && (
-        <section className="mx-auto max-w-7xl px-6 py-20">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <span className="inline-block rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">روی نوبینو</span>
-              <h2 className="mt-3 text-3xl font-black text-neutral-900 dark:text-neutral-100">سالن‌هایی که همین حالا رزرو می‌گیرند</h2>
-            </div>
-            <Link href="/salons" className="text-sm font-bold text-pink-600 hover:underline">مشاهده همه سالن‌ها ←</Link>
-          </div>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {salons.map((s) => {
-              const r = ratingMap[s.id];
-              return (
-                <Link key={s.id} href={`/s/${s.slug}`} className="group overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
-                  <div className="relative h-36 overflow-hidden" style={{ background: `linear-gradient(135deg, ${s.coverColor}, #7c3aed)` }}>
-                    <SafeImage src={s.bannerUrl ?? "/seed/hero.svg"} alt={s.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" fallback={<SalonIcon className="h-10 w-10 opacity-60" />} fallbackClassName="absolute inset-0 !bg-transparent" />
-                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-neutral-700 backdrop-blur">📍 {s.city ?? "سالن زیبایی"}</span>
-                  </div>
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">{s.name}</h3>
-                      {r?.avg != null && (
-                        <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                          ★ {toPersianDigits(r.avg.toFixed(1))} ({toPersianDigits(r.count)})
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">📍 {joinLocation(s.city, s.address)}</p>
-                    {s.description && <p className="mt-2 line-clamp-2 text-sm text-neutral-400 dark:text-neutral-500">{s.description}</p>}
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {s.services.map((svc) => (
-                        <span key={svc.name} className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                          {svc.name} · {formatToman(svc.price)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       {/* زیرساخت مطمئن: درگاه‌ها + نصب روی گوشی */}
       <section className="mx-auto max-w-7xl px-6 py-16">
@@ -524,9 +521,6 @@ export default function HomePage() {
               <Link href="/login" className="rounded-2xl bg-white px-8 py-4 text-base font-black text-rose-600 shadow-xl transition hover:scale-105">
                 شروع رایگان 🚀
               </Link>
-              <Link href="/salons" className="rounded-2xl border border-white/40 bg-white/10 px-8 py-4 text-base font-bold backdrop-blur transition hover:bg-white/20">
-                مشاهده سالن‌ها
-              </Link>
             </div>
             <p className="mt-6 text-xs text-rose-100/70">پشتیبانی فارسی · راه‌اندازی در چند دقیقه · لغو در هر زمان</p>
           </div>
@@ -549,11 +543,10 @@ export default function HomePage() {
             <div>
               <div className="text-sm font-extrabold text-neutral-800 dark:text-neutral-200">دسترسی سریع</div>
               <div className="mt-3 flex flex-col gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                <Link href="/salons" className="hover:text-pink-600">جستجوی آرایشگاه‌ها</Link>
                 <Link href="/packages" className="hover:text-pink-600">پکیج‌ها و تعرفه</Link>
                 <Link href="/help" className="hover:text-pink-600">راهنمای کامل</Link>
                 <Link href="/login" className="hover:text-pink-600">ورود / ثبت‌نام</Link>
-                <Link href="/s/mah" className="hover:text-pink-600">صفحه نمونه سالن</Link>
+                <Link href="https://mah.localhost:5175" className="hover:text-pink-600">صفحه نمونه سالن</Link>
               </div>
             </div>
             <div>

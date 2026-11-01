@@ -93,6 +93,29 @@ const ownerSteps = [
   },
 ];
 
+const salonGuideSteps = [
+  {
+    title: "ورود و شروع",
+    desc: "با شماره موبایل وارد پنل شوید و در داشبورد روی «سالن من» بزنید؛ اگر سالنی ندارید، فرم ساخت سالن همان‌جا باز می‌شود.",
+  },
+  {
+    title: "اطلاعات اصلی",
+    desc: "نام سالن، اسلاگ (آدرس انگلیسی صفحه مثل my-salon)، تلفن، شهر و آدرس کامل را وارد کنید.",
+  },
+  {
+    title: "راه‌های ارتباطی و رنگ",
+    desc: "ایمیل، واتساپ، وب‌سایت و اینستاگرام را اضافه کنید و رنگ زمینهٔ صفحه را انتخاب یا با دکمهٔ «رنگ تصادفی» تعیین کنید.",
+  },
+  {
+    title: "لینک بلد و نشان",
+    desc: "سالن را در balad.ir یا neshan.org جستجو کنید و از منوی «اشتراک‌گذاری»، لینک را کپی و در فیلد مربوط بگذارید. اگر لینک ندارید، مختصات lat/lng را از گوگل‌مپ کپی کنید تا دکمه‌های نقشه به‌صورت خودکار ساخته شوند.",
+  },
+  {
+    title: "تکمیل و انتشار",
+    desc: "خدمات، کارکنان، ساعات کاری، گالری و قوانین رزرو را از «تنظیمات سالن» کامل کنید؛ بعد از تأیید، صفحهٔ عمومی سالن در آدرس اختصاصی فعال می‌شود.",
+  },
+];
+
 const agentSteps = [
   {
     icon: "🔗",
@@ -246,6 +269,37 @@ export default function HelpPage() {
                 <p className="mt-2 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">{s.desc}</p>
               </div>
             ))}
+          </div>
+          {/* آموزش گام‌به‌گام ساخت سالن */}
+          <div className="mt-10 rounded-[2rem] border border-purple-100 bg-white/70 p-6 shadow-sm backdrop-blur sm:p-8 dark:border-purple-900/40 dark:bg-neutral-900/60">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+              <div className="lg:w-1/3">
+                <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-100">آموزش گام‌به‌گام ساخت سالن</h3>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  فرم ساخت سالن همهٔ اطلاعات لازم را همان ابتدا می‌پرسد: راه‌های ارتباطی، رنگ صفحه و لینک نقشهٔ بلد/نشان. این
+                  راهنما قدم‌به‌قدم شما را تا انتشار صفحهٔ عمومی همراهی می‌کند.
+                </p>
+                <Link
+                  href="/dashboard/salon?new=1"
+                  className="mt-5 inline-flex h-11 items-center rounded-2xl bg-gradient-to-l from-pink-600 to-purple-600 px-6 text-sm font-black text-white shadow-lg shadow-pink-500/25 transition hover:scale-[1.03]"
+                >
+                  🚀 همین حالا سالن بسازید
+                </Link>
+              </div>
+              <ol className="flex-1 space-y-3">
+                {salonGuideSteps.map((s, i) => (
+                  <li key={s.title} className="flex gap-3 rounded-2xl border border-neutral-100 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 text-sm font-black text-purple-700 dark:from-purple-900/40 dark:to-pink-900/40 dark:text-purple-300">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <h4 className="font-extrabold text-neutral-900 dark:text-neutral-100">{s.title}</h4>
+                      <p className="mt-1 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">{s.desc}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link href="/login" className="rounded-2xl bg-gradient-to-l from-pink-600 to-purple-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-pink-500/25 transition hover:scale-[1.03]">

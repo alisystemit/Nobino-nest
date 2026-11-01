@@ -42,7 +42,6 @@ export default function GlobalHeader() {
 
   const isCustomer = user?.role === "CUSTOMER";
   const links = [
-    { href: "/salons", label: t("nav.salons") },
     ...(isCustomer ? [] : [{ href: "/packages", label: t("nav.packages") }]),
     { href: "/help", label: t("nav.help") },
   ];

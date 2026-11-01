@@ -3,6 +3,8 @@
 import Link from "@/router-shim";
 import { useI18n } from "@/lib/i18n";
 import SalonIcon from "@/components/icons/SalonIcon";
+import { subdomainUrl } from "@/lib/subdomain";
+import SalonAnimations from "@/components/SalonAnimations";
 
 const floating = ["✂️", "🎨", "💅", "✨", "salon", "💄"];
 
@@ -11,6 +13,9 @@ export default function HomeHero() {
   return (
     <section className="relative overflow-hidden bg-brand-gradient text-white">
       <div className="absolute inset-0 bg-hero-pattern" />
+      
+      {/* انیمیشن‌های آرایشگاهی */}
+      <SalonAnimations />
 
       {/* ذرات شناور */}
       <div className="pointer-events-none absolute inset-0 hidden sm:block">
@@ -54,7 +59,7 @@ export default function HomeHero() {
             🔍 {t("hero.search")}
           </Link>
           <Link
-            href="/s/mah"
+            href={subdomainUrl("mah")}
             className="rounded-2xl border border-white/40 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur transition hover:bg-white/20 hover:scale-[1.03]"
           >
             ✨ {t("hero.demo")}

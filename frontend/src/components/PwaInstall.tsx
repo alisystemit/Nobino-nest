@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { currentSalonSlug } from "@/lib/subdomain";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -57,6 +58,8 @@ export default function PwaInstall() {
   if (installed) return null;
   if (!deferred && !isIOS) return null;
   if (dismissed) return null;
+  // در صفحهٔ سالن (مسیر /s/… یا ساب‌دامین سالن)، بنر اختصاصیِ همان سالن نمایش داده می‌شود
+  if (window.location.pathname.startsWith("/s/") || currentSalonSlug()) return null;
 
   return (
     <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-80">

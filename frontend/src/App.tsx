@@ -15,7 +15,6 @@ import HelpPage from "@/pages/HelpPage";
 import OfflinePage from "@/pages/OfflinePage";
 import LoginPage from "@/pages/LoginPage";
 import PackagesPage from "@/pages/PackagesPage";
-import SalonsPage from "@/pages/SalonsPage";
 import SalonPage from "@/pages/SalonPage";
 import WaPage from "@/pages/WaPage";
 import WaSalonPage from "@/pages/WaSalonPage";
@@ -29,6 +28,11 @@ import DashboardVoiceBooking from "@/pages/DashboardVoiceBooking";
 import DashboardWallet from "@/pages/DashboardWallet";
 import DashboardCommission from "@/pages/DashboardCommission";
 import DashboardSalon from "@/pages/DashboardSalon";
+import DashboardManagement from "@/pages/DashboardManagement";
+import DashboardStaff from "@/pages/DashboardStaff";
+import DashboardCustomers from "@/pages/DashboardCustomers";
+import DashboardSetup from "@/pages/DashboardSetup";
+import DashboardSettings from "@/pages/DashboardSettings";
 import AdminPage from "@/pages/AdminPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 
@@ -68,16 +72,20 @@ function AppInner() {
       </div>
     );
   }
+  const location = useLocation();
+  // صفحات «راه‌اندازی» و «ساخت سالن جدید» به‌صورت مستقل و تمام‌صفحه نمایش داده می‌شوند (بدون منوی بالا/کنار)
+  const hideHeader =
+    location.pathname.startsWith("/dashboard/setup") ||
+    (location.pathname === "/dashboard/salon" && new URLSearchParams(location.search).has("new"));
   return (
     <div className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      <GlobalHeader />
+      {!hideHeader && <GlobalHeader />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/offline" element={<OfflinePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/packages" element={<PackagesPage />} />
-        <Route path="/salons" element={<SalonsPage />} />
         <Route path="/s/:slug" element={<SalonPage />} />
         <Route path="/wa" element={<WaPage />} />
         <Route path="/wa/salon/:slug" element={<WaSalonPage />} />
@@ -104,6 +112,11 @@ function AppInner() {
         </Route>
         <Route element={<RequireAuth roles={["SALON_OWNER", "ADMIN"]} />}>
           <Route path="/dashboard/salon" element={<DashboardSalon />} />
+          <Route path="/dashboard/setup" element={<DashboardSetup />} />
+          <Route path="/dashboard/settings" element={<DashboardSettings />} />
+          <Route path="/dashboard/management" element={<DashboardManagement />} />
+          <Route path="/dashboard/staff" element={<DashboardStaff />} />
+          <Route path="/dashboard/customers" element={<DashboardCustomers />} />
         </Route>
 
         <Route element={<RequireAuth roles={["ADMIN"]} />}>
@@ -128,9 +141,15 @@ function LaunchRedirect() {
     try {
       if (!window.matchMedia("(display-mode: standalone)").matches) return;
       const path = localStorage.getItem("nobino.launchPath");
-      if (path && path.startsWith("/")) {
+      if (path) {
         localStorage.removeItem("nobino.launchPath");
-        navigate(path);
+        // مسیر نسبی (مثل /s/mah) با روتر جابه‌جا می‌شود؛ اما آدرس مطلق
+        // ساب‌دامین (مثل http://mah.localhost:5175/) با ناوبری کامل باز می‌شود.
+        if (path.startsWith("/")) {
+          navigate(path);
+        } else if (/^https?:\/\//.test(path)) {
+          window.location.href = path;
+        }
       }
     } catch {
       /* بی‌صدا */
