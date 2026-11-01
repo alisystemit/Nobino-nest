@@ -1,12 +1,14 @@
 /** پنل سوپرادمین — معادل src/app/admin/page.tsx (دیتا از /api/pages/admin) */
 import { Navigate, Link, useSearchParams } from "@/router-shim";
-import { BadgeCheck, Banknote, Store, Users } from "lucide-react";
+import { BadgeCheck, Banknote, Store, Users, LogOut } from "lucide-react";
 import { formatToman, toPersianDigits } from "@/lib/utils";
 import AdminShell from "@/components/AdminShell";
 import AdminExtras from "@/components/AdminExtras";
+import LogoutButton from "@/components/LogoutButton";
 import { StatCard } from "@/components/ui/Stats";
 import { usePageData } from "@/lib/page-data";
 import { useMeta } from "@/lib/use-meta";
+import { useAuth } from "@/auth";
 
 type AdminData = {
   redirect?: string;
@@ -57,7 +59,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <AdminShell title="مدیریت پلتفرم">
+    <AdminShell title="مدیریت سوپر ادمین">
       {counts.pendingSalons > 0 && (
         <Link
           href="/admin?tab=salons"

@@ -11,11 +11,34 @@ import SalonIcon from "@/components/icons/SalonIcon";
 import { toPersianDigits, formatToman } from "@/lib/utils";
 import { usePageData } from "@/lib/page-data";
 import { useMeta } from "@/lib/use-meta";
+import PwaInstallButton from "@/components/PwaInstallButton";
 
 const days = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
 
-export default function SalonPage() {
-  const { slug } = useParamsTyped<{ slug: string }>();
+/** ساخت لینک «نشان» و «بلد» — با مختصات، پین/مرکز; وگرنه جست‌وجوی آدرس */
+function buildMapDeepLinks(salon: any): { neshan: string; balad: string } {
+  const q = [salon.name, salon.city, salon.address].filter(Boolean).join(" ").trim();
+  const lat = Number(salon.latitude);
+  const lng = Number(salon.longitude);
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const fmt = (n: number) => n.toFixed(6);
+  return {
+    neshan:
+      salon.neshanUrl ||
+      (hasCoords
+        ? `https://neshan.org/maps/share/${fmt(lat)},${fmt(lng)}`
+        : `https://neshan.org/maps/search/${encodeURIComponent(q)}`),
+    balad:
+      salon.baladUrl ||
+      (hasCoords
+        ? `https://balad.ir/#16/${fmt(lat)}/${fmt(lng)}`
+        : `https://balad.ir/search?text=${encodeURIComponent(q)}`),
+  };
+}
+
+export default function SalonPage({ slug: slugProp }: { slug?: string }) {
+  const params = useParamsTyped<{ slug: string }>();
+  const slug = slugProp ?? params.slug;
   const { data, loading } = usePageData<any>("salon", { slug });
 
   useMeta(data?.meta?.title, data?.meta?.description);
@@ -35,6 +58,7 @@ export default function SalonPage() {
   }
 
   const salon = data.salon;
+  const maps = buildMapDeepLinks(salon);
   const reviews = data.reviews as any[];
   const averageRating = data.averageRating as number;
   const reviewCount = data.reviewCount as number;
@@ -112,7 +136,27 @@ export default function SalonPage() {
 
           {salon.address && (
             <section>
-              <h2 className="text-xl font-extrabold text-neutral-900">موقعیت روی نقشه</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-xl font-extrabold text-neutral-900">موقعیت روی نقشه</h2>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={maps.neshan}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-green-50 px-4 text-xs font-bold text-green-700 transition hover:bg-green-100 dark:bg-green-950/40 dark:text-green-300"
+                  >
+                    🧭 باز کردن در نشان
+                  </a>
+                  <a
+                    href={maps.balad}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-purple-50 px-4 text-xs font-bold text-purple-700 transition hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300"
+                  >
+                    🗺️ باز کردن در بلد
+                  </a>
+                </div>
+              </div>
               <div className="mt-4 overflow-hidden rounded-2xl border border-neutral-200">
                 {salon.mapUrl || salon.baladUrl || salon.neshanUrl ? (
                   <iframe
@@ -287,6 +331,13 @@ export default function SalonPage() {
             staff={salon.staff}
             branches={salon.branches}
           />
+          <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <h3 className="mb-2 text-sm font-bold text-neutral-700 dark:text-neutral-300">📱 نصب اپلیکیشن</h3>
+            <p className="mb-3 text-xs text-neutral-500 dark:text-neutral-400">
+              این سالن را به صفحه اصلی گوشی خود اضافه کنید تا در هر زمان به راحتی به نوبت‌دهی دسترسی داشته باشید.
+            </p>
+            <PwaInstallButton launchPath={`/s/${salon.slug}`} className="w-full" />
+          </div>
         </aside>
       </div>
     </main>

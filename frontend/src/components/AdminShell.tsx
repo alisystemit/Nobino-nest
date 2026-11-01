@@ -88,18 +88,19 @@ export default function AdminShell({ title, children }: { title: string; childre
       </nav>
       <div className={`border-t border-white/5 px-3 py-3 ${collapsedWidth ? "flex flex-col items-center gap-2" : "flex items-center justify-between"}`}>
         {collapsedWidth ? (
-          <button onClick={() => setCollapsed(false)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:text-white" title="باز کردن منو">
-            <ChevronsLeft className="h-4 w-4" />
-          </button>
+          <>
+            <button onClick={() => setCollapsed(false)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:text-white" title="باز کردن منو">
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+            <LogoutButton />
+          </>
         ) : (
-          <button onClick={() => setCollapsed(true)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:text-white" title="جمع کردن منو">
-            <ChevronsRight className="h-4 w-4" />
-          </button>
-        )}
-        {!collapsedWidth && (
-          <div className="flex items-center gap-1.5">
-            <LangSwitch />
-            <ThemeToggle />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <LangSwitch />
+              <ThemeToggle />
+            </div>
+            <LogoutButton />
           </div>
         )}
       </div>

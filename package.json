@@ -12,6 +12,8 @@
     "start:backend": "npm --prefix backend start",
     "build:frontend": "npm --prefix frontend run build",
     "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "node scripts/dev-start.mjs",
+    "stop": "node scripts/dev-stop.mjs",
     "verify": "npm run db:generate && npm run build:backend && npm run build:frontend"
   },
   "prisma": {

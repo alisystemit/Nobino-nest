@@ -1,0 +1,3974 @@
+From 0948cc548e49d65551aadcba0439a098086928c5 Mon Sep 17 00:00:00 2001
+From: alisystem <51998857+alisystemit@users.noreply.github.com>
+Date: Sat, 31 Oct 2026 17:21:51 -0700
+Subject: [PATCH 1/2] add
+
+---
+ AGENTS.md                                     |  12 +
+ DOCS.md                                       |  12 +-
+ prisma/schema.prisma                          |  10 +
+ scripts/qa-check-sms-report.cjs               |  19 +
+ scripts/qa-seed-sms-report.cjs                |  83 +++
+ src/app/api/account/reviews/route.ts          |   2 +
+ src/app/api/admin/notifications/route.ts      | 115 ++-
+ src/app/api/admin/reviews/route.ts            |  29 +-
+ src/app/api/admin/sms/test/route.ts           |  16 +-
+ src/app/api/admin/users/route.ts              | 113 ++-
+ .../dashboard/salons/[id]/reviews/route.ts    |  16 +
+ src/app/api/salons/[slug]/reviews/route.ts    |   2 +
+ src/app/dashboard/commission/page.tsx         |  25 +-
+ src/app/dashboard/salon/page.tsx              |  40 +-
+ src/app/page.tsx                              |   7 +-
+ src/app/pay/[token]/page.tsx                  |  13 +-
+ src/app/s/[slug]/page.tsx                     |  21 +-
+ src/components/AccountPanel.tsx               |  17 +-
+ src/components/AdminExtras.tsx                | 470 +++++++-----
+ src/components/AdminShell.tsx                 |  58 +-
+ src/components/HomeHero.tsx                   |  11 +-
+ src/components/ReviewRepliesPanel.tsx         | 190 +++++
+ src/components/SalonLink.tsx                  |  54 ++
+ src/components/SalonManager.tsx               |   9 +-
+ src/components/SalonQrCard.tsx                |  38 +
+ src/components/SmsReportPanel.tsx             | 686 ++++++++++++++++++
+ src/components/SmsTestCard.tsx                |  91 +++
+ src/components/appointments/ActionSheet.tsx   |   5 +-
+ .../appointments/AppointmentCard.tsx          |   8 +-
+ src/lib/audit-labels.ts                       | 197 +++++
+ src/lib/contact.ts                            |  17 +
+ src/lib/map-links.ts                          |  54 ++
+ src/lib/notifications/fa.ts                   | 220 ++++++
+ src/lib/reviews.ts                            |  88 +++
+ src/lib/salon-url.ts                          | 106 +++
+ src/lib/ui/agenda-filter.ts                   |  32 +
+ src/proxy.ts                                  |  32 +-
+ tests/agenda-filter.test.ts                   |  36 +
+ tests/audit-labels.test.ts                    |  66 ++
+ tests/map-links.test.ts                       |  41 ++
+ tests/salon-url.test.ts                       |  54 ++
+ 41 files changed, 2833 insertions(+), 282 deletions(-)
+ create mode 100644 scripts/qa-check-sms-report.cjs
+ create mode 100644 scripts/qa-seed-sms-report.cjs
+ create mode 100644 src/app/api/dashboard/salons/[id]/reviews/route.ts
+ create mode 100644 src/components/ReviewRepliesPanel.tsx
+ create mode 100644 src/components/SalonLink.tsx
+ create mode 100644 src/components/SalonQrCard.tsx
+ create mode 100644 src/components/SmsReportPanel.tsx
+ create mode 100644 src/components/SmsTestCard.tsx
+ create mode 100644 src/lib/audit-labels.ts
+ create mode 100644 src/lib/contact.ts
+ create mode 100644 src/lib/map-links.ts
+ create mode 100644 src/lib/notifications/fa.ts
+ create mode 100644 src/lib/reviews.ts
+ create mode 100644 src/lib/salon-url.ts
+ create mode 100644 src/lib/ui/agenda-filter.ts
+ create mode 100644 tests/agenda-filter.test.ts
+ create mode 100644 tests/audit-labels.test.ts
+ create mode 100644 tests/map-links.test.ts
+ create mode 100644 tests/salon-url.test.ts
+
+diff --git a/AGENTS.md b/AGENTS.md
+index e465f23..0b1568f 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -47,3 +47,15 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
+ - `params`/`searchParams`/`cookies()`/`headers()` همگی async هستند و باید `await` شوند.
+ - برای مسیرهای داینامیک با داده زنده، از `export const instant = false` استفاده کنید.
+ - `nextConfig.cacheComponents` فعال است؛ `dynamic="force-dynamic"` مجاز نیست.
++
++## نظرات و پاسخ به نظرات
++- فیلدهای `reply` و `repliedAt` روی `model Review`؛ پاسخ فقط از `src/lib/reviews.ts` (`setReviewReplyForSalon` / `setReviewReplyForAdmin`) ثبت می‌شود — دسترسی و tenant isolation سمت سرور با `requireSalonManage`/`requireRole(["ADMIN"])`.
++- endpoints: `PATCH /api/dashboard/salons/[id]/reviews` (سالن‌دار، reviewId در بدنه) و `PATCH /api/admin/reviews` (سوپرادمین)؛ حذف پاسخ با `reply` خالی.
++- UI مشترک: `src/components/ReviewRepliesPanel.tsx` (تب ⭐ نظرات در SalonManager + تب reviews پنل ادمین)؛ پاسخ در `/s/[slug]` و تب «نظرات من» مشتری نمایش داده می‌شود.
++- هر پاسخ/حذف پاسخ در حسابرسی با action `reply_review` / `delete_review_reply` ثبت می‌شود.
++
++## گزارش پیامک پنل سوپرادمین
++- ترجمهٔ نمایشی در `src/lib/notifications/fa.ts` است (نوع پیام، وضعیت، کانال، `localizeNotifError`، `faTimeAgo/faDate/faNum`)؛ مقادیر دیتابیس و خطاهای خام سرویس تغییر نمی‌کنند.
++- UI: `src/components/SmsReportPanel.tsx` (گزارش) و `src/components/SmsTestCard.tsx` (تست) — کامپوننت‌های مستقل با fetch خودشان؛ در `AdminExtras.tsx` فقط با `onMsg={ctx.setMsg}` وصل می‌شوند تا تغییرات این پنل کوچک بماند.
++- `/api/admin/notifications` باید `salonName` برگرداند (نگاشت `salonId → Salon.name`؛ `Notification` relation به Salon ندارد) و `summary.channels/unitCost/estimatedCost`.
++- `/api/admin/sms/test`: فیلد `provider` اختیاری است؛ در نبود آن `resolveActiveSmsProviderId()` و نام فارسی سرویس از `smsProviderMeta`.
+diff --git a/DOCS.md b/DOCS.md
+index 5280953..52a9fa5 100644
+--- a/DOCS.md
++++ b/DOCS.md
+@@ -153,6 +153,7 @@ npm run dev
+   - 📊 **گزارش عملکرد**: نرخ مراجعه مجدد، لغو، ساعات پرتقاضا، بهره‌وری کارکنان + **تحلیل AI**.
+   - 📈 **نمودار درآمد** + **گزارش مالی بازه‌ای**.
+   - ⏳ **صف انتظار**: مشاهده و اطلاع‌رسانی به مشتریان منتظر.
++  - ⭐ **نظرات**: مشاهده نظرات مشتریان و ثبت/ویرایش پاسخ؛ پاسخ زیر همان نظر در صفحه عمومی سالن نمایش داده می‌شود.
+   - 🚫 **مسدودسازی زمان**: ناهار، تعمیرات، مرخصی.
+   - 🖊 **ثبت نوبت دستی**: تلفنی/حضوری/شبکه اجتماعی.
+   - ⚙️ **تنظیمات**: اطلاعات، ساعات کاری، قوانین رزرو (حداقل فاصله، مهلت لغو، بافر)، دامنه اختصاصی، منطقه زمانی.
+@@ -198,13 +199,14 @@ npm run dev
+ |---|---|
+ | 📈 درآمد SaaS | MRR، مجموع درآمد، نرخ ریزش، توزیع پلن |
+ | 🪞 سالن‌ها | تأیید/تعلیق/غیرفعال‌سازی |
+-| ⭐ نظرات | حذف نظرات نامناسب |
++| ⭐ نظرات | پاسخ به نظرات (به‌جای سالن) + حذف نظرات نامناسب |
+ | 🔁 اشتراک‌ها | وضعیت + لغو |
+ | 👥 کاربران | تغییر نقش + امتیاز وفاداری |
+ | 🎁 پکیج‌ها | افزودن/ویرایش/حذف پکیج + انتخاب ماژول‌ها (چک‌باکس، نه متن آزاد) |
+ | 📏 محدودیت‌ها | ماتریس «هر محدودیت × هر پلن»؛ ویرایش زندهٔ سقف‌ها + بازگشت به پیش‌فرض |
+ | 🏷 کد تخفیف | ساخت/حذف |
+-| 📲 تست پیامک | ارسال تست + سوئیچ «نمایش کدهای ارسالی در صفحه ورود» |
++| 📲 تست پیامک | کارت ارسال تست با انتخاب سرویس (پیش‌فرض: **سرویس فعال**)، نام فارسی سرویس‌ها و نمایش نتیجهٔ فارسی |
++| 📩 گزارش پیامک | کارت‌های وضعیت (در صف/ارسال‌شده/ناموفق/از صف خارج شد) + نوار سهم، فهرست کامل فارسی (نوع پیام، گیرنده، سالن، کانال، وضعیت، زمان)، ترجمهٔ خطاهای سرویس پیامک، فیلتر چیپتی + جدول دسکتاپ/کارت موبایل و تلاش مجدد |
+ | 🕵 حسابرسی | لاگ اقدامات مدیران |
+ 
+ تب «تنظیمات سیستم»:
+@@ -450,6 +452,12 @@ iOS / Android / دسکتاپ باز می‌کند (`src/lib/pwa-install.ts` →
+ - همه اعلان‌ها از **صف** عبور می‌کنند (با حذف تکراری و تلاش مجدد).
+ - قالب‌ها متغیر دارند: `{salon} {customer} {time} {date} {code} {reason}` و در تنظیمات ادمین قابل ویرایش‌ند.
+ 
++## فارسی‌سازی گزارش پیامک
++- مقادیر دیتابیس (`type`/`channel`/`status`) و خطاهای سرویس‌های پیامک انگلیسی می‌مانند؛ ترجمه فقط در نمایش است.
++- `src/lib/notifications/fa.ts`: برچسب نوع پیام، برچسب/رنگ وضعیت و کانال، `localizeNotifError()` (ترجمه خطاهای رایج مثل اعتبار ناکافی، IP غیرمجاز، تایم‌اوت)، `faTimeAgo`/`faDate`/`faNum`.
++- `src/components/SmsReportPanel.tsx` (گزارش) و `src/components/SmsTestCard.tsx` (تست) از همین lib استفاده می‌کنند.
++- `/api/admin/notifications` علاوه بر خود اعلان‌ها، `summary.channels`، `summary.unitCost`، `summary.estimatedCost` و `salonName` هر رکورد را برمی‌گرداند (نام سالن از `salonId` جداگانه نگاشت می‌شود، چون `Notification` relation ندارد).
++
+ ---
+ 
+ # ۱۱) API مرجع (خلاصه)  {#api}
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index b9a4f7e..4d6d70e 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -135,6 +135,14 @@ model Salon {
+   city               String?
+   address            String?
+   description        String?
++
++  // تماس و موقعیت (فرم ساخت/ویرایش سالن)
++  email              String?
++  whatsapp           String? // فقط رقم، برای لینک wa.me
++  instagram          String? // @handle یا URL کامل
++  website            String?
++  mapUrl             String? // لینک موقعیت در بلد/نشان (منبع دکمهٔ مسیریابی)
++
+   logoUrl            String?
+   bannerUrl          String?
+   coverColor         String    @default("#f472b6")
+@@ -749,6 +757,8 @@ model Review {
+   appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+   rating        Int // 1..5
+   comment       String?
++  reply         String? // پاسخ سالن‌دار / سوپرادمین به نظر
++  repliedAt     DateTime?
+   createdAt     DateTime     @default(now())
+ 
+   @@index([salonId])
+diff --git a/scripts/qa-check-sms-report.cjs b/scripts/qa-check-sms-report.cjs
+new file mode 100644
+index 0000000..639bfa8
+--- /dev/null
++++ b/scripts/qa-check-sms-report.cjs
+@@ -0,0 +1,19 @@
++require("dotenv").config();
++const { Client } = require("pg");
++(async () => {
++  const c = new Client({ connectionString: process.env.DATABASE_URL });
++  await c.connect();
++  const t = await c.query(
++    `select column_name, data_type from information_schema.columns
++      where table_schema='public' and table_name='Notification' and column_name in ('nextAttemptAt','sentAt','createdAt','updatedAt')`,
++  );
++  console.table(t.rows);
++  const n = await c.query(
++    `select count(*)::int as stuck, max("nextAttemptAt") as mx, now() as dbnow
++       from "Notification" where status='PENDING' and "nextAttemptAt" < now()`,
++  );
++  console.table(n.rows);
++  const tz = await c.query("show timezone");
++  console.log("session tz:", tz.rows[0].TimeZone, "| local:", new Date().toString());
++  await c.end();
++})().catch((e) => console.log("ERR", e.message));
+diff --git a/scripts/qa-seed-sms-report.cjs b/scripts/qa-seed-sms-report.cjs
+new file mode 100644
+index 0000000..797dfb6
+--- /dev/null
++++ b/scripts/qa-seed-sms-report.cjs
+@@ -0,0 +1,83 @@
++require("dotenv").config();
++const { Client } = require("pg");
++
++const MARK = "qa-sms-report";
++
++(async () => {
++  const c = new Client({ connectionString: process.env.DATABASE_URL });
++  await c.connect();
++
++  const now = Date.now();
++  const rows = [
++    {
++      uniqueKey: `${MARK}:pending`,
++      type: "REMINDER",
++      channel: "SMS",
++      recipient: "09121112233",
++      status: "PENDING",
++      attempts: 0,
++      lastError: null,
++      nextAttemptAt: new Date(now + 45 * 60_000),
++      sentAt: null,
++      createdAt: new Date(now - 10 * 60_000),
++      payload: { message: "یادآوری نوبت: امروز ساعت ۱۷:۳۰ — لطفاً ۱۰ دقیقه زودتر تشریف بیاورید." },
++    },
++    {
++      uniqueKey: `${MARK}:failed`,
++      type: "APPOINTMENT_CONFIRM",
++      channel: "SMS",
++      recipient: "09124440000",
++      status: "FAILED",
++      attempts: 2,
++      lastError: "SMS HTTP 401: invalid api key",
++      nextAttemptAt: new Date(now + 4 * 60_000),
++      sentAt: null,
++      createdAt: new Date(now - 26 * 60_000),
++      payload: { message: "نوبت شما تأیید شد. در صورت نیاز از پنل سالن لغو کنید." },
++    },
++    {
++      uniqueKey: `${MARK}:dropped`,
++      type: "OTP",
++      channel: "SMS",
++      recipient: "09990000001",
++      status: "DROPPED",
++      attempts: 5,
++      lastError: "insufficient credit on sms panel",
++      nextAttemptAt: new Date(now - 60 * 60_000),
++      sentAt: null,
++      createdAt: new Date(now - 3 * 24 * 60 * 60_000),
++      payload: { message: "کد تأیید شما ۴۸۲۹۱۳ است." },
++    },
++    {
++      uniqueKey: `${MARK}:mail`,
++      type: "SUBSCRIPTION_RENEWED",
++      channel: "EMAIL",
++      recipient: "salon@example.com",
++      status: "SENT",
++      attempts: 0,
++      lastError: null,
++      nextAttemptAt: new Date(now - 2 * 60 * 60_000),
++      sentAt: new Date(now - 2 * 60 * 60_000 + 9000),
++      createdAt: new Date(now - 2 * 60 * 60_000 - 30_000),
++      payload: { subject: "اشتراک سالن شما تمدید شد", html: "<p>تمدید شد</p>" },
++    },
++  ];
++
++  for (const r of rows) {
++    await c.query(
++      `INSERT INTO "Notification"
++        ("id","type","channel","recipient","status","attempts","lastError","nextAttemptAt","sentAt","payload","uniqueKey","createdAt","updatedAt")
++       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
++       ON CONFLICT ("uniqueKey") DO UPDATE SET
++         "status"=EXCLUDED."status","attempts"=EXCLUDED."attempts","lastError"=EXCLUDED."lastError",
++         "nextAttemptAt"=EXCLUDED."nextAttemptAt","sentAt"=EXCLUDED."sentAt",
++         "payload"=EXCLUDED."payload","createdAt"=EXCLUDED."createdAt","updatedAt"=EXCLUDED."updatedAt"`,
++      [`qasms${Buffer.from(r.uniqueKey.slice(MARK.length + 1)).toString("hex").slice(0, 12)}`,
++       r.type, r.channel, r.recipient, r.status, r.attempts, r.lastError, r.nextAttemptAt, r.sentAt,
++       JSON.stringify(r.payload), r.uniqueKey, r.createdAt, new Date()],
++    );
++  }
++  const res = await c.query(`select "uniqueKey","status","attempts" from "Notification" where "uniqueKey" like $1 order by 1`, [`${MARK}%`]);
++  console.table(res.rows);
++  await c.end();
++})().catch((e) => console.log("ERR", e.message));
+diff --git a/src/app/api/account/reviews/route.ts b/src/app/api/account/reviews/route.ts
+index cf0402e..6564672 100644
+--- a/src/app/api/account/reviews/route.ts
++++ b/src/app/api/account/reviews/route.ts
+@@ -27,6 +27,8 @@ export async function GET() {
+         salonName: r.salon.name,
+         salonSlug: r.salon.slug,
+         staff: r.staff?.name ?? null,
++        reply: r.reply,
++        repliedAt: r.repliedAt,
+         createdAt: r.createdAt,
+       })),
+     });
+diff --git a/src/app/api/admin/notifications/route.ts b/src/app/api/admin/notifications/route.ts
+index 1fd4af7..00c3b7c 100644
+--- a/src/app/api/admin/notifications/route.ts
++++ b/src/app/api/admin/notifications/route.ts
+@@ -1,6 +1,7 @@
+-﻿
++
+ 
+ import { z } from "zod";
++import type { Prisma } from "@prisma/client";
+ import { prisma } from "@/lib/prisma";
+ import { requireRole } from "@/lib/auth/guards";
+ import { processPendingNotifications } from "@/lib/notifications/queue";
+@@ -8,57 +9,118 @@ import { getSetting } from "@/lib/settings";
+ import { logAudit } from "@/lib/audit";
+ import { json, apiError } from "@/lib/utils";
+ 
+-/** گزارش ارسال پیامک/ایمیل: وضعیت، خطاها، تلاش مجدد و هزینه تخمینی */
++/** بازه‌های زمانی مجاز برای فیلتر گزارش (روز) */
++const DAY_WINDOWS = new Set([1, 7, 30, 90]);
++
++/**
++ * گزارش ارسال پیامک/ایمیل: وضعیت، خطاها، گاه‌شمار تلاش‌ها، فیلترهای متنی و
++ * آمار بازهٔ انتخابی — برای پنل سوپرادمین.
++ */
+ export async function GET(req: Request) {
+   try {
+     await requireRole(["ADMIN"]);
+     const url = new URL(req.url);
+     const status = url.searchParams.get("status") ?? "";
+     const channel = url.searchParams.get("channel") ?? "";
++    const type = url.searchParams.get("type") ?? "";
++    const q = url.searchParams.get("q")?.trim() ?? "";
++    const daysRaw = Number(url.searchParams.get("days") ?? "");
++    const days = DAY_WINDOWS.has(daysRaw) ? daysRaw : 0;
++    const take = Math.min(500, Math.max(25, Number(url.searchParams.get("take") ?? 200) || 200));
+ 
+-    const where: Record<string, unknown> = {};
++    const since = days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
++
++    const where: Prisma.NotificationWhereInput = {};
+     if (status) where.status = status;
+     if (channel) where.channel = channel;
++    if (type) where.type = type;
++    if (q) where.OR = [{ recipient: { contains: q } }, { lastError: { contains: q } }];
++    if (since) where.createdAt = { gte: since };
++
++    const startOfDay = new Date();
++    startOfDay.setHours(0, 0, 0, 0);
+ 
+-    const [notifications, statusGroups, channelGroups, sentSms] = await Promise.all([
+-      prisma.notification.findMany({
+-        where,
+-        orderBy: { createdAt: "desc" },
+-        take: 150,
+-        select: {
+-          id: true,
+-          type: true,
+-          channel: true,
+-          recipient: true,
+-          status: true,
+-          attempts: true,
+-          lastError: true,
+-          nextAttemptAt: true,
+-          sentAt: true,
+-          createdAt: true,
+-        },
+-      }),
+-      prisma.notification.groupBy({ by: ["status"], _count: { _all: true } }),
+-      prisma.notification.groupBy({ by: ["channel"], _count: { _all: true } }),
+-      prisma.notification.count({ where: { channel: "SMS", status: "SENT" } }),
+-    ]);
++    const [notifications, statusGroups, channelGroups, scopedStatus, typesInScope, sentSms, sentToday, pendingStuck, totalAll] =
++      await Promise.all([
++        prisma.notification.findMany({
++          where,
++          orderBy: { createdAt: "desc" },
++          take,
++          select: {
++            id: true,
++            type: true,
++            channel: true,
++            recipient: true,
++            salonId: true,
++            status: true,
++            attempts: true,
++            lastError: true,
++            nextAttemptAt: true,
++            sentAt: true,
++            createdAt: true,
++            updatedAt: true,
++            uniqueKey: true,
++            payload: true,
++          },
++        }),
++        prisma.notification.groupBy({ by: ["status"], _count: { _all: true } }),
++        prisma.notification.groupBy({ by: ["channel"], _count: { _all: true } }),
++        // آمار فقط روی رکوردهای مطابق فیلترها (برای کارت‌ها و نرخ موفقیت)
++        prisma.notification.groupBy({ where, by: ["status"], _count: { _all: true } }),
++        prisma.notification.groupBy({ where, by: ["type"], _count: { _all: true } }),
++        prisma.notification.count({ where: { channel: "SMS", status: "SENT" } }),
++        prisma.notification.count({ where: { status: "SENT", sentAt: { gte: startOfDay } } }),
++        prisma.notification.count({ where: { status: "PENDING", nextAttemptAt: { lt: new Date() } } }),
++        prisma.notification.count(),
++      ]);
+ 
+     const statusSummary = { PENDING: 0, SENT: 0, FAILED: 0, DROPPED: 0 } as Record<string, number>;
+     for (const g of statusGroups) statusSummary[g.status] = g._count._all;
+     const channelSummary: Record<string, number> = {};
+     for (const g of channelGroups) channelSummary[g.channel] = g._count._all;
+ 
++    const scoped = { PENDING: 0, SENT: 0, FAILED: 0, DROPPED: 0 } as Record<string, number>;
++    for (const g of scopedStatus) scoped[g.status] = (scoped[g.status] ?? 0) + g._count._all;
++    const scopedTotal = Object.values(scoped).reduce((a, b) => a + b, 0);
++    // نرخ موفقیت: سهم ارسال‌شده‌ها از پیامک‌های «به سرانجام رسیده» (نه در صف)
++    const settled = scoped.SENT + scoped.FAILED + scoped.DROPPED;
++    const successRate = settled > 0 ? Math.round((scoped.SENT / settled) * 100) : 0;
++
+     const unitCost = Number((await getSetting("sms.cost_per_message")) ?? 0);
+ 
++    // نام سالن گیرنده برای فهرست فارسی‌شدهٔ پنل ادمین (Notification فاقد relation است)
++    const salonIds = Array.from(new Set(notifications.map((n) => n.salonId).filter((v): v is string => Boolean(v))));
++    const salons = salonIds.length
++      ? await prisma.salon.findMany({ where: { id: { in: salonIds } }, select: { id: true, name: true } })
++      : [];
++    const salonNames = Object.fromEntries(salons.map((s) => [s.id, s.name]));
++
+     return json({
+       success: true,
+-      notifications,
++      notifications: notifications.map((n) => ({
++        ...n,
++        salonName: n.salonId ? salonNames[n.salonId] ?? null : null,
++      })),
+       summary: {
+         ...statusSummary,
+         channels: channelSummary,
+         estimatedCost: Number.isFinite(unitCost) ? sentSms * unitCost : 0,
+         unitCost: Number.isFinite(unitCost) ? unitCost : 0,
++        sentToday,
++        pendingStuck,
++        totalAll,
+       },
++      scope: {
++        total: scopedTotal,
++        byStatus: scoped,
++        successRate,
++        days,
++        from: since ? since.toISOString() : null,
++        shown: notifications.length,
++      },
++      types: typesInScope
++        .map((t) => ({ type: t.type, count: t._count._all }))
++        .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
+     });
+   } catch (err) {
+     return apiError(err);
+@@ -98,4 +160,3 @@ export async function POST(req: Request) {
+     return apiError(err);
+   }
+ }
+-
+diff --git a/src/app/api/admin/reviews/route.ts b/src/app/api/admin/reviews/route.ts
+index 3cf61e0..b457174 100644
+--- a/src/app/api/admin/reviews/route.ts
++++ b/src/app/api/admin/reviews/route.ts
+@@ -4,6 +4,9 @@ import { requireRole } from "@/lib/auth/guards";
+ import { prisma } from "@/lib/prisma";
+ import { logAudit } from "@/lib/audit";
+ import { json, apiError } from "@/lib/utils";
++import { reviewReplySchema, setReviewReplyForAdmin } from "@/lib/reviews";
++
++export const instant = false;
+ 
+ export async function GET() {
+   try {
+@@ -13,7 +16,20 @@ export async function GET() {
+       orderBy: { createdAt: "desc" },
+       take: 200,
+     });
+-    return json({ success: true, reviews });
++    return json({
++      success: true,
++      reviews: reviews.map((r) => ({
++        id: r.id,
++        rating: r.rating,
++        comment: r.comment,
++        customerName: r.customer.name ?? r.customer.phone,
++        staff: r.staff?.name ?? null,
++        salon: r.salon,
++        reply: r.reply,
++        repliedAt: r.repliedAt,
++        createdAt: r.createdAt,
++      })),
++    });
+   } catch (err) {
+     return apiError(err);
+   }
+@@ -33,3 +49,14 @@ export async function DELETE(req: Request) {
+   }
+ }
+ 
++/** ثبت/ویرایش پاسخ سوپرادمین به یک نظر */
++export async function PATCH(req: Request) {
++  try {
++    const body = reviewReplySchema.parse(await req.json());
++    const review = await setReviewReplyForAdmin(body);
++    return json({ success: true, review });
++  } catch (err) {
++    return apiError(err);
++  }
++}
++
+diff --git a/src/app/api/admin/sms/test/route.ts b/src/app/api/admin/sms/test/route.ts
+index fd1608e..d65d78e 100644
+--- a/src/app/api/admin/sms/test/route.ts
++++ b/src/app/api/admin/sms/test/route.ts
+@@ -2,30 +2,32 @@
+ 
+ import { z } from "zod";
+ import { requireRole } from "@/lib/auth/guards";
+-import { createSmsProvider } from "@/lib/sms/providers";
++import { createSmsProvider, resolveActiveSmsProviderId, smsProviderMeta } from "@/lib/sms/providers";
+ import { json, apiError } from "@/lib/utils";
+ 
+ const schema = z.object({
+-  provider: z.string(),
++  provider: z.string().optional(),
+   phone: z.string().regex(/^0?9\d{9}$/),
+ });
+ 
+-/** ارسال پیامک آزمایشی با سرویس مشخص (بدون ذخیره) */
++/** ارسال پیامک آزمایشی با سرویس مشخص (یا سرویس فعال) — بدون ذخیره */
+ export async function POST(req: Request) {
+   try {
+     await requireRole(["ADMIN"]);
+     const body = schema.parse(await req.json());
+     const phone = body.phone.startsWith("0") ? body.phone : `0${body.phone}`;
++    const providerId = body.provider && body.provider.trim() ? body.provider.trim() : await resolveActiveSmsProviderId();
++    const providerName = smsProviderMeta.find((p) => p.id === providerId)?.name ?? providerId;
+ 
+-    const provider = await createSmsProvider(body.provider).catch((e) => {
+-      throw new Error(`کلیدهای «${body.provider}» کامل نیست. ${e.message}`);
++    const provider = await createSmsProvider(providerId).catch((e) => {
++      throw new Error(`کلیدهای «${providerName}» کامل نیست. ${e.message}`);
+     });
+     if (!provider.isConfigured()) {
+-      return json({ success: false, error: "کلیدهای این سرویس تنظیم نشده‌اند" }, { status: 400 });
++      return json({ success: false, error: `کلیدهای سرویس «${providerName}» تنظیم نشده است؛ از تنظیمات سیستم وارد کنید.` }, { status: 400 });
+     }
+ 
+     await provider.sendText(phone, "پیامک آزمایشی از نوبینو ✅");
+-    return json({ success: true, message: `پیامک آزمایشی به ${phone} ارسال شد.` });
++    return json({ success: true, provider: providerName, message: `پیامک آزمایشی با «${providerName}» به ${phone} ارسال شد.` });
+   } catch (err) {
+     return apiError(err);
+   }
+diff --git a/src/app/api/admin/users/route.ts b/src/app/api/admin/users/route.ts
+index fa80004..5fa60d1 100644
+--- a/src/app/api/admin/users/route.ts
++++ b/src/app/api/admin/users/route.ts
+@@ -2,6 +2,7 @@
+ 
+ import { z } from "zod";
+ import { requireRole } from "@/lib/auth/guards";
++import { publicUser } from "@/lib/auth/session";
+ import { prisma } from "@/lib/prisma";
+ import { logAudit } from "@/lib/audit";
+ import { json, apiError } from "@/lib/utils";
+@@ -13,18 +14,123 @@ export async function GET(req: Request) {
+     const url = new URL(req.url);
+     const q = url.searchParams.get("q")?.trim();
+     const roleFilter = url.searchParams.get("role")?.trim();
++    const statusFilter = url.searchParams.get("status")?.trim();
++    const sort = url.searchParams.get("sort")?.trim() || "new";
+ 
+     const where: Prisma.UserWhereInput = {};
+     if (q) where.OR = [{ phone: { contains: q } }, { name: { contains: q } }, { email: { contains: q } }];
+     if (roleFilter) where.role = roleFilter as Role;
++    if (statusFilter === "active") where.isActive = true;
++    if (statusFilter === "inactive") where.isActive = false;
+ 
+     const users = await prisma.user.findMany({
+       where,
+-      select: { id: true, phone: true, name: true, email: true, role: true, isActive: true, createdAt: true, loyaltyPoints: true, verifiedAt: true },
++      select: { id: true, phone: true, name: true, email: true, role: true, isActive: true, createdAt: true, loyaltyPoints: true, verifiedAt: true, avatarUrl: true },
+       orderBy: { createdAt: "desc" },
+       take: 400,
+     });
+-    return json({ success: true, users });
++
++    // آمار تجمیعی هر کاربر — چند groupBy موازی روی همان مجموعه id (بدون N+1)
++    const ids = users.map((u) => u.id);
++    const emptyAgg = Promise.resolve([] as never[]);
++    const [apptAgg, orderPaidAgg, orderLastAgg, loginAgg, wallets, favAgg, reviewAgg, ownedSalons] =
++      await Promise.all([
++        ids.length
++          ? prisma.appointment.groupBy({
++              by: ["customerId"],
++              where: { customerId: { in: ids } },
++              _count: { _all: true },
++              _max: { createdAt: true },
++            })
++          : emptyAgg,
++        ids.length
++          ? prisma.order.groupBy({
++              by: ["userId"],
++              where: { userId: { in: ids }, status: "PAID" },
++              _count: { _all: true },
++              _sum: { amount: true },
++            })
++          : emptyAgg,
++        ids.length
++          ? prisma.order.groupBy({ by: ["userId"], where: { userId: { in: ids } }, _max: { createdAt: true } })
++          : emptyAgg,
++        ids.length
++          ? prisma.session.groupBy({ by: ["userId"], where: { userId: { in: ids } }, _max: { createdAt: true } })
++          : emptyAgg,
++        ids.length ? prisma.wallet.findMany({ where: { ownerId: { in: ids } }, select: { ownerId: true, balance: true } }) : emptyAgg,
++        ids.length ? prisma.favorite.groupBy({ by: ["userId"], where: { userId: { in: ids } }, _count: { _all: true } }) : emptyAgg,
++        ids.length ? prisma.review.groupBy({ by: ["customerId"], where: { customerId: { in: ids } }, _count: { _all: true } }) : emptyAgg,
++        ids.length
++          ? prisma.salon.findMany({ where: { ownerId: { in: ids } }, select: { id: true, name: true, slug: true, ownerId: true } })
++          : emptyAgg,
++      ]);
++
++    const byUser = <T extends { customerId?: string | null; userId?: string | null }>(rows: T[]) =>
++      new Map(rows.map((r) => [String(r.customerId ?? r.userId), r]));
++    const appts = byUser(apptAgg);
++    const paid = byUser(orderPaidAgg);
++    const lastOrder = byUser(orderLastAgg);
++    const logins = byUser(loginAgg);
++    const favs = byUser(favAgg);
++    const reviews = byUser(reviewAgg);
++    const walletMap = new Map(wallets.map((w) => [w.ownerId, w.balance]));
++    const salonMap = new Map<string, { id: string; name: string; slug: string }[]>();
++    for (const s of ownedSalons) {
++      const list = salonMap.get(s.ownerId) ?? [];
++      list.push({ id: s.id, name: s.name, slug: s.slug });
++      salonMap.set(s.ownerId, list);
++    }
++
++    const enriched = users.map((u) => ({
++      ...u,
++      stats: {
++        appointments: appts.get(u.id)?._count._all ?? 0,
++        lastAppointmentAt: appts.get(u.id)?._max.createdAt ?? null,
++        paidOrders: paid.get(u.id)?._count._all ?? 0,
++        totalSpend: paid.get(u.id)?._sum.amount ?? 0,
++        lastOrderAt: lastOrder.get(u.id)?._max.createdAt ?? null,
++        lastLoginAt: logins.get(u.id)?._max.createdAt ?? null,
++        walletBalance: walletMap.get(u.id) ?? 0,
++        favorites: favs.get(u.id)?._count._all ?? 0,
++        reviews: reviews.get(u.id)?._count._all ?? 0,
++        salons: salonMap.get(u.id) ?? [],
++      },
++    }));
++
++    // مرتب‌سازی اختیاری بر پایه آمار (روی همان صفحه ۴۰۰ کاربری)
++    if (sort === "appointments") enriched.sort((a, b) => b.stats.appointments - a.stats.appointments);
++    if (sort === "spend") enriched.sort((a, b) => b.stats.totalSpend - a.stats.totalSpend);
++    if (sort === "lastActive")
++      enriched.sort(
++        (a, b) =>
++          new Date(b.stats.lastLoginAt ?? b.stats.lastAppointmentAt ?? b.createdAt).getTime() -
++          new Date(a.stats.lastLoginAt ?? a.stats.lastAppointmentAt ?? a.createdAt).getTime()
++      );
++    if (sort === "name") enriched.sort((a, b) => (a.name ?? a.phone).localeCompare(b.name ?? b.phone, "fa"));
++
++    // خلاصه کل پلتفرم (مستقل از فیلترها) برای چیپ‌های بالای جدول
++    const [total, active, byRole] = await Promise.all([
++      prisma.user.count(),
++      prisma.user.count({ where: { isActive: true } }),
++      prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
++    ]);
++    const roleCounts = Object.fromEntries(byRole.map((r) => [r.role, r._count._all]));
++    const monthStart = new Date();
++    monthStart.setDate(1);
++    monthStart.setHours(0, 0, 0, 0);
++    const newThisMonth = await prisma.user.count({ where: { createdAt: { gte: monthStart } } });
++
++    return json({
++      success: true,
++      users: enriched,
++      summary: {
++        total,
++        active,
++        suspended: total - active,
++        roleCounts,
++        newThisMonth,
++      },
++    });
+   } catch (err) {
+     return apiError(err);
+   }
+@@ -47,7 +153,8 @@ export async function PATCH(req: Request) {
+     const updated = await prisma.user.update({ where: { id: body.userId }, data: { role: body.role, isActive: body.isActive } });
+     await logAudit({ actorId: user.id, actorPhone: user.phone, action: "update_user", entityType: "User", entityId: body.userId, before: { role: target.role, isActive: target.isActive }, after: { role: updated.role, isActive: updated.isActive } });
+ 
+-    return json({ success: true, user: updated });
++    // فقط فیلدهای عمومی — passwordHash هرگز نباید در پاسخ API برگردد
++    return json({ success: true, user: publicUser(updated) });
+   } catch (err) {
+     return apiError(err);
+   }
+diff --git a/src/app/api/dashboard/salons/[id]/reviews/route.ts b/src/app/api/dashboard/salons/[id]/reviews/route.ts
+new file mode 100644
+index 0000000..9ebb6ae
+--- /dev/null
++++ b/src/app/api/dashboard/salons/[id]/reviews/route.ts
+@@ -0,0 +1,16 @@
++import { json, apiError } from "@/lib/utils";
++import { reviewReplySchema, setReviewReplyForSalon } from "@/lib/reviews";
++
++export const instant = false;
++
++/** ثبت/ویرایش پاسخ سالن‌دار به یک نظر (reviewId در بدنه) */
++export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
++  try {
++    const { id } = await params;
++    const body = reviewReplySchema.parse(await req.json());
++    const review = await setReviewReplyForSalon(id, body);
++    return json({ success: true, review });
++  } catch (err) {
++    return apiError(err);
++  }
++}
+diff --git a/src/app/api/salons/[slug]/reviews/route.ts b/src/app/api/salons/[slug]/reviews/route.ts
+index 4696df9..d3e2546 100644
+--- a/src/app/api/salons/[slug]/reviews/route.ts
++++ b/src/app/api/salons/[slug]/reviews/route.ts
+@@ -38,6 +38,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
+         comment: r.comment,
+         customerName: r.customer.name ?? r.customer.phone,
+         staff: r.staff?.name ?? null,
++        reply: r.reply,
++        repliedAt: r.repliedAt,
+         createdAt: r.createdAt,
+       })),
+       summary: { average: Number((agg._avg.rating ?? 0).toFixed(1)), count: agg._count._all },
+diff --git a/src/app/dashboard/commission/page.tsx b/src/app/dashboard/commission/page.tsx
+index 90e6609..c9cfd9d 100644
+--- a/src/app/dashboard/commission/page.tsx
++++ b/src/app/dashboard/commission/page.tsx
+@@ -1,5 +1,6 @@
+ "use client";
+ 
++import SalonLink from "@/components/SalonLink";
+ import { useEffect, useState } from "react";
+ import Link from "next/link";
+ import DashboardShell from "@/components/DashboardShell";
+@@ -18,8 +19,20 @@ type Summary = {
+ export default function CommissionPage() {
+   const [summary, setSummary] = useState<Summary | null>(null);
+   const [error, setError] = useState("");
++  // نقش واقعی کاربر — سوپرادمین هم به این بخش دسترسی دارد؛ قاب داشبورد باید
++  // منوی همان نقش را نشان دهد، نه منوی نماینده (وگرنه کاربر حس می‌کند جابه‌جا شده است).
++  const [role, setRole] = useState("AGENT");
+ 
+   useEffect(() => {
++    (async () => {
++      try {
++        const res = await fetch("/api/auth/me");
++        const data = await res.json();
++        if (data.user?.role) setRole(data.user.role);
++      } catch {
++        /* بی‌صدا — نقش پیش‌فرض همان نماینده می‌ماند */
++      }
++    })();
+     (async () => {
+       try {
+         const res = await fetch("/api/commission");
+@@ -35,7 +48,7 @@ export default function CommissionPage() {
+ 
+   if (error) {
+     return (
+-      <DashboardShell role="AGENT" title="کمیسیون">
++      <DashboardShell role={role} title="کمیسیون">
+         <div className="mx-auto max-w-xl rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-sm sm:p-10 dark:border-neutral-800 dark:bg-neutral-900">
+           <div className="text-4xl">🔒</div>
+           <p className="mt-4 font-bold text-neutral-700 dark:text-neutral-200">{error}</p>
+@@ -47,10 +60,10 @@ export default function CommissionPage() {
+     );
+   }
+ 
+-  if (!summary) return <DashboardShell role="AGENT" title="کمیسیون"><p className="py-10 text-center text-neutral-400">در حال بارگیری...</p></DashboardShell>;
++  if (!summary) return <DashboardShell role={role} title="کمیسیون"><p className="py-10 text-center text-neutral-400">در حال بارگیری...</p></DashboardShell>;
+ 
+   return (
+-    <DashboardShell role="AGENT" title="کمیسیون نمایندگی">
++    <DashboardShell role={role} title={role === "ADMIN" ? "کمیسیون نمایندگی (پلتفرم)" : "کمیسیون نمایندگی"}>
+       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+         <StatCard
+           label="مجموع درآمد کمیسیون"
+@@ -93,13 +106,13 @@ export default function CommissionPage() {
+                   <div className="font-bold text-neutral-800 dark:text-neutral-100">{p.salonName}</div>
+                   <div className="flex items-center gap-3">
+                     <Badge tone="brand">{p.percent}٪ کمیسیون</Badge>
+-                    <Link
+-                      href={`/s/${p.slug}`}
++                    <SalonLink
++                      slug={p.slug}
+                       className="inline-flex h-10 items-center gap-1 rounded-lg px-2 text-sm font-bold text-pink-600 transition hover:bg-pink-50 hover:text-pink-700 dark:hover:bg-pink-950/30"
+                     >
+                       مشاهده
+                       <ExternalLink className="h-3.5 w-3.5" />
+-                    </Link>
++                    </SalonLink>
+                   </div>
+                 </div>
+               ))}
+diff --git a/src/app/dashboard/salon/page.tsx b/src/app/dashboard/salon/page.tsx
+index 81cf847..9ab9a73 100644
+--- a/src/app/dashboard/salon/page.tsx
++++ b/src/app/dashboard/salon/page.tsx
+@@ -5,7 +5,9 @@ import { toPersianDigits } from "@/lib/utils";
+ import { listOwnerSalons, resolveDashboardSalonId } from "@/lib/salons";
+ import { UNLIMITED_FROM } from "@/lib/plans/limit-defs";
+ import { limitSnapshot } from "@/lib/plans/limits";
+-import { SITE_URL, displayUrl } from "@/lib/site";
++import { displayUrl } from "@/lib/site";
++import { salonPublicUrl } from "@/lib/salon-url";
++import { headers } from "next/headers";
+ import SalonSettings from "@/components/SalonSettings";
+ import CreateSalon from "@/components/CreateSalon";
+ import SalonManager from "@/components/SalonManager";
+@@ -28,7 +30,7 @@ function faDate(d: Date | null | undefined): string | null {
+   return new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium" }).format(d);
+ }
+ 
+-export default async function SalonDashboardPage({ searchParams }: { searchParams: Promise<{ salon?: string; new?: string }> }) {
++export default async function SalonDashboardPage({ searchParams }: { searchParams: Promise<{ salon?: string; new?: string; tab?: string }> }) {
+   const user = await requirePageRole(["SALON_OWNER", "ADMIN"]);
+   const sp = await searchParams;
+   const mySalons = await listOwnerSalons(user.id);
+@@ -82,12 +84,10 @@ export default async function SalonDashboardPage({ searchParams }: { searchParam
+   const subActive = salon.subscriptionEndsAt ? salon.subscriptionEndsAt > today : false;
+   // وضعیت مصرف سقف‌ها — همه از کاتالوگ محدودیت‌ها و تنظیمات سوپرادمین می‌آید
+   const snap = await limitSnapshot(salon.id);
+-  // آدرس عمومی سالن: دامنه اختصاصیِ تأییدشده مقدم است، وگرنه دامنه اصلی نصب
+-  const publicBase =
+-    salon.customDomain && salon.domainStatus === "VERIFIED"
+-      ? `https://${salon.customDomain}`
+-      : SITE_URL;
+-  const publicUrl = `${publicBase.replace(/\/+$/, "")}/s/${salon.slug}`;
++  // آدرس عمومی سالن: دامنه اختصاصیِ تأییدشده مقدم است؛ وگرنه ساب‌دامین
++  // (bahar.localhost:4173 در توسعه / bahar.example.com در پروداکشن) و در نهایت /s/<slug>
++  const host = (await headers()).get("host");
++  const publicUrl = salonPublicUrl(salon, host);
+ 
+   return (
+     <DashboardShell role={user.role} title="سالن من">
+@@ -117,7 +117,7 @@ export default async function SalonDashboardPage({ searchParams }: { searchParam
+             )}
+           </div>
+           <Link
+-            href={`/s/${salon.slug}`}
++            href={publicUrl}
+             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-[#1c2434] shadow-xl transition hover:scale-[1.03] sm:w-auto"
+           >
+             <Store className="h-4 w-4" />
+@@ -303,12 +303,20 @@ export default async function SalonDashboardPage({ searchParams }: { searchParam
+           <PanelCard title="نظرات مشتریان" subtitle="امتیاز و بازخورد صفحه عمومی" icon={<Star className="h-5 w-5" />}>
+             <div className="text-3xl font-black text-neutral-900 dark:text-neutral-100">{toPersianDigits(salon._count.reviews)}</div>
+             <div className="mt-1 text-sm text-neutral-500">نظر ثبت‌شده</div>
+-            <Link
+-              href={`/s/${salon.slug}#reviews`}
+-              className="mt-4 inline-flex h-10 items-center rounded-xl bg-neutral-100 px-4 text-sm font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+-            >
+-              مشاهده نظرات
+-            </Link>
++            <div className="mt-4 flex flex-wrap gap-2">
++              <Link
++                href={`/dashboard/salon?tab=reviews${sp.salon ? `&salon=${sp.salon}` : ""}`}
++                className="inline-flex h-10 items-center rounded-xl bg-gradient-to-l from-pink-600 to-purple-600 px-4 text-sm font-bold text-white transition hover:scale-[1.02]"
++              >
++                پاسخ به نظرات
++              </Link>
++              <Link
++                href={`${publicUrl}#reviews`}
++                className="inline-flex h-10 items-center rounded-xl bg-neutral-100 px-4 text-sm font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
++              >
++                مشاهده نظرات
++              </Link>
++            </div>
+           </PanelCard>
+ 
+           <PanelCard title="اشتراک و پلن" subtitle="ارتقا یا تمدید اشتراک" icon={<Rocket className="h-5 w-5" />}>
+@@ -331,7 +339,7 @@ export default async function SalonDashboardPage({ searchParams }: { searchParam
+           subtitle="خدمات، کارکنان، مشتریان، تقویم، صندوق، گزارش و کمپین‌ها"
+           icon={<Store className="h-5 w-5" />}
+         >
+-          <SalonManager salonId={salon.id} salonSlug={salon.slug} timezone={salon.timezone} />
++          <SalonManager salonId={salon.id} salonSlug={salon.slug} timezone={salon.timezone} initialTab={sp.tab === "reviews" ? "reviews" : "services"} />
+         </PanelCard>
+       </div>
+     </DashboardShell>
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 6d9aafe..86d265d 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -1,4 +1,5 @@
+ import Link from "next/link";
++import SalonLink from "@/components/SalonLink";
+ import AnnouncementBanner from "@/components/AnnouncementBanner";
+ import HomeHero from "@/components/HomeHero";
+ import SafeImage from "@/components/SafeImage";
+@@ -265,9 +266,9 @@ export default async function HomePage() {
+               <Link href="/login" className="rounded-2xl bg-gradient-to-l from-pink-600 to-purple-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-pink-500/25 transition hover:scale-[1.03]">
+                 ورود به پنل
+               </Link>
+-              <Link href="/s/mah" className="rounded-2xl border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
++              <SalonLink slug="mah" className="rounded-2xl border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+                 دیدن صفحه نمونه
+-              </Link>
++              </SalonLink>
+             </div>
+           </div>
+ 
+@@ -564,7 +565,7 @@ export default async function HomePage() {
+                 <Link href="/packages" className="hover:text-pink-600">پکیج‌ها و تعرفه</Link>
+                 <Link href="/help" className="hover:text-pink-600">راهنمای کامل</Link>
+                 <Link href="/login" className="hover:text-pink-600">ورود / ثبت‌نام</Link>
+-                <Link href="/s/mah" className="hover:text-pink-600">صفحه نمونه سالن</Link>
++                <SalonLink slug="mah" className="hover:text-pink-600">صفحه نمونه سالن</SalonLink>
+               </div>
+             </div>
+             <div>
+diff --git a/src/app/pay/[token]/page.tsx b/src/app/pay/[token]/page.tsx
+index 7d29de5..ad91aba 100644
+--- a/src/app/pay/[token]/page.tsx
++++ b/src/app/pay/[token]/page.tsx
+@@ -1,5 +1,6 @@
+ import { notFound } from "next/navigation";
+ import Link from "next/link";
++import SalonLink from "@/components/SalonLink";
+ import { prisma } from "@/lib/prisma";
+ import { toPersianDigits, formatToman } from "@/lib/utils";
+ import PayCard from "./PayCard";
+@@ -103,9 +104,15 @@ export default async function PayPage({ params }: { params: Promise<{ token: str
+ 
+         <p className="mt-6 text-center text-xs text-neutral-400">
+           پرداخت امن با درگاه‌های معتبر بانکی ·{" "}
+-          <Link href={invoice.salon.slug ? `/s/${invoice.salon.slug}` : "/"} className="text-pink-500 hover:underline">
+-            مشاهده صفحه سالن
+-          </Link>
++          {invoice.salon.slug ? (
++            <SalonLink slug={invoice.salon.slug} className="text-pink-500 hover:underline">
++              مشاهده صفحه سالن
++            </SalonLink>
++          ) : (
++            <Link href="/" className="text-pink-500 hover:underline">
++              مشاهده صفحه سالن
++            </Link>
++          )}
+         </p>
+       </div>
+     </main>
+diff --git a/src/app/s/[slug]/page.tsx b/src/app/s/[slug]/page.tsx
+index 5f43b88..0755dcf 100644
+--- a/src/app/s/[slug]/page.tsx
++++ b/src/app/s/[slug]/page.tsx
+@@ -6,7 +6,8 @@ import AssistantChat from "@/components/AssistantChat";
+ import FavoriteButton from "@/components/FavoriteButton";
+ import SafeImage from "@/components/SafeImage";
+ import SalonIcon from "@/components/icons/SalonIcon";
+-import { SITE_URL } from "@/lib/site";
++import { salonPublicUrl } from "@/lib/salon-url";
++import { headers } from "next/headers";
+ import type { Metadata } from "next";
+ 
+ export const instant = false;
+@@ -20,16 +21,19 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
+     salon.description ??
+     `رزرو آنلاین نوبت ${salon.name}${salon.city ? ` در ${salon.city}` : ""}؛ مشاهده خدمات، قیمت‌ها، آرایشگران و زمان‌های آزاد.`;
+   const images = [salon.bannerUrl, salon.logoUrl].filter((u): u is string => Boolean(u));
++  // canonical/OG بر پایهٔ میزبان واقعی درخواست — تا نسخهٔ ساب‌دامین (bahar.localhost…) سندبکس نشود
++  const host = (await headers()).get("host");
++  const canonical = salonPublicUrl(salon, host);
+   return {
+     title,
+     description,
+-    alternates: { canonical: `/s/${salon.slug}` },
++    alternates: { canonical },
+     openGraph: {
+       type: "website",
+       locale: "fa_IR",
+       title,
+       description,
+-      url: `/s/${salon.slug}`,
++      url: canonical,
+       siteName: "نوبینو",
+       images,
+     },
+@@ -85,8 +89,9 @@ export default async function SalonPage({ params }: { params: Promise<{ slug: st
+ 
+   const days = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+   const schemaDays = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+-  const siteUrl = SITE_URL;
+-  const salonUrl = `${siteUrl.replace(/\/$/, "")}/s/${salon.slug}`;
++  // آدرس JSON-LD هم مثل canonical از میزبان واقعی ساخته می‌شود (ساب‌دامین در اولویت)
++  const host = (await headers()).get("host");
++  const salonUrl = salonPublicUrl(salon, host);
+ 
+   const jsonLd = {
+     "@context": "https://schema.org",
+@@ -330,6 +335,12 @@ export default async function SalonPage({ params }: { params: Promise<{ slug: st
+                     </div>
+                     {r.staff?.name && <div className="text-[11px] text-neutral-400">آرایشگر: {r.staff.name}</div>}
+                     {r.comment && <p className="mt-2 text-sm leading-relaxed text-neutral-600">{r.comment}</p>}
++                    {r.reply && (
++                      <div className="mt-3 rounded-xl border-r-4 border-pink-500 bg-pink-50/70 px-3 py-2 dark:bg-pink-950/30">
++                        <div className="mb-0.5 text-[11px] font-black text-pink-600 dark:text-pink-300">پاسخ {salon.name}</div>
++                        <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">{r.reply}</p>
++                      </div>
++                    )}
+                   </div>
+                 ))}
+               </div>
+diff --git a/src/components/AccountPanel.tsx b/src/components/AccountPanel.tsx
+index 63c533d..53df2b9 100644
+--- a/src/components/AccountPanel.tsx
++++ b/src/components/AccountPanel.tsx
+@@ -2,6 +2,7 @@
+ 
+ import { useEffect, useMemo, useState } from "react";
+ import Link from "next/link";
++import SalonLink from "@/components/SalonLink";
+ import { useRouter } from "next/navigation";
+ import { LogOut } from "lucide-react";
+ import RescheduleModal from "@/components/RescheduleModal";
+@@ -34,6 +35,8 @@ type Review = {
+   salonName: string;
+   salonSlug?: string;
+   staff?: string | null;
++  reply?: string | null;
++  repliedAt?: string | null;
+   createdAt: string;
+ };
+ type SessionInfo = { id: string; device?: string | null; ip?: string | null; createdAt: string; expiresAt: string };
+@@ -318,9 +321,9 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
+                         </div>
+                         <div className="mt-3 flex flex-wrap gap-2">
+                           {a.salonSlug && (
+-                            <Link href={`/s/${a.salonSlug}`} className="flex h-10 items-center rounded-lg bg-pink-50 px-3 text-xs font-bold text-pink-700 hover:bg-pink-100">
++                            <SalonLink slug={a.salonSlug} className="flex h-10 items-center rounded-lg bg-pink-50 px-3 text-xs font-bold text-pink-700 hover:bg-pink-100">
+                               رزرو مجدد
+-                            </Link>
++                            </SalonLink>
+                           )}
+                           {a.status === "COMPLETED" && a.salonSlug && !reviewedIds.has(a.id) && (
+                             <ReviewForm onSubmit={(rating, comment) => submitReview(a, rating, comment)} />
+@@ -355,9 +358,9 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
+                         </div>
+                       </div>
+                       <div className="mt-4 flex gap-2">
+-                        <Link href={`/s/${f.salon.slug}`} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-pink-600 px-3 text-xs font-bold text-white">
++                        <SalonLink slug={f.salon.slug} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-pink-600 px-3 text-xs font-bold text-white">
+                           مشاهده و رزرو
+-                        </Link>
++                        </SalonLink>
+                         <button onClick={() => removeFavorite(f.salon.id)} className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-600 hover:bg-red-50 hover:text-red-600 dark:bg-neutral-800 dark:text-neutral-300">
+                           حذف
+                         </button>
+@@ -384,6 +387,12 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
+                     </div>
+                     {r.staff && <div className="text-xs text-neutral-500">آرایشگر: {r.staff}</div>}
+                     {r.comment && <p className="mt-2 text-sm text-neutral-700">{r.comment}</p>}
++                    {r.reply && (
++                      <div className="mt-2 rounded-xl border-r-4 border-pink-500 bg-pink-50/70 px-3 py-2 dark:bg-pink-950/30">
++                        <div className="mb-0.5 text-[11px] font-black text-pink-600 dark:text-pink-300">پاسخ {r.salonName}</div>
++                        <p className="text-sm text-neutral-700 dark:text-neutral-200">{r.reply}</p>
++                      </div>
++                    )}
+                     <div className="mt-1 text-xs text-neutral-400">{toJalali(r.createdAt)}</div>
+                   </div>
+                 ))
+diff --git a/src/components/AdminExtras.tsx b/src/components/AdminExtras.tsx
+index 22c1191..72af3b4 100644
+--- a/src/components/AdminExtras.tsx
++++ b/src/components/AdminExtras.tsx
+@@ -3,7 +3,10 @@
+ import { useCallback, useEffect, useState } from "react";
+ import AdminCharts from "@/components/AdminCharts";
+ import SalonIcon from "@/components/icons/SalonIcon";
++import SmsReportPanel from "@/components/SmsReportPanel";
++import SmsTestCard from "@/components/SmsTestCard";
+ import { MODULES, findModule, moduleIcon, moduleLabel, normalizeFeatures, type StoredFeature } from "@/lib/plans/modules";
++import { formatToman, toPersianDigits } from "@/lib/utils";
+ 
+ /* ─── تایپ‌ها ────────────────────────────────────────────────────────── */
+ 
+@@ -313,34 +316,6 @@ function SentCodesToggle({ ctx }: { ctx: Ctx }) {
+   );
+ }
+ 
+-/* ─── تست پیامک ──────────────────────────────────────────────────────── */
+-
+-function SmsTest({ ctx }: { ctx: Ctx }) {
+-  const [provider, setProvider] = useState("kavenegar");
+-  const [phone, setPhone] = useState("");
+-  const [busy, setBusy] = useState(false);
+-
+-  async function test() {
+-    if (phone.length < 11) return ctx.setMsg({ ok: false, text: "شماره موبایل معتبر وارد کنید" });
+-    setBusy(true);
+-    const r = await ctx.api<ApiRes<{ message?: string }>>("/api/admin/sms/test", "POST", { provider, phone });
+-    if (r) ctx.setMsg({ ok: true, text: r.message ?? "پیامک تست ارسال شد ✅" });
+-    setBusy(false);
+-  }
+-
+-  return (
+-    <div className="grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 sm:grid-cols-[1fr_1fr_auto]">
+-      <input className={input} placeholder="شماره موبایل برای تست" dir="ltr" aria-label="شماره تست" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} />
+-      <select className={input} value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="ارائه‌دهنده پیامک">
+-        {["kavenegar", "smsdotir", "farazsms", "ghasedak", "melipayamak", "iransms", "payamresan", "nakalaya", "mobilesms", "arpano"].map((p) => (
+-          <option key={p} value={p}>{p}</option>
+-        ))}
+-      </select>
+-      <button onClick={test} disabled={busy} className={primaryBtn}>{busy ? "در حال ارسال..." : "ارسال تست"}</button>
+-    </div>
+-  );
+-}
+-
+ /* ─── متریک‌های SaaS ─────────────────────────────────────────────────── */
+ 
+ function MetricsManager({ ctx }: { ctx: Ctx }) {
+@@ -589,70 +564,308 @@ function SubscriptionManager({ ctx }: { ctx: Ctx }) {
+ 
+ /* ─── مدیریت کاربران ─────────────────────────────────────────────────── */
+ 
++const ROLE_FA: Record<string, { label: string; cls: string }> = {
++  CUSTOMER: { label: "مشتری", cls: "bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300" },
++  SALON_OWNER: { label: "سالن‌دار", cls: "bg-pink-50 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300" },
++  AGENT: { label: "نماینده", cls: "bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" },
++  ADMIN: { label: "مدیر", cls: "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
++};
++
++function faDateTime(iso: string | null | undefined): string {
++  if (!iso) return "—";
++  try {
++    return new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short" }).format(new Date(iso));
++  } catch {
++    return "—";
++  }
++}
++
++function faDateOnly(iso: string | null | undefined): string {
++  if (!iso) return "—";
++  try {
++    return new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium" }).format(new Date(iso));
++  } catch {
++    return "—";
++  }
++}
++
++/** فاصلهٔ زمانی ساده به فارسی — برای «آخرین ورود: ۳ روز پیش» */
++function faAgo(iso: string | null | undefined): string {
++  if (!iso) return "";
++  const diffMs = Date.now() - new Date(iso).getTime();
++  if (Number.isNaN(diffMs)) return "";
++  const min = Math.floor(diffMs / 60000);
++  if (min < 1) return "هم‌اکنون";
++  if (min < 60) return `${toPersianDigits(min)} دقیقه پیش`;
++  const h = Math.floor(min / 60);
++  if (h < 24) return `${toPersianDigits(h)} ساعت پیش`;
++  const d = Math.floor(h / 24);
++  if (d < 30) return `${toPersianDigits(d)} روز پیش`;
++  const mo = Math.floor(d / 30);
++  if (mo < 12) return `${toPersianDigits(mo)} ماه پیش`;
++  return `${toPersianDigits(Math.floor(mo / 12))} سال پیش`;
++}
++
++function StatChip({ label, value, tone = "neutral" }: { label: string; value: string | number; tone?: "neutral" | "ok" | "warn" | "bad" }) {
++  const cls =
++    tone === "ok"
++      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
++      : tone === "warn"
++        ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
++        : tone === "bad"
++          ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
++          : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
++  return (
++    <div className={`rounded-xl px-3 py-1.5 text-xs font-bold ${cls}`}>
++      {label}: <span className="font-black">{toPersianDigits(value)}</span>
++    </div>
++  );
++}
++
++function DetailItem({ label, value }: { label: string; value: string }) {
++  return (
++    <div className="rounded-xl bg-neutral-50 px-3 py-2 dark:bg-neutral-800/60">
++      <div className="text-[10px] text-neutral-400 dark:text-neutral-500">{label}</div>
++      <div dir="auto" className="mt-0.5 text-xs font-bold text-neutral-700 dark:text-neutral-200">{value}</div>
++    </div>
++  );
++}
++
++type UserStats = {
++  appointments: number;
++  lastAppointmentAt: string | null;
++  paidOrders: number;
++  totalSpend: number;
++  lastOrderAt: string | null;
++  lastLoginAt: string | null;
++  walletBalance: number;
++  favorites: number;
++  reviews: number;
++  salons: { id: string; name: string; slug: string }[];
++};
++type UserAdminRow = UserRow & { createdAt: string; avatarUrl?: string | null; verifiedAt?: string | null; stats: UserStats };
++type UsersSummary = { total: number; active: number; suspended: number; roleCounts: Record<string, number>; newThisMonth: number };
++
++const SORTS: { id: string; label: string }[] = [
++  { id: "new", label: "تاریخ عضویت" },
++  { id: "lastActive", label: "آخرین فعالیت" },
++  { id: "appointments", label: "بیشترین نوبت" },
++  { id: "spend", label: "بیشترین خرید" },
++  { id: "name", label: "نام" },
++];
++
+ function UserManager({ ctx }: { ctx: Ctx }) {
+-  const [users, setUsers] = useState<UserRow[]>([]);
++  const [users, setUsers] = useState<UserAdminRow[]>([]);
++  const [summary, setSummary] = useState<UsersSummary | null>(null);
+   const [q, setQ] = useState("");
++  const [role, setRole] = useState("");
++  const [status, setStatus] = useState("");
++  const [sort, setSort] = useState("new");
++  const [loading, setLoading] = useState(true);
++  const [expanded, setExpanded] = useState<string | null>(null);
++  const [busyId, setBusyId] = useState<string | null>(null);
+ 
++  // جست‌وجوی زنده (debounce) + فیلترها و مرتب‌سازی — هر تغییر همان لحظه اعمال می‌شود
+   useEffect(() => {
+     let cancelled = false;
+-    fetch("/api/admin/users")
+-      .then((r) => r.json())
+-      .then((d) => {
+-        if (!cancelled && d.success) setUsers(d.users as UserRow[]);
+-      })
+-      .catch(() => {});
++    const t = setTimeout(async () => {
++      setLoading(true);
++      const params = new URLSearchParams();
++      if (q) params.set("q", q);
++      if (role) params.set("role", role);
++      if (status) params.set("status", status);
++      if (sort) params.set("sort", sort);
++      try {
++        const r = await fetch(`/api/admin/users?${params.toString()}`);
++        const d = await r.json();
++        if (cancelled) return;
++        if (d.success) {
++          setUsers(d.users as UserAdminRow[]);
++          setSummary(d.summary as UsersSummary);
++        } else {
++          ctx.setMsg({ ok: false, text: d.error || "خطا در دریافت کاربران" });
++        }
++      } catch {
++        if (!cancelled) ctx.setMsg({ ok: false, text: "خطا در ارتباط با سرور" });
++      } finally {
++        if (!cancelled) setLoading(false);
++      }
++    }, 300);
+     return () => {
+       cancelled = true;
++      clearTimeout(t);
+     };
+-  }, []);
+-
+-  async function search() {
+-    const r = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}`);
+-    const d = await r.json();
+-    if (d.success) setUsers(d.users as UserRow[]);
+-    else ctx.setMsg({ ok: false, text: d.error || "خطا" });
+-  }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [q, role, status, sort]);
+ 
+-  async function changeRole(id: string, role: string) {
+-    const r = await ctx.api("/api/admin/users", "PATCH", { userId: id, role }, "نقش کاربر تغییر کرد ✅");
+-    if (r) search();
++  async function changeRole(id: string, nextRole: string) {
++    setBusyId(id);
++    const r = await ctx.api("/api/admin/users", "PATCH", { userId: id, role: nextRole }, "نقش کاربر تغییر کرد ✅");
++    setBusyId(null);
++    if (r) setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role: nextRole } : u)));
+   }
+ 
+-  async function toggleActive(u: UserRow) {
++  async function toggleActive(u: UserAdminRow) {
++    setBusyId(u.id);
+     const r = await ctx.api("/api/admin/users", "PATCH", { userId: u.id, isActive: !u.isActive }, u.isActive ? "حساب کاربر تعلیق شد" : "حساب کاربر فعال شد ✅");
+-    if (r) search();
++    setBusyId(null);
++    if (r) setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isActive: !u.isActive } : x)));
+   }
+ 
++  const selectCls =
++    "rounded-xl border border-neutral-300 bg-white px-2 py-2 text-xs font-bold text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
++
+   return (
+     <div>
+-      <div className="mb-3 flex gap-2">
+-        <input className={input} placeholder="جستجوی موبایل/نام/ایمیل..." aria-label="جستجوی کاربر" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} />
+-        <button onClick={search} className={darkBtn}>جستجو</button>
++      {/* خلاصهٔ کل پلتفرم — مستقل از فیلترها */}
++      {summary && (
++        <div className="mb-3 flex flex-wrap gap-2">
++          <StatChip label="کل کاربران" value={summary.total} />
++          <StatChip label="فعال" value={summary.active} tone="ok" />
++          <StatChip label="تعلیق‌شده" value={summary.suspended} tone={summary.suspended > 0 ? "bad" : "neutral"} />
++          <StatChip label="عضویت این ماه" value={summary.newThisMonth} tone="warn" />
++          {(["CUSTOMER", "SALON_OWNER", "AGENT", "ADMIN"] as const).map((r) =>
++            summary.roleCounts[r] ? (
++              <span key={r} className={`rounded-xl px-3 py-1.5 text-xs font-bold ${ROLE_FA[r].cls}`}>
++                {ROLE_FA[r].label}: {toPersianDigits(summary.roleCounts[r])}
++              </span>
++            ) : null
++          )}
++        </div>
++      )}
++
++      {/* کنترل‌های جست‌وجو و فیلتر */}
++      <div className="mb-3 flex flex-wrap gap-2">
++        <div className="relative min-w-[180px] flex-1">
++          <input
++            className={`${input} !py-2`}
++            placeholder="جستجوی موبایل/نام/ایمیل..."
++            aria-label="جستجوی کاربر"
++            value={q}
++            onChange={(e) => setQ(e.target.value)}
++          />
++          {loading && (
++            <span className="absolute left-3 top-1/2 -translate-y-1/2">
++              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-300 border-t-pink-600 dark:border-neutral-600 dark:border-t-pink-400" />
++            </span>
++          )}
++        </div>
++        <select className={selectCls} value={role} onChange={(e) => setRole(e.target.value)} aria-label="فیلتر نقش">
++          <option value="">همه نقش‌ها</option>
++          {Object.entries(ROLE_FA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
++        </select>
++        <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value)} aria-label="فیلتر وضعیت">
++          <option value="">همه وضعیت‌ها</option>
++          <option value="active">فعال</option>
++          <option value="inactive">تعلیق‌شده</option>
++        </select>
++        <select className={selectCls} value={sort} onChange={(e) => setSort(e.target.value)} aria-label="مرتب‌سازی">
++          {SORTS.map((s) => <option key={s.id} value={s.id}>مرتب‌سازی: {s.label}</option>)}
++        </select>
+       </div>
++
++      {users.length === 0 && !loading && (
++        <p className="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">
++          {q || role || status ? "کاربری با این فیلترها یافت نشد." : "هنوز کاربری ثبت نشده است."}
++        </p>
++      )}
++
+       <div className="space-y-2">
+-        {users.length === 0 && <p className="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">کاربری یافت نشد.</p>}
+-        {users.map((u) => (
+-          <div key={u.id} className={`${listRow} flex flex-wrap items-center justify-between gap-2`}>
+-            <div>
+-              <div className="font-bold text-neutral-800 dark:text-neutral-100">
+-                {u.name ?? u.phone} <span className="text-xs font-normal text-neutral-400" dir="ltr">{u.phone}</span>
++        {users.map((u) => {
++          const isOpen = expanded === u.id;
++          const roleMeta = ROLE_FA[u.role] ?? { label: u.role, cls: "bg-neutral-100 text-neutral-600" };
++          return (
++            <div key={u.id} className={`${listRow} ${busyId === u.id ? "opacity-60" : ""}`}>
++              <div className="flex flex-wrap items-center justify-between gap-2">
++                <button
++                  type="button"
++                  onClick={() => setExpanded(isOpen ? null : u.id)}
++                  className="flex min-w-0 items-center gap-3 text-right"
++                  aria-expanded={isOpen}
++                >
++                  {u.avatarUrl ? (
++                    // eslint-disable-next-line @next/next/no-img-element
++                    <img src={u.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
++                  ) : (
++                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-xs font-black text-white">
++                      {(u.name ?? u.phone).slice(0, 1)}
++                    </span>
++                  )}
++                  <span className="min-w-0">
++                    <span className="block font-bold text-neutral-800 dark:text-neutral-100">
++                      {u.name ?? "بدون نام"}{" "}
++                      <span className="text-xs font-normal text-neutral-400" dir="ltr">{u.phone}</span>
++                    </span>
++                    <span className="block text-[11px] text-neutral-500 dark:text-neutral-400">
++                      عضویت {faDateOnly(u.createdAt)}
++                      {u.stats.lastLoginAt ? ` — آخرین ورود ${faAgo(u.stats.lastLoginAt)}` : " — هرگز وارد نشده"}
++                      {" · "}{toPersianDigits(u.stats.appointments)} نوبت
++                      {u.stats.lastOrderAt ? ` · آخرین سفارش ${faAgo(u.stats.lastOrderAt)}` : ""}
++                      {u.stats.totalSpend > 0 ? ` · ${formatToman(u.stats.totalSpend)} خرید` : ""}
++                    </span>
++                  </span>
++                </button>
++                <span className="flex flex-wrap items-center gap-2">
++                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${roleMeta.cls}`}>{roleMeta.label}</span>
++                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${u.isActive ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"}`}>
++                    {u.isActive ? "فعال" : "تعلیق"}
++                  </span>
++                  <select
++                    value={u.role}
++                    onChange={(e) => changeRole(u.id, e.target.value)}
++                    disabled={busyId === u.id}
++                    aria-label={`تغییر نقش ${u.name ?? u.phone}`}
++                    className={selectCls}
++                  >
++                    {Object.entries(ROLE_FA).map(([r, v]) => <option key={r} value={r}>{v.label}</option>)}
++                  </select>
++                  <button onClick={() => toggleActive(u)} disabled={busyId === u.id} className={u.isActive ? dangerBtn : okBtn}>
++                    {u.isActive ? "تعلیق" : "فعال‌سازی"}
++                  </button>
++                  <button onClick={() => setExpanded(isOpen ? null : u.id)} className={ghostBtn} aria-label="جزئیات کاربر">
++                    {isOpen ? "بستن ▲" : "جزئیات ▼"}
++                  </button>
++                </span>
+               </div>
+-              <div className="text-xs text-neutral-500 dark:text-neutral-400">امتیاز: {u.loyaltyPoints} — {u.email ?? "بدون ایمیل"}</div>
+-            </div>
+-            <div className="flex items-center gap-2">
+-              <select
+-                value={u.role}
+-                onChange={(e) => changeRole(u.id, e.target.value)}
+-                aria-label={`نقش ${u.name ?? u.phone}`}
+-                className="rounded-xl border border-neutral-300 bg-white px-3 py-1.5 text-xs font-bold text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+-              >
+-                {["CUSTOMER", "SALON_OWNER", "AGENT", "ADMIN"].map((r) => <option key={r} value={r}>{r}</option>)}
+-              </select>
+-              <button onClick={() => toggleActive(u)} className={u.isActive ? dangerBtn : okBtn}>{u.isActive ? "تعلیق" : "فعال"}</button>
++
++              {isOpen && (
++                <div className="mt-3 border-t border-neutral-100 pt-3 dark:border-neutral-800">
++                  <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
++                    <DetailItem label="تاریخ عضویت" value={faDateTime(u.createdAt)} />
++                    <DetailItem label="آخرین ورود" value={u.stats.lastLoginAt ? `${faDateTime(u.stats.lastLoginAt)} (${faAgo(u.stats.lastLoginAt)})` : "ورودی ندارد"} />
++                    <DetailItem label="آخرین نوبت" value={u.stats.lastAppointmentAt ? `${faDateTime(u.stats.lastAppointmentAt)} (${faAgo(u.stats.lastAppointmentAt)})` : "نوبتی ندارد"} />
++                    <DetailItem label="آخرین سفارش" value={u.stats.lastOrderAt ? `${faDateTime(u.stats.lastOrderAt)} (${faAgo(u.stats.lastOrderAt)})` : "سفارشی ندارد"} />
++                    <DetailItem label="تعداد نوبت" value={toPersianDigits(u.stats.appointments)} />
++                    <DetailItem label="سفارش پرداخت‌شده" value={toPersianDigits(u.stats.paidOrders)} />
++                    <DetailItem label="کل خرید (تومان)" value={toPersianDigits(u.stats.totalSpend.toLocaleString("en-US"))} />
++                    <DetailItem label="موجودی کیف پول (تومان)" value={toPersianDigits(u.stats.walletBalance.toLocaleString("en-US"))} />
++                    <DetailItem label="امتیاز وفاداری" value={toPersianDigits(u.loyaltyPoints)} />
++                    <DetailItem label="نظرات ثبت‌شده" value={toPersianDigits(u.stats.reviews)} />
++                    <DetailItem label="سالن‌های موردعلاقه" value={toPersianDigits(u.stats.favorites)} />
++                    <DetailItem label="ایمیل" value={u.email ?? "بدون ایمیل"} />
++                  </div>
++                  {u.stats.salons.length > 0 && (
++                    <div className="mt-2 flex flex-wrap items-center gap-2">
++                      <span className="text-[11px] font-bold text-neutral-500 dark:text-neutral-400">سالن‌های این کاربر:</span>
++                      {u.stats.salons.map((s) => (
++                        <a key={s.id} href={`/s/${s.slug}`} className="rounded-lg bg-pink-50 px-2.5 py-1 text-[11px] font-bold text-pink-700 hover:bg-pink-100 dark:bg-pink-900/30 dark:text-pink-300">
++                          {s.name}
++                        </a>
++                      ))}
++                    </div>
++                  )}
++                </div>
++              )}
+             </div>
+-          </div>
+-        ))}
++          );
++        })}
+       </div>
++
++      {users.length >= 400 && (
++        <p className="mt-3 text-center text-[11px] text-neutral-400 dark:text-neutral-500">
++          نمایش ۴۰۰ کاربر اخیر — برای نتایج دقیق‌تر جست‌وجو یا فیلتر کنید.
++        </p>
++      )}
+     </div>
+   );
+ }
+@@ -1386,117 +1599,6 @@ function SupportManager({ ctx }: { ctx: Ctx }) {
+   );
+ }
+ 
+-/* ─── گزارش اعلان‌ها ─────────────────────────────────────────────────── */
+-
+-function NotificationReport({ ctx }: { ctx: Ctx }) {
+-  const [data, setData] = useState<NotifData | null>(null);
+-  const [statusFilter, setStatusFilter] = useState("");
+-  const [channelFilter, setChannelFilter] = useState("");
+-  const [busy, setBusy] = useState(false);
+-
+-  useEffect(() => {
+-    let cancelled = false;
+-    const params = new URLSearchParams();
+-    if (statusFilter) params.set("status", statusFilter);
+-    if (channelFilter) params.set("channel", channelFilter);
+-    fetch(`/api/admin/notifications?${params}`)
+-      .then((r) => r.json())
+-      .then((d) => {
+-        if (!cancelled && d.success) setData({ summary: d.summary as Record<string, number>, notifications: d.notifications as NotifItem[] });
+-      })
+-      .catch(() => {});
+-    return () => {
+-      cancelled = true;
+-    };
+-  }, [statusFilter, channelFilter]);
+-
+-  async function reload() {
+-    const params = new URLSearchParams();
+-    if (statusFilter) params.set("status", statusFilter);
+-    if (channelFilter) params.set("channel", channelFilter);
+-    const r = await fetch(`/api/admin/notifications?${params}`);
+-    const d = await r.json();
+-    if (d.success) setData({ summary: d.summary as Record<string, number>, notifications: d.notifications as NotifItem[] });
+-  }
+-
+-  async function retry(id?: string) {
+-    setBusy(true);
+-    const d = await ctx.api<ApiRes<{ reset?: number }>>("/api/admin/notifications", "POST", id ? { id } : {});
+-    if (d) {
+-      ctx.setMsg({ ok: true, text: `${d.reset ?? 0} اعلان برای تلاش مجدد بازنشانی شد.` });
+-      reload();
+-    }
+-    setBusy(false);
+-  }
+-
+-  if (!data) return <p className="py-6 text-center text-neutral-400 dark:text-neutral-500">در حال بارگیری...</p>;
+-  const s = data.summary;
+-  const cards = [
+-    { label: "در صف", value: String(s.PENDING ?? 0), icon: "⏳" },
+-    { label: "ارسال‌شده", value: String(s.SENT ?? 0), icon: "✅" },
+-    { label: "ناموفق", value: String(s.FAILED ?? 0), icon: "⚠️" },
+-    { label: "حذف‌شده", value: String(s.DROPPED ?? 0), icon: "🗑" },
+-    { label: "هزینه تخمینی (تومان)", value: (s.estimatedCost ?? 0).toLocaleString("fa-IR"), icon: "💸" },
+-  ];
+-
+-  return (
+-    <div>
+-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+-        {cards.map((c) => (
+-          <div key={c.label} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+-            <div className="text-xl">{c.icon}</div>
+-            <div className="mt-1 text-lg font-black text-neutral-900 dark:text-neutral-100">{c.value}</div>
+-            <div className="text-xs text-neutral-500 dark:text-neutral-400">{c.label}</div>
+-          </div>
+-        ))}
+-      </div>
+-
+-      <div className="mt-4 flex flex-wrap items-center gap-2">
+-        <select className={`${input} sm:w-auto`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="وضعیت">
+-          <option value="">همه وضعیت‌ها</option>
+-          <option value="PENDING">در صف</option>
+-          <option value="SENT">ارسال‌شده</option>
+-          <option value="FAILED">ناموفق</option>
+-          <option value="DROPPED">حذف‌شده</option>
+-        </select>
+-        <select className={`${input} sm:w-auto`} value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} aria-label="کانال">
+-          <option value="">همه کانال‌ها</option>
+-          <option value="SMS">پیامک</option>
+-          <option value="EMAIL">ایمیل</option>
+-          <option value="IN_APP">درون‌برنامه‌ای</option>
+-        </select>
+-        <button onClick={() => retry()} disabled={busy} className={`${darkBtn} disabled:opacity-50`}>
+-          {busy ? "در حال تلاش..." : "تلاش مجدد برای همه ناموفق‌ها"}
+-        </button>
+-      </div>
+-
+-      <div className="mt-4 space-y-2">
+-        {data.notifications.length === 0 && <p className="py-8 text-center text-sm text-neutral-400 dark:text-neutral-500">اعلانی یافت نشد.</p>}
+-        {data.notifications.map((n) => (
+-          <div key={n.id} className={`${listRow} flex flex-wrap items-center justify-between gap-2`}>
+-            <div className="min-w-0">
+-              <div className="flex flex-wrap items-center gap-2">
+-                <span className="font-bold text-neutral-800 dark:text-neutral-100">{n.type}</span>
+-                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{n.channel}</span>
+-                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{n.status}</span>
+-                {n.attempts > 0 && <span className="text-[11px] text-neutral-400">تلاش: {n.attempts}</span>}
+-              </div>
+-              <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400" dir="ltr">{n.recipient}</div>
+-              {n.lastError && <div className="mt-1 text-xs text-red-500">{String(n.lastError).slice(0, 160)}</div>}
+-              <div className="text-[11px] text-neutral-400 dark:text-neutral-500">{new Date(n.createdAt).toLocaleString("fa-IR")}</div>
+-            </div>
+-            {(n.status === "FAILED" || n.status === "DROPPED") && (
+-              <button onClick={() => retry(n.id)} disabled={busy} className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-50 dark:bg-amber-950/40 dark:text-amber-300">
+-                تلاش مجدد
+-              </button>
+-            )}
+-          </div>
+-        ))}
+-      </div>
+-    </div>
+-  );
+-}
+-
+ /* ─── امنیت و رمز عبور ──────────────────────────────────────────────── */
+ 
+ function SecurityView({ ctx }: { ctx: Ctx }) {
+@@ -1675,7 +1777,7 @@ export default function AdminExtras({ initialTab = "metrics" }: { initialTab?: s
+       <div className="mt-6">
+         {tab === "metrics" && <MetricsManager ctx={ctx} />}
+         {tab === "support" && <SupportManager ctx={ctx} />}
+-        {tab === "notifications" && <NotificationReport ctx={ctx} />}
++        {tab === "notifications" && <SmsReportPanel onMsg={ctx.setMsg} />}
+         {tab === "charts" && <AdminCharts />}
+         {tab === "salons" && <SalonManagerList ctx={ctx} salons={salons} refresh={refreshSalons} />}
+         {tab === "reviews" && <ReviewManager ctx={ctx} />}
+@@ -1687,7 +1789,7 @@ export default function AdminExtras({ initialTab = "metrics" }: { initialTab?: s
+         {tab === "sms" && (
+           <>
+             <SentCodesToggle ctx={ctx} />
+-            <SmsTest ctx={ctx} />
++            <SmsTestCard onMsg={ctx.setMsg} />
+           </>
+         )}
+         {tab === "broadcast" && <BroadcastView ctx={ctx} />}
+diff --git a/src/components/AdminShell.tsx b/src/components/AdminShell.tsx
+index 79a55d9..35f497e 100644
+--- a/src/components/AdminShell.tsx
++++ b/src/components/AdminShell.tsx
+@@ -1,9 +1,9 @@
+ "use client";
+ 
+ import Link from "next/link";
+-import { usePathname, useSearchParams } from "next/navigation";
++import { useRouter, usePathname, useSearchParams } from "next/navigation";
+ import { useState } from "react";
+-import { ChevronsLeft, ChevronsRight, Home, Menu } from "lucide-react";
++import { ChevronsLeft, ChevronsRight, Home, LogOut, Menu } from "lucide-react";
+ import { ThemeToggle } from "@/lib/theme";
+ import { LangSwitch } from "@/lib/i18n";
+ import NotificationBell from "@/components/NotificationBell";
+@@ -37,8 +37,35 @@ function Icon({ d }: { d: string }) {
+ export default function AdminShell({ title, children }: { title: string; children: React.ReactNode }) {
+   const pathname = usePathname();
+   const searchParams = useSearchParams();
++  const router = useRouter();
+   const [open, setOpen] = useState(false);
+   const [collapsed, setCollapsed] = useState(false);
++  const [loggingOut, setLoggingOut] = useState(false);
++
++  /** خروج از حساب — نشست پاک و مستقیم به صفحه ورود سوپرادمین می‌رود */
++  async function logout() {
++    if (loggingOut) return;
++    setLoggingOut(true);
++    try {
++      await fetch("/api/auth/logout", { method: "POST" });
++    } finally {
++      router.push("/admin/login");
++      router.refresh();
++    }
++  }
++
++  const LogoutButton = (
++    <button
++      onClick={logout}
++      disabled={loggingOut}
++      className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 transition hover:bg-red-50 hover:text-red-600 active:scale-95 disabled:opacity-50 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-red-950/40"
++      title="خروج از حساب"
++      aria-label="خروج از حساب"
++    >
++      <LogOut className="h-4 w-4" />
++    </button>
++  );
++
+   const isActive = (href: string) => {
+     const [base, q] = href.split("?");
+     if (q) {
+@@ -86,9 +113,20 @@ export default function AdminShell({ title, children }: { title: string; childre
+       </nav>
+       <div className={`border-t border-white/5 px-3 py-3 ${collapsedWidth ? "flex flex-col items-center gap-2" : "flex items-center justify-between"}`}>
+         {collapsedWidth ? (
+-          <button onClick={() => setCollapsed(false)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:text-white" title="باز کردن منو">
+-            <ChevronsLeft className="h-4 w-4" />
+-          </button>
++          <>
++            <button onClick={() => setCollapsed(false)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:text-white" title="باز کردن منو">
++              <ChevronsLeft className="h-4 w-4" />
++            </button>
++            <button
++              onClick={logout}
++              disabled={loggingOut}
++              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:bg-red-500/15 hover:text-red-400 disabled:opacity-50"
++              title="خروج از حساب"
++              aria-label="خروج از حساب"
++            >
++              <LogOut className="h-4 w-4" />
++            </button>
++          </>
+         ) : (
+           <button onClick={() => setCollapsed(true)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:text-white" title="جمع کردن منو">
+             <ChevronsRight className="h-4 w-4" />
+@@ -98,6 +136,15 @@ export default function AdminShell({ title, children }: { title: string; childre
+           <div className="flex items-center gap-1.5">
+             <LangSwitch />
+             <ThemeToggle />
++            <button
++              onClick={logout}
++              disabled={loggingOut}
++              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-neutral-400 transition hover:bg-red-500/15 hover:text-red-400 disabled:opacity-50"
++              title="خروج از حساب"
++              aria-label="خروج از حساب"
++            >
++              <LogOut className="h-4 w-4" />
++            </button>
+           </div>
+         )}
+       </div>
+@@ -132,6 +179,7 @@ export default function AdminShell({ title, children }: { title: string; childre
+           <div className="flex items-center gap-2">
+             <NotificationBell />
+             <ThemeToggle />
++            {LogoutButton}
+             <Link href="/" className="hidden items-center gap-1.5 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 sm:flex dark:bg-neutral-800 dark:text-neutral-300">
+               🏠 خروج به سایت
+             </Link>
+diff --git a/src/components/HomeHero.tsx b/src/components/HomeHero.tsx
+index f1b32a6..9549e49 100644
+--- a/src/components/HomeHero.tsx
++++ b/src/components/HomeHero.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import Link from "next/link";
++import SalonLink from "@/components/SalonLink";
+ import { useI18n } from "@/lib/i18n";
+ import SalonIcon from "@/components/icons/SalonIcon";
+ 
+@@ -48,17 +49,17 @@ export default function HomeHero() {
+ 
+         <div className="mt-10 flex flex-wrap items-center justify-center gap-4 animate-fade-up">
+           <Link
+-            href="/salons"
++            href="/login"
+             className="rounded-2xl bg-white px-8 py-4 text-base font-black text-rose-600 shadow-2xl shadow-black/10 transition hover:scale-[1.04] hover:shadow-rose-500/30"
+           >
+-            🔍 {t("hero.search")}
++            🚀 {t("hero.start")}
+           </Link>
+-          <Link
+-            href="/s/mah"
++          <SalonLink
++            slug="mah"
+             className="rounded-2xl border border-white/40 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur transition hover:bg-white/20 hover:scale-[1.03]"
+           >
+             ✨ {t("hero.demo")}
+-          </Link>
++          </SalonLink>
+         </div>
+ 
+         {/* آمار */}
+diff --git a/src/components/ReviewRepliesPanel.tsx b/src/components/ReviewRepliesPanel.tsx
+new file mode 100644
+index 0000000..9876fdd
+--- /dev/null
++++ b/src/components/ReviewRepliesPanel.tsx
+@@ -0,0 +1,190 @@
++"use client";
++
++import { useEffect, useState } from "react";
++
++/**
++ * پنل پاسخ به نظرات مشتریان — هم برای سالن‌دار (پیش‌فرض) و هم برای سوپرادمین
++ * (با پاس کردن listPath/patchPath متغیر). منطق دسترسی سمت سرور بررسی می‌شود.
++ */
++
++type OwnerReview = {
++  id: string;
++  rating: number;
++  comment?: string | null;
++  customerName?: string | null;
++  staff?: { name: string } | string | null;
++  reply?: string | null;
++  repliedAt?: string | null;
++  createdAt: string;
++  customer?: { name?: string | null; phone?: string | null } | null;
++  salon?: { name: string; slug: string } | null;
++};
++
++type Msg = { ok: boolean; text: string } | null;
++
++export default function ReviewRepliesPanel({
++  salonId,
++  listUrl,
++  patchUrl,
++  listPath = "reviews",
++  patchPath = "reviews",
++  showSalon = false,
++}: {
++  salonId?: string;
++  /** برای سوپرادمین: مسیر آمادهٔ فهرست/پاسخ (مثل /api/admin/reviews) */
++  listUrl?: string;
++  patchUrl?: string;
++  listPath?: string;
++  patchPath?: string;
++  showSalon?: boolean;
++}) {
++  const [reviews, setReviews] = useState<OwnerReview[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [msg, setMsg] = useState<Msg>(null);
++  const [openFor, setOpenFor] = useState<string | null>(null);
++  const [draft, setDraft] = useState("");
++  const [saving, setSaving] = useState(false);
++
++  const finalListUrl = listUrl ?? (salonId ? `/api/dashboard/salons/${salonId}/${listPath}` : "/api/admin/reviews");
++  const finalPatchUrl = patchUrl ?? (salonId ? `/api/dashboard/salons/${salonId}/${patchPath}` : "/api/admin/reviews");
++
++  useEffect(() => {
++    let cancelled = false;
++    fetch(finalListUrl)
++      .then((r) => r.json())
++      .then((d) => {
++        if (!cancelled && d.success) setReviews((d.reviews as OwnerReview[]) ?? []);
++      })
++      .catch(() => {})
++      .finally(() => {
++        if (!cancelled) setLoading(false);
++      });
++    return () => {
++      cancelled = true;
++    };
++  }, [finalListUrl]);
++
++  async function sendReply(id: string, reply: string) {
++    if (saving) return;
++    setSaving(true);
++    try {
++      const res = await fetch(finalPatchUrl, {
++        method: "PATCH",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ reviewId: id, reply }),
++      });
++      const data = await res.json();
++      if (!data.success) {
++        setMsg({ ok: false, text: data.error || "خطا در ثبت پاسخ" });
++        return;
++      }
++      const updated = data.review as { reply: string | null; repliedAt: string | null };
++      setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
++      setMsg({ ok: true, text: reply.trim() ? "پاسخ ثبت شد ✅" : "پاسخ حذف شد" });
++      setOpenFor(null);
++      setDraft("");
++    } catch {
++      setMsg({ ok: false, text: "خطا در ارتباط با سرور" });
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  function startEdit(r: OwnerReview) {
++    setOpenFor(r.id);
++    setDraft(r.reply ?? "");
++  }
++
++  return (
++    <div className="space-y-3">
++      {msg && (
++        <p className={`rounded-xl px-4 py-2.5 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300"}`}>
++          {msg.text}
++        </p>
++      )}
++
++      {loading ? (
++        <p className="py-6 text-center text-sm text-neutral-400">در حال بارگیری نظرات...</p>
++      ) : reviews.length === 0 ? (
++        <p className="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">هنوز نظری ثبت نشده است.</p>
++      ) : (
++        reviews.map((r) => {
++          const customer = r.customerName ?? r.customer?.name ?? r.customer?.phone ?? "مشتری";
++          const staffName = typeof r.staff === "string" ? r.staff : r.staff?.name ?? null;
++          const isOpen = openFor === r.id;
++          return (
++            <div key={r.id} className="rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
++              <div className="flex flex-wrap items-start justify-between gap-2">
++                <div className="min-w-0">
++                  <div className="font-bold text-neutral-800 dark:text-neutral-100">
++                    {customer} <span className="text-amber-500">★ {r.rating}</span>
++                    {staffName && <span className="text-xs font-normal text-neutral-400"> — {staffName}</span>}
++                  </div>
++                  {showSalon && r.salon?.name && (
++                    <div className="text-[11px] text-neutral-400">سالن: {r.salon.name}</div>
++                  )}
++                  <div className="text-[11px] text-neutral-400">{new Date(r.createdAt).toLocaleDateString("fa-IR")}</div>
++                </div>
++                {!isOpen && (
++                  <button
++                    onClick={() => startEdit(r)}
++                    className={`h-9 shrink-0 rounded-lg px-3 text-xs font-bold transition ${
++                      r.reply
++                        ? "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
++                        : "bg-gradient-to-l from-pink-600 to-purple-600 text-white hover:opacity-90"
++                    }`}
++                  >
++                    {r.reply ? "ویرایش پاسخ" : "پاسخ"}
++                  </button>
++                )}
++              </div>
++
++              {r.comment && <p className="mt-1.5 text-sm text-neutral-600 dark:text-neutral-300">{r.comment}</p>}
++
++              {r.reply && !isOpen && (
++                <div className="mt-2 rounded-xl border-r-4 border-pink-500 bg-pink-50/70 px-3 py-2 text-sm dark:bg-pink-950/30">
++                  <div className="mb-0.5 text-[11px] font-black text-pink-600 dark:text-pink-300">
++                    پاسخ {showSalon ? "پشتیبانی" : "سالن"}
++                    {r.repliedAt && <span className="mr-1.5 font-normal text-neutral-400">{new Date(r.repliedAt).toLocaleDateString("fa-IR")}</span>}
++                  </div>
++                  <p className="text-neutral-700 dark:text-neutral-200">{r.reply}</p>
++                </div>
++              )}
++
++              {isOpen && (
++                <div className="mt-2.5 space-y-2">
++                  <textarea
++                    value={draft}
++                    onChange={(e) => setDraft(e.target.value)}
++                    rows={3}
++                    maxLength={1000}
++                    placeholder="پاسخ شما به این نظر… (حداکثر ۱۰۰۰ نویسه؛ برای حذف پاسخ، متن را خالی بگذارید)"
++                    className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:ring-pink-900/40"
++                  />
++                  <div className="flex items-center gap-2">
++                    <button
++                      onClick={() => sendReply(r.id, draft)}
++                      disabled={saving}
++                      className="h-9 rounded-lg bg-gradient-to-l from-pink-600 to-purple-600 px-4 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
++                    >
++                      {saving ? "در حال ثبت..." : "ثبت پاسخ"}
++                    </button>
++                    <button
++                      onClick={() => {
++                        setOpenFor(null);
++                        setDraft("");
++                      }}
++                      className="h-9 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
++                    >
++                      انصراف
++                    </button>
++                  </div>
++                </div>
++              )}
++            </div>
++          );
++        })
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/SalonLink.tsx b/src/components/SalonLink.tsx
+new file mode 100644
+index 0000000..ad7cf27
+--- /dev/null
++++ b/src/components/SalonLink.tsx
+@@ -0,0 +1,54 @@
++"use client";
++
++import { useSyncExternalStore } from "react";
++import Link from "next/link";
++import { salonUrlFromOrigin, subdomainMode } from "@/lib/salon-url";
++
++/**
++ * لینک صفحهٔ عمومی سالن — روی دامنه‌های ساب‌دامینی (از جمله *.localhost در توسعه)
++ * آدرس مطلق ساب‌دامین می‌سازد؛ در غیر این صورت همان مسیر /s/<slug> می‌ماند.
++ *
++ * اوریج با useSyncExternalStore خوانده می‌شود: در SSR و هیدریشن مقدار خالی است
++ * (پس href اولیه روی سرور و کلاینت یکی می‌ماند) و بی‌درنگ پس از hydration به
++ * آدرس ساب‌دامین ارتقا می‌یابد — بدون mismatch و بدون setState در effect.
++ */
++const noopSubscribe = () => () => {};
++const getClientOrigin = () => window.location.origin;
++const getServerOrigin = () => "";
++
++export default function SalonLink({
++  slug,
++  customDomain,
++  domainStatus,
++  className,
++  children,
++}: {
++  slug: string;
++  customDomain?: string | null;
++  domainStatus?: string;
++  className?: string;
++  children: React.ReactNode;
++}) {
++  const origin = useSyncExternalStore(noopSubscribe, getClientOrigin, getServerOrigin);
++
++  let href = `/s/${slug}`;
++  if (customDomain && domainStatus === "VERIFIED") {
++    href = `https://${customDomain}`;
++  } else if (origin && subdomainMode(origin)) {
++    href = salonUrlFromOrigin(slug, origin);
++  }
++
++  // لینک داخلی (هم‌ریش) با next/link بهتر preload می‌شود؛ لینک ساب‌دامین باید <a> باشد
++  if (href.startsWith("/")) {
++    return (
++      <Link href={href} className={className}>
++        {children}
++      </Link>
++    );
++  }
++  return (
++    <a href={href} className={className}>
++      {children}
++    </a>
++  );
++}
+diff --git a/src/components/SalonManager.tsx b/src/components/SalonManager.tsx
+index 8e81b1a..017822e 100644
+--- a/src/components/SalonManager.tsx
++++ b/src/components/SalonManager.tsx
+@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
+ import type { Dispatch, SetStateAction } from "react";
+ import RevenueChart from "@/components/RevenueChart";
+ import DailyBoard from "@/components/DailyBoard";
++import ReviewRepliesPanel from "@/components/ReviewRepliesPanel";
+ import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
+ import TimeField from "@/components/ui/TimeField";
+ import { zonedTimeToIso } from "@/lib/time/zoned";
+@@ -54,7 +55,7 @@ type ApiRes<T = Record<string, unknown>> = { success: boolean; error?: string }
+ type Msg = { ok: boolean; text: string };
+ type MsgSetter = Dispatch<SetStateAction<Msg | null>>;
+ 
+-type Tab = "services" | "staff" | "blocks" | "booking" | "branches" | "cash" | "report" | "waitlist" | "calendar" | "board" | "holidays" | "customers" | "invoices" | "campaigns" | "domain" | "data";
++type Tab = "services" | "staff" | "blocks" | "booking" | "branches" | "cash" | "report" | "waitlist" | "calendar" | "board" | "holidays" | "customers" | "reviews" | "invoices" | "campaigns" | "domain" | "data";
+ 
+ /** زمینه مشترک برای زیربخش‌ها */
+ type Ctx = {
+@@ -1693,13 +1694,15 @@ export default function SalonManager({
+   salonId,
+   salonSlug,
+   timezone = "Asia/Tehran",
++  initialTab = "services",
+ }: {
+   salonId: string;
+   salonSlug?: string;
+   timezone?: string;
++  initialTab?: Tab;
+ }) {
+   const { t } = useI18n();
+-  const [tab, setTab] = useState<Tab>("services");
++  const [tab, setTab] = useState<Tab>(initialTab);
+   const [services, setServices] = useState<Service[]>([]);
+   const [staff, setStaff] = useState<StaffItem[]>([]);
+   const [blocks, setBlocks] = useState<Block[]>([]);
+@@ -1796,6 +1799,7 @@ export default function SalonManager({
+     { id: "board", label: "برنامه روزانه", icon: "🗓️" },
+     { id: "staff", label: t("manager.tabs.staff"), icon: "👥" },
+     { id: "customers", label: t("manager.tabs.customers"), icon: "📇" },
++    { id: "reviews", label: "نظرات", icon: "⭐" },
+     { id: "holidays", label: t("manager.tabs.holidays"), icon: "🏖️" },
+     { id: "branches", label: t("manager.tabs.branches"), icon: "🏢" },
+     { id: "cash", label: t("manager.tabs.cash"), icon: "💰" },
+@@ -1861,6 +1865,7 @@ export default function SalonManager({
+         )}
+ 
+         {tab === "customers" && <CustomersView ctx={ctx} />}
++        {tab === "reviews" && <ReviewRepliesPanel salonId={salonId} />}
+         {tab === "holidays" && <HolidaysView ctx={ctx} />}
+ 
+         {tab === "branches" && (
+diff --git a/src/components/SalonQrCard.tsx b/src/components/SalonQrCard.tsx
+new file mode 100644
+index 0000000..e70297e
+--- /dev/null
++++ b/src/components/SalonQrCard.tsx
+@@ -0,0 +1,38 @@
++import QRCode from "qrcode";
++
++type Props = {
++  /** نشانی عمومی سالن (ساب‌دامین/دامنهٔ اختصاصی) که در QR رمزنگاری می‌شود */
++  url: string;
++  name: string;
++};
++
++/**
++ * کارت QR صفحهٔ سالن: مشتری با اسکن، مستقیم وارد آدرس ساب‌دامین سالن می‌شود.
++ * SVG سمت سرور تولید می‌شود (بدون وابستگی کلاینت)؛ خروجی qrcode فقط مسیرهای SVG است.
++ */
++export default async function SalonQrCard({ url, name }: Props) {
++  const svg = await QRCode.toString(url, {
++    type: "svg",
++    errorCorrectionLevel: "M",
++    margin: 1,
++    width: 160,
++    color: { dark: "#171717", light: "#ffffff" },
++  });
++
++  return (
++    <div className="rounded-3xl border border-neutral-200 bg-white p-5 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
++      <h3 className="text-sm font-extrabold text-neutral-900 dark:text-neutral-100">QR آدرس سالن</h3>
++      <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">با اسکن، وارد صفحهٔ نوبت‌دهی شوید</p>
++      <div
++        className="mx-auto mt-3 w-fit rounded-2xl bg-white p-3 shadow-sm ring-1 ring-neutral-200 dark:ring-neutral-700 [&_svg]:block"
++        role="img"
++        aria-label={`QR کد ${name}`}
++        dangerouslySetInnerHTML={{ __html: svg }}
++      />
++      <div className="mt-3 text-sm font-bold text-neutral-800 dark:text-neutral-200">{name}</div>
++      <div className="mt-1 truncate text-[11px] text-neutral-500 dark:text-neutral-400" dir="ltr" title={url}>
++        {url.replace(/^https?:\/\//, "")}
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/SmsReportPanel.tsx b/src/components/SmsReportPanel.tsx
+new file mode 100644
+index 0000000..7f2f293
+--- /dev/null
++++ b/src/components/SmsReportPanel.tsx
+@@ -0,0 +1,686 @@
++"use client";
++
++import { Fragment, useCallback, useEffect, useState } from "react";
++import {
++  faDate,
++  faDateFull,
++  faNum,
++  faTimeAgo,
++  faTimeUntil,
++  localizeNotifError,
++  MAX_SMS_ATTEMPTS,
++  notifBodyText,
++  notifStatusMeta,
++  notifTypeLabel,
++  NOTIF_CHANNEL_META,
++  NOTIF_STATUS_META,
++} from "@/lib/notifications/fa";
++
++/* ─── انواع محلی ─────────────────────────────────────────────────────── */
++
++type NotifItem = {
++  id: string;
++  type: string;
++  channel: string;
++  status: string;
++  attempts: number;
++  recipient: string;
++  lastError?: string | null;
++  sentAt?: string | null;
++  nextAttemptAt?: string | null;
++  createdAt: string;
++  updatedAt?: string | null;
++  uniqueKey?: string | null;
++  payload?: unknown;
++  salonName?: string | null;
++};
++
++type NotifSummary = {
++  PENDING?: number;
++  SENT?: number;
++  FAILED?: number;
++  DROPPED?: number;
++  channels?: Record<string, number>;
++  unitCost?: number;
++  estimatedCost?: number;
++  sentToday?: number;
++  pendingStuck?: number;
++  totalAll?: number;
++};
++
++type NotifScope = {
++  total?: number;
++  byStatus?: Record<string, number>;
++  successRate?: number;
++  days?: number;
++  from?: string | null;
++  shown?: number;
++};
++
++type NotifData = {
++  summary: NotifSummary;
++  scope: NotifScope;
++  types: { type: string; count: number }[];
++  notifications: NotifItem[];
++};
++
++type Msg = { ok: boolean; text: string } | null;
++
++const input =
++  "w-full rounded-xl border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100";
++
++const WINDOWS = [
++  { days: 0, label: "همهٔ زمان‌ها" },
++  { days: 1, label: "۲۴ ساعت اخیر" },
++  { days: 7, label: "۷ روز اخیر" },
++  { days: 30, label: "۳۰ روز اخیر" },
++  { days: 90, label: "۹۰ روز اخیر" },
++];
++
++/* ─── گاه‌شمار هر پیامک ──────────────────────────────────────────────── */
++
++/** یک سطر زمانی: برچسب فارسی + تاریخ شمسی + فاصلهٔ نسبی + منبع خام */
++type TimeLine = { icon: string; label: string; iso: string; date: string; rel: string; tone: string };
++
++const toneSent = "text-emerald-600 dark:text-emerald-400";
++const toneWait = "text-amber-600 dark:text-amber-400";
++const toneFail = "text-red-600 dark:text-red-400";
++const toneMuted = "text-neutral-500 dark:text-neutral-400";
++
++/** متن «در صف مانده» یا «رسیده» را از روی فاصلهٔ نسبی تشخیص می‌دهد */
++function isDue(nextAttemptAt?: string | null): boolean {
++  if (!nextAttemptAt) return true;
++  return faTimeUntil(nextAttemptAt) === "هم‌اکنون";
++}
++
++function line(icon: string, label: string, iso: string | null | undefined, tone = toneMuted, future = false): TimeLine | null {
++  if (!iso) return null;
++  const t = new Date(iso).getTime();
++  if (Number.isNaN(t)) return null;
++  return { icon, label, iso, date: faDate(iso), rel: future ? faTimeUntil(iso) : faTimeAgo(iso), tone };
++}
++
++/**
++ * روایت زمانی یک اعلان: چه زمانی در صف ثبت شد، چه زمانی ارسال شد، یا اگر هنوز
++ * ارسال نشده، تلاش بعدی کی است و آخرین تلاش کِی بوده است.
++ */
++function timelineOf(n: NotifItem): TimeLine[] {
++  const out: (TimeLine | null)[] = [];
++
++  if (n.status === "SENT") {
++    out.push(line("✅", "ارسال شد", n.sentAt ?? n.updatedAt ?? n.createdAt, toneSent));
++    if (n.sentAt && n.createdAt && n.sentAt !== n.createdAt) out.push(line("📥", "ثبت در صف", n.createdAt));
++    if (n.attempts > 0) out.push(line("🔁", `${faNum(n.attempts)} تلاش تا موفقیت`, n.updatedAt ?? n.sentAt, toneWait));
++  } else if (n.status === "PENDING") {
++    const due = isDue(n.nextAttemptAt);
++    out.push(
++      n.attempts > 0
++        ? line("⏱", due ? "تلاش بعدی فرا رسیده" : `تلاش ${faNum(n.attempts + 1)} بعدی`, n.nextAttemptAt, toneWait, !due)
++        : line("⏱", due ? "زمان ارسال فرا رسیده — در انتظار پردازشگر" : "برنامهٔ ارسال", n.nextAttemptAt, toneWait, !due),
++    );
++    if (n.attempts > 0) out.push(line("⚠", "آخرین تلاش ناموفق", n.updatedAt ?? n.createdAt, toneFail));
++    out.push(line("📥", "ثبت در صف", n.createdAt));
++  } else if (n.status === "FAILED") {
++    out.push(line("⛔", "آخرین تلاش ناموفق", n.updatedAt ?? n.createdAt, toneFail));
++    out.push(line("⏱", isDue(n.nextAttemptAt) ? "تلاش بعدی فرا رسیده" : "تلاش بعدی", n.nextAttemptAt, toneWait, !isDue(n.nextAttemptAt)));
++    out.push(line("📥", "ثبت در صف", n.createdAt));
++  } else {
++    // DROPPED و وضعیت‌های ناشناخته
++    out.push(line("🗄", n.status === "DROPPED" ? `از صف خارج شد (پس از ${faNum(Math.max(n.attempts, 1))} تلاش)` : "آخرین به‌روزرسانی", n.updatedAt ?? n.sentAt ?? n.createdAt, toneFail));
++    out.push(line("📥", "ثبت در صف", n.createdAt));
++  }
++
++  return out.filter((l): l is TimeLine => l !== null);
++}
++
++/* ─── اجزای کوچک ────────────────────────────────────────────────────── */
++
++function StatusBadge({ status }: { status: string }) {
++  const m = notifStatusMeta(status);
++  return (
++    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${m.cls}`}>
++      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${m.dot}`} />
++      {m.label}
++    </span>
++  );
++}
++
++function ChannelChip({ channel }: { channel: string }) {
++  const meta = NOTIF_CHANNEL_META[channel];
++  return (
++    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
++      {meta ? `${meta.icon} ${meta.label}` : channel}
++    </span>
++  );
++}
++
++function Th({ children }: { children?: React.ReactNode }) {
++  return <th className="whitespace-nowrap px-3 py-2.5 text-right text-[11px] font-bold text-neutral-500 dark:text-neutral-400">{children}</th>;
++}
++
++function Td({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
++  return <td className={`px-3 py-3 align-middle text-sm ${className}`}>{children}</td>;
++}
++
++function StatCard({
++  statusKey,
++  value,
++  total,
++  grad,
++}: {
++  statusKey: keyof typeof NOTIF_STATUS_META;
++  value: number;
++  total: number;
++  grad: string;
++}) {
++  const meta = NOTIF_STATUS_META[statusKey];
++  const share = total > 0 ? Math.round((value / total) * 100) : 0;
++  return (
++    <div className={`overflow-hidden rounded-2xl bg-gradient-to-bl ${grad} p-4 text-white shadow-md`}>
++      <div className="flex items-center justify-between">
++        <span className="text-xs font-bold text-white/85">{meta.label}</span>
++        <span className="text-sm font-bold opacity-90">{value > 0 ? `${faNum(share)}٪` : "—"}</span>
++      </div>
++      <div className="mt-1 text-2xl font-black tabular-nums">{faNum(value)}</div>
++      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/25">
++        <div className="h-full rounded-full bg-white/90 transition-all" style={{ width: `${Math.min(100, share)}%` }} />
++      </div>
++    </div>
++  );
++}
++
++function InfoChip({ icon, label, value, tone }: { icon: string; label: string; value: string; tone: string }) {
++  return (
++    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset ${tone}`}>
++      <span aria-hidden>{icon}</span>
++      {label}: <span className="tabular-nums">{value}</span>
++    </span>
++  );
++}
++
++/** سطر گاه‌شمار (نسخهٔ فشردهٔ جدول) */
++function TimeCell({ lines }: { lines: TimeLine[] }) {
++  if (lines.length === 0) return <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>;
++  const [first, ...rest] = lines;
++  return (
++    <div className="space-y-1">
++      <div className={`flex items-start gap-1.5 text-xs font-bold ${first.tone}`}>
++        <span aria-hidden>{first.icon}</span>
++        <span className="whitespace-nowrap">
++          {first.label}
++          <span className="mr-1 font-normal text-neutral-500 dark:text-neutral-400">{first.rel}</span>
++        </span>
++      </div>
++      <div className="font-mono text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400" dir="rtl">
++        {first.date}
++      </div>
++      {rest.map((l, i) => (
++        <div key={i} className={`flex items-center gap-1.5 text-[11px] ${l.tone}`}>
++          <span aria-hidden>{l.icon}</span>
++          <span className="whitespace-nowrap">{l.label}</span>
++          <span className="font-mono tabular-nums text-neutral-400 dark:text-neutral-500">{l.date}</span>
++        </div>
++      ))}
++    </div>
++  );
++}
++
++/** ردیف جزئیات: متن پیام، خطای خام، کلید یکتا و گاه‌شمار کامل */
++function Details({ n }: { n: NotifItem }) {
++  const body = notifBodyText(n.payload, n.channel);
++  const lines = timelineOf(n);
++  return (
++    <div className="grid gap-3 rounded-xl bg-neutral-50 p-3 text-xs dark:bg-neutral-950/50 md:grid-cols-2">
++      <div className="space-y-2">
++        <div>
++          <div className="mb-1 font-extrabold text-neutral-600 dark:text-neutral-300">متن {n.channel === "EMAIL" ? "ایمیل" : "پیامک"}</div>
++          <div className={`rounded-lg border border-neutral-200 bg-white p-2 leading-6 dark:border-neutral-700 dark:bg-neutral-900 ${body ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 dark:text-neutral-500"}`}>
++            {body || "متنی ثبت نشده است."}
++          </div>
++        </div>
++        {n.lastError && (
++          <div>
++            <div className="mb-1 font-extrabold text-red-600 dark:text-red-400">خطای سرویس (متن خام)</div>
++            <div dir="ltr" className="rounded-lg border border-red-200 bg-white p-2 break-words font-mono text-[11px] leading-5 text-red-600 dark:border-red-900/60 dark:bg-neutral-900 dark:text-red-400">
++              {String(n.lastError)}
++            </div>
++          </div>
++        )}
++      </div>
++      <div className="space-y-2">
++        <div>
++          <div className="mb-1 font-extrabold text-neutral-600 dark:text-neutral-300">گاه‌شمار</div>
++          <ul className="space-y-1">
++            {lines.map((l, i) => (
++              <li key={i} className="flex items-baseline justify-between gap-2">
++                <span className={`font-bold ${l.tone}`}>
++                  <span aria-hidden>{l.icon}</span> {l.label}
++                </span>
++                <span className="whitespace-nowrap text-[11px] text-neutral-500 dark:text-neutral-400">{faDateFull(l.iso)}</span>
++              </li>
++            ))}
++          </ul>
++        </div>
++        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-500 dark:text-neutral-400">
++          <span>
++            تلاش‌ها: <b className="text-neutral-700 dark:text-neutral-200">{faNum(n.attempts)}</b> از {faNum(MAX_SMS_ATTEMPTS)}
++          </span>
++          {n.uniqueKey && (
++            <span dir="ltr" className="font-mono">
++              کلید یکتا: {n.uniqueKey}
++            </span>
++          )}
++          <span dir="ltr" className="font-mono">
++            شناسه: {n.id}
++          </span>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++/* ─── پنل اصلی گزارش پیامک ──────────────────────────────────────────── */
++
++export default function SmsReportPanel({ onMsg }: { onMsg: (m: Msg) => void }) {
++  const [data, setData] = useState<NotifData | null>(null);
++  const [statusFilter, setStatusFilter] = useState("");
++  const [channelFilter, setChannelFilter] = useState("");
++  const [typeFilter, setTypeFilter] = useState("");
++  const [daysFilter, setDaysFilter] = useState(0);
++  const [q, setQ] = useState("");
++  const [qDebounced, setQDebounced] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [openId, setOpenId] = useState<string | null>(null);
++  const [, setTick] = useState(0);
++
++  useEffect(() => {
++    const t = setTimeout(() => setQDebounced(q.trim()), 350);
++    return () => clearTimeout(t);
++  }, [q]);
++
++  // تازه‌سازی شمارنده‌های نسبی و صف هر ۳۰ ثانیه
++  useEffect(() => {
++    const i = setInterval(() => setTick((t) => t + 1), 30_000);
++    return () => clearInterval(i);
++  }, []);
++
++  const fetchReport = useCallback(async () => {
++    const params = new URLSearchParams();
++    if (statusFilter) params.set("status", statusFilter);
++    if (channelFilter) params.set("channel", channelFilter);
++    if (typeFilter) params.set("type", typeFilter);
++    if (daysFilter) params.set("days", String(daysFilter));
++    if (qDebounced) params.set("q", qDebounced);
++    try {
++      const r = await fetch(`/api/admin/notifications?${params}`);
++      const d = await r.json();
++      if (d.success) {
++        setData({
++          summary: d.summary as NotifSummary,
++          scope: (d.scope ?? {}) as NotifScope,
++          types: (d.types ?? []) as { type: string; count: number }[],
++          notifications: (d.notifications ?? []) as NotifItem[],
++        });
++      } else {
++        onMsg({ ok: false, text: d.error ?? "خطا در دریافت گزارش پیامک" });
++      }
++    } catch {
++      onMsg({ ok: false, text: "خطای شبکه در دریافت گزارش پیامک" });
++    }
++  }, [statusFilter, channelFilter, typeFilter, daysFilter, qDebounced, onMsg]);
++
++  useEffect(() => {
++    let cancelled = false;
++    (async () => {
++      if (!cancelled) await fetchReport();
++    })();
++    return () => {
++      cancelled = true;
++    };
++  }, [fetchReport]);
++
++  async function retry(id?: string) {
++    setBusy(true);
++    try {
++      const r = await fetch("/api/admin/notifications", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify(id ? { id } : {}),
++      });
++      const d = await r.json();
++      if (d.success) {
++        onMsg({
++          ok: true,
++          text:
++            (d.sent ?? 0) > 0
++              ? `${faNum(d.reset ?? 0)} پیامک به صف بازگشت و ${faNum(d.sent)} پیامک ارسال شد.`
++              : `${faNum(d.reset ?? 0)} پیامک برای تلاش مجدد در صف قرار گرفت (ارسال موفق: ${faNum(d.sent ?? 0)}).`,
++        });
++        await fetchReport();
++      } else {
++        onMsg({ ok: false, text: d.error ?? "تلاش مجدد ناموفق بود" });
++      }
++    } catch {
++      onMsg({ ok: false, text: "خطای شبکه در تلاش مجدد" });
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (!data) return <p className="py-8 text-center text-sm text-neutral-400 dark:text-neutral-500">در حال بارگذاری گزارش پیامک...</p>;
++
++  const s = data.summary;
++  const scope = data.scope;
++  const inScope = scope.byStatus ?? {};
++  const scopeTotal = scope.total ?? 0;
++  const channels = s.channels ?? {};
++  const unitCost = s.unitCost ?? 0;
++  const failedAll = (s.FAILED ?? 0) + (s.DROPPED ?? 0);
++
++  const statusChips = [
++    { key: "", label: "همه" },
++    ...(Object.keys(NOTIF_STATUS_META) as (keyof typeof NOTIF_STATUS_META)[]).map((k) => ({ key: k as string, label: NOTIF_STATUS_META[k].label })),
++  ];
++
++  const activeFilters = Boolean(statusFilter || channelFilter || typeFilter || daysFilter || qDebounced);
++
++  return (
++    <div className="space-y-4">
++      {/* خلاصهٔ بازهٔ انتخابی */}
++      <div className="flex flex-wrap items-center gap-2">
++        <span className="text-xs font-extrabold text-neutral-500 dark:text-neutral-400">
++          {scope.days ? `بازهٔ ${WINDOWS.find((w) => w.days === scope.days)?.label ?? ""}` : "بازهٔ گزارش: همهٔ زمان‌ها"}
++        </span>
++        <InfoChip
++          icon="🎯"
++          label="نرخ موفقیت"
++          value={`${faNum(scope.successRate ?? 0)}٪`}
++          tone="bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-400/20"
++        />
++        <InfoChip
++          icon="📤"
++          label="ارسال‌شدهٔ امروز"
++          value={faNum(s.sentToday ?? 0)}
++          tone="bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-400/20"
++        />
++        <InfoChip
++          icon="🕒"
++          label="معوق در صف"
++          value={faNum(s.pendingStuck ?? 0)}
++          tone="bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-400/20"
++        />
++        <InfoChip
++          icon="🗂"
++          label="کل رکوردها"
++          value={faNum(s.totalAll ?? 0)}
++          tone="bg-neutral-100 text-neutral-600 ring-neutral-500/20 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-500/25"
++        />
++      </div>
++
++      {/* کارت‌های وضعیت (مطابق فیلترهای فعال) */}
++      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
++        <StatCard statusKey="PENDING" value={inScope.PENDING ?? 0} total={scopeTotal} grad="from-amber-500 to-orange-600" />
++        <StatCard statusKey="SENT" value={inScope.SENT ?? 0} total={scopeTotal} grad="from-emerald-500 to-teal-600" />
++        <StatCard statusKey="FAILED" value={inScope.FAILED ?? 0} total={scopeTotal} grad="from-rose-500 to-red-600" />
++        <StatCard statusKey="DROPPED" value={inScope.DROPPED ?? 0} total={scopeTotal} grad="from-neutral-500 to-neutral-700" />
++      </div>
++
++      {/* کانال‌ها و هزینه */}
++      <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
++        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
++          <span className="text-xs font-extrabold text-neutral-500 dark:text-neutral-400">کانال‌ها (کل):</span>
++          {Object.keys(NOTIF_CHANNEL_META).filter((c) => (channels[c] ?? 0) > 0).length === 0 ? (
++            <span className="text-xs text-neutral-400 dark:text-neutral-500">ثبتی وجود ندارد</span>
++          ) : (
++            Object.keys(NOTIF_CHANNEL_META)
++              .filter((c) => (channels[c] ?? 0) > 0)
++              .map((c) => (
++                <span key={c} className="inline-flex items-center gap-1.5 text-sm font-bold text-neutral-700 dark:text-neutral-200">
++                  {NOTIF_CHANNEL_META[c].icon} {NOTIF_CHANNEL_META[c].label}
++                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">{faNum(channels[c])}</span>
++                </span>
++              ))
++          )}
++          <span className="mr-auto inline-flex items-center gap-1.5 rounded-full bg-pink-50 px-3 py-1 text-xs font-black text-pink-700 dark:bg-pink-950/40 dark:text-pink-300">
++            💸 هزینهٔ تخمینی پیامک‌های ارسال‌شده: {faNum((s.estimatedCost ?? 0).toLocaleString("en-US"))} تومان
++            {unitCost > 0 && <span className="font-normal text-pink-500 dark:text-pink-400">({faNum(unitCost)} تومان هر پیامک)</span>}
++          </span>
++        </div>
++      </div>
++
++      {/* فیلترها */}
++      <div className="space-y-2 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
++        <div className="flex flex-wrap items-center gap-2">
++          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1 dark:border-neutral-700 dark:bg-neutral-950/40">
++            {statusChips.map((chip) => (
++              <button
++                key={chip.key || "all"}
++                onClick={() => setStatusFilter(chip.key)}
++                aria-pressed={statusFilter === chip.key}
++                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
++                  statusFilter === chip.key
++                    ? "bg-neutral-900 text-white shadow dark:bg-neutral-100 dark:text-neutral-900"
++                    : "text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
++                }`}
++              >
++                {chip.label}
++              </button>
++            ))}
++          </div>
++          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1 dark:border-neutral-700 dark:bg-neutral-950/40">
++            {WINDOWS.map((w) => (
++              <button
++                key={w.days}
++                onClick={() => setDaysFilter(w.days)}
++                aria-pressed={daysFilter === w.days}
++                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
++                  daysFilter === w.days
++                    ? "bg-sky-600 text-white shadow"
++                    : "text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
++                }`}
++              >
++                {w.label}
++              </button>
++            ))}
++          </div>
++        </div>
++
++        <div className="flex flex-wrap items-center gap-2">
++          <input
++            className={`${input} max-w-xs flex-1`}
++            value={q}
++            onChange={(e) => setQ(e.target.value)}
++            placeholder="جست‌وجوی شمارهٔ گیرنده یا متن خطا…"
++            aria-label="جست‌وجو در گزارش پیامک"
++          />
++          <select className={`${input} w-auto min-w-[150px]`} value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} aria-label="کانال">
++            <option value="">همهٔ کانال‌ها</option>
++            {Object.entries(NOTIF_CHANNEL_META).map(([c, m]) => (
++              <option key={c} value={c}>
++                {m.icon} {m.label}
++              </option>
++            ))}
++          </select>
++          <select className={`${input} w-auto min-w-[190px]`} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="نوع پیام">
++            <option value="">همهٔ انواع پیام</option>
++            {data.types.map((t) => (
++              <option key={t.type} value={t.type}>
++                {notifTypeLabel(t.type)} ({faNum(t.count)})
++              </option>
++            ))}
++          </select>
++          <button
++            onClick={() => retry()}
++            disabled={busy || failedAll === 0}
++            className="rounded-xl bg-amber-50 px-4 py-2 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/20 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/40"
++          >
++            {busy ? "در حال تلاش مجدد..." : `تلاش مجدد ${faNum(failedAll)} مورد ناموفق (همهٔ بازه‌ها)`}
++          </button>
++          <button
++            onClick={() => fetchReport()}
++            disabled={busy}
++            className="rounded-xl bg-neutral-100 px-3 py-2 text-xs font-bold text-neutral-600 transition hover:bg-neutral-200 disabled:opacity-40 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
++          >
++            🔄 تازه‌سازی
++          </button>
++          {activeFilters && (
++            <button
++              onClick={() => {
++                setStatusFilter("");
++                setChannelFilter("");
++                setTypeFilter("");
++                setDaysFilter(0);
++                setQ("");
++                setQDebounced("");
++              }}
++              className="rounded-xl px-3 py-2 text-xs font-bold text-neutral-500 underline-offset-4 transition hover:text-neutral-800 hover:underline dark:text-neutral-400 dark:hover:text-neutral-100"
++            >
++              پاک‌سازی فیلترها
++            </button>
++          )}
++          <span className="mr-auto text-[11px] text-neutral-400 dark:text-neutral-500">
++            نمایش {faNum(data.notifications.length)} از {faNum(scopeTotal)} رکوردِ بازه
++          </span>
++        </div>
++      </div>
++
++      {/* فهرست */}
++      {data.notifications.length === 0 ? (
++        <div className="rounded-2xl border border-dashed border-neutral-300 py-12 text-center text-sm text-neutral-400 dark:border-neutral-700 dark:text-neutral-500">
++          پیامکی با این فیلترها یافت نشد.
++        </div>
++      ) : (
++        <>
++          {/* جدول دسکتاپ */}
++          <div className="hidden overflow-x-auto rounded-2xl border border-neutral-200 bg-white shadow-sm md:block dark:border-neutral-800 dark:bg-neutral-900">
++            <table className="w-full min-w-[900px] border-collapse text-sm">
++              <thead className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950/40">
++                <tr>
++                  <Th>نوع پیام</Th>
++                  <Th>گیرنده</Th>
++                  <Th>سالن</Th>
++                  <Th>کانال</Th>
++                  <Th>وضعیت</Th>
++                  <Th>گاه‌شمار ارسال/تلاش</Th>
++                  <Th>عملیات</Th>
++                </tr>
++              </thead>
++              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
++                {data.notifications.map((n) => {
++                  const open = openId === n.id;
++                  return (
++                    <Fragment key={n.id}>
++                      <tr className={`transition hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 ${open ? "bg-neutral-50 dark:bg-neutral-800/30" : ""}`}>
++                        <Td className="max-w-[240px] font-bold text-neutral-800 dark:text-neutral-100">
++                          <span className="block">{notifTypeLabel(n.type)}</span>
++                          {n.attempts > 0 && (
++                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-normal text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
++                              🔁 {faNum(n.attempts)} تلاش از {faNum(MAX_SMS_ATTEMPTS)}
++                            </span>
++                          )}
++                          {n.lastError && (
++                            <span className="mt-1 block text-[11px] font-normal leading-5 text-red-500 dark:text-red-400" title={String(n.lastError)}>
++                          {localizeNotifError(n.lastError)}
++                            </span>
++                          )}
++                        </Td>
++                        <Td className="whitespace-nowrap font-mono text-xs text-neutral-600 dark:text-neutral-300">
++                          <span dir="ltr">{n.recipient}</span>
++                        </Td>
++                        <Td className="text-xs text-neutral-600 dark:text-neutral-300">{n.salonName ?? <span className="text-neutral-300 dark:text-neutral-600">—</span>}</Td>
++                        <Td>
++                          <ChannelChip channel={n.channel} />
++                        </Td>
++                        <Td>
++                          <StatusBadge status={n.status} />
++                        </Td>
++                        <Td>
++                          <TimeCell lines={timelineOf(n)} />
++                        </Td>
++                        <Td>
++                          <div className="flex flex-wrap items-center gap-1.5">
++                            <button
++                              onClick={() => setOpenId(open ? null : n.id)}
++                              aria-expanded={open}
++                              className="rounded-lg bg-neutral-100 px-2.5 py-1.5 text-[11px] font-bold text-neutral-600 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
++                            >
++                              {open ? "بستن جزئیات" : "جزئیات"}
++                            </button>
++                            {(n.status === "FAILED" || n.status === "DROPPED") && (
++                              <button
++                                onClick={() => retry(n.id)}
++                                disabled={busy}
++                                className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-50 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/40"
++                              >
++                                تلاش مجدد
++                              </button>
++                            )}
++                          </div>
++                        </Td>
++                      </tr>
++                      {open && (
++                        <tr className="bg-neutral-50/70 dark:bg-neutral-950/30">
++                          <td colSpan={7} className="px-3 pb-4">
++                            <Details n={n} />
++                          </td>
++                        </tr>
++                      )}
++                    </Fragment>
++                  );
++                })}
++              </tbody>
++            </table>
++          </div>
++
++          {/* کارت موبایل */}
++          <div className="space-y-2 md:hidden">
++            {data.notifications.map((n) => {
++              const open = openId === n.id;
++              return (
++                <div key={n.id} className="rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
++                  <div className="flex flex-wrap items-center justify-between gap-2">
++                    <span className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">{notifTypeLabel(n.type)}</span>
++                    <StatusBadge status={n.status} />
++                  </div>
++                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400">
++                    <span dir="ltr" className="font-mono">{n.recipient}</span>
++                    <ChannelChip channel={n.channel} />
++                    {n.salonName && <span className="font-bold">{n.salonName}</span>}
++                    {n.attempts > 0 && <span>🔁 {faNum(n.attempts)} تلاش</span>}
++                  </div>
++                  <div className="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
++                    <TimeCell lines={timelineOf(n)} />
++                  </div>
++                  {n.lastError && <div className="mt-1.5 text-[11px] leading-5 text-red-500 dark:text-red-400">{localizeNotifError(n.lastError)}</div>}
++                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
++                    <button
++                      onClick={() => setOpenId(open ? null : n.id)}
++                      aria-expanded={open}
++                      className="rounded-lg bg-neutral-100 px-3 py-1.5 text-[11px] font-bold text-neutral-600 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
++                    >
++                      {open ? "بستن جزئیات" : "جزئیات پیام"}
++                    </button>
++                    {(n.status === "FAILED" || n.status === "DROPPED") && (
++                      <button
++                        onClick={() => retry(n.id)}
++                        disabled={busy}
++                        className="rounded-lg bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-50 dark:bg-amber-950/40 dark:text-amber-300"
++                      >
++                        تلاش مجدد
++                      </button>
++                    )}
++                  </div>
++                  {open && (
++                    <div className="mt-2">
++                      <Details n={n} />
++                    </div>
++                  )}
++                </div>
++              );
++            })}
++          </div>
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/SmsTestCard.tsx b/src/components/SmsTestCard.tsx
+new file mode 100644
+index 0000000..5f43539
+--- /dev/null
++++ b/src/components/SmsTestCard.tsx
+@@ -0,0 +1,91 @@
++"use client";
++
++import { useState } from "react";
++import { smsProviderMeta } from "@/lib/sms/providers";
++
++const input =
++  "w-full rounded-xl border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none transition focus:border-pink-500 focus:ring-2 focus:ring-pink-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100";
++const primaryBtn =
++  "rounded-xl bg-gradient-to-l from-pink-600 to-purple-600 px-5 py-2.5 text-sm font-black text-white shadow-md shadow-pink-500/20 transition hover:opacity-95 disabled:opacity-50";
++
++type Msg = { ok: boolean; text: string } | null;
++
++/** کارت ارسال پیامک تست؛ اگر provider انتخاب نشود سرویس فعال استفاده می‌شود */
++export default function SmsTestCard({ onMsg }: { onMsg: (m: Msg) => void }) {
++  const [provider, setProvider] = useState("");
++  const [phone, setPhone] = useState("");
++  const [sending, setSending] = useState(false);
++  const [result, setResult] = useState<Msg>(null);
++
++  async function send() {
++    if (phone.replace(/\D/g, "").length < 11) {
++      setResult({ ok: false, text: "شماره موبایل معتبر وارد کنید (۱۱ رقم)." });
++      return;
++    }
++    setSending(true);
++    setResult(null);
++    try {
++      const r = await fetch("/api/admin/sms/test", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ phone: phone.replace(/\D/g, ""), ...(provider ? { provider } : {}) }),
++      });
++      const d = await r.json();
++      const m: Msg = d.success ? { ok: true, text: d.message ?? "پیامک آزمایشی ارسال شد ✅" } : { ok: false, text: d.error ?? "ارسال پیامک تست ناموفق بود" };
++      setResult(m);
++      onMsg(m);
++    } catch {
++      const m: Msg = { ok: false, text: "خطای شبکه در ارسال پیامک تست" };
++      setResult(m);
++      onMsg(m);
++    } finally {
++      setSending(false);
++    }
++  }
++
++  return (
++    <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
++      <div className="flex items-center justify-between">
++        <h4 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">📤 ارسال پیامک تست</h4>
++        <span className="text-[11px] text-neutral-400 dark:text-neutral-500">بدون ثبت در دیتابیس — فقط ارسال واقعی</span>
++      </div>
++      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">برای اطمینان از کارکرد کلیدهای سرویس پیامک؛ نتیجه در «گزارش پیامک» قابل پیگیری است.</p>
++      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_220px_auto]">
++        <input
++          className={input}
++          placeholder="09xxxxxxxxx"
++          dir="ltr"
++          inputMode="numeric"
++          aria-label="شماره موبایل برای تست"
++          value={phone}
++          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
++          onKeyDown={(e) => {
++            if (e.key === "Enter") send();
++          }}
++        />
++        <select className={input} value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="سرویس پیامک">
++          <option value="">سرویس فعال (پیش‌فرض)</option>
++          {smsProviderMeta.map((p) => (
++            <option key={p.id} value={p.id}>
++              {p.name}
++            </option>
++          ))}
++        </select>
++        <button onClick={send} disabled={sending} className={`${primaryBtn} whitespace-nowrap`}>
++          {sending ? "در حال ارسال..." : "ارسال تست"}
++        </button>
++      </div>
++      {result && (
++        <div
++          className={`mt-3 rounded-xl px-3 py-2 text-xs font-bold ring-1 ring-inset ${
++            result.ok
++              ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-400/20"
++              : "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-400/20"
++          }`}
++        >
++          {result.text}
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/appointments/ActionSheet.tsx b/src/components/appointments/ActionSheet.tsx
+index 247566c..ad7b56d 100644
+--- a/src/components/appointments/ActionSheet.tsx
++++ b/src/components/appointments/ActionSheet.tsx
+@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
+ import { Ban, CalendarClock, Check, MessageSquare, Phone, Store, UserX } from "lucide-react";
+ import { isDone, statusMeta, timeIn, tzOf, type AgendaItem } from "@/lib/appointments/agenda-view";
+ import { toPersianDigits } from "@/lib/utils";
++import SalonLink from "@/components/SalonLink";
+ 
+ type Props = {
+   item: AgendaItem;
+@@ -137,9 +138,9 @@ export default function ActionSheet({ item, timezone, role, busy, onClose, onSta
+                   </button>
+                 )}
+                 {item.salonSlug && (
+-                  <a href={`/s/${item.salonSlug}`} className={row}>
++                  <SalonLink slug={item.salonSlug} className={row}>
+                     <Store className="h-5 w-5 text-pink-600" /> صفحهٔ سالن و رزرو مجدد
+-                  </a>
++                  </SalonLink>
+                 )}
+               </>
+             )}
+diff --git a/src/components/appointments/AppointmentCard.tsx b/src/components/appointments/AppointmentCard.tsx
+index f7244cb..b305389 100644
+--- a/src/components/appointments/AppointmentCard.tsx
++++ b/src/components/appointments/AppointmentCard.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import Link from "next/link";
++import SalonLink from "@/components/SalonLink";
+ import { Check, Clock, MoreVertical, Phone, Star } from "lucide-react";
+ import {
+   CHANNEL_META,
+@@ -134,12 +134,12 @@ export default function AppointmentCard({ item, timezone, role, nowMs, busy, hig
+               </span>
+             )}
+             {item.salonSlug && (
+-              <Link
+-                href={`/s/${item.salonSlug}`}
++              <SalonLink
++                slug={item.salonSlug}
+                 className="inline-flex items-center gap-1.5 rounded-xl bg-pink-50 px-3 py-2 text-xs font-bold text-pink-600 transition hover:bg-pink-100 dark:bg-pink-900/30 dark:text-pink-300"
+               >
+                 صفحه سالن
+-              </Link>
++              </SalonLink>
+             )}
+           </>
+         )}
+diff --git a/src/lib/audit-labels.ts b/src/lib/audit-labels.ts
+new file mode 100644
+index 0000000..4e8eba7
+--- /dev/null
++++ b/src/lib/audit-labels.ts
+@@ -0,0 +1,197 @@
++/**
++ * برچسب‌های فارسی لاگ حسابرسی — نگاشت کدهای انگلیسیِ ذخیره‌شده در دیتابیس به
++ * توضیح فارسیِ کامل و شفاف برای پنل ادمین. توابع خالص و بدون وابستگی‌اند تا
++ * هم در کلاینت قابل استفاده باشند و هم تست واحد بگیرند.
++ *
++ * شفافیت یعنی: هر رویداد باید بگوید «چه کسی»، «چه کاری»، «روی چه چیزی» و
++ * «مقادیر قبل ← بعد» بدون اینکه خواننده لازم باشد کد انگلیسی بفهمد.
++ */
++
++/* ─── نگاشت کد اقدام ← توضیح فارسی ───────────────────────────────────── */
++
++const ACTION_LABELS: Record<string, string> = {
++  // سالن‌ها و کاربران
++  change_salon_status: "تغییر وضعیت سالن (تأیید/فعال‌سازی)",
++  approve_salon: "تأیید سالن",
++  suspend_salon: "تعلیق سالن",
++  update_user: "ویرایش نقش/وضعیت کاربر",
++  delete_review: "حذف نظر مشتری",
++  reply_review: "پاسخ به نظر مشتری",
++  delete_review_reply: "حذف پاسخِ نظر",
++  support_ticket_update: "به‌روزرسانی تیکت پشتیبانی",
++  // پلن‌ها و محدودیت‌ها
++  create_package: "ایجاد پلن قیمتی",
++  update_package: "ویرایش پلن قیمتی",
++  deactivate_package: "غیرفعال‌کردن پلن قیمتی",
++  delete_package: "حذف پلن قیمتی",
++  force_delete_package: "حذف قطعی پلن قیمتی",
++  update_plan_limits: "تغییر محدودیت‌های پلن‌ها",
++  // تخفیف و پیامک
++  create_discount: "ایجاد کد تخفیف",
++  update_discount: "ویرایش کد تخفیف",
++  delete_discount: "حذف کد تخفیف",
++  broadcast: "ارسال پیامک سراسری",
++  notification_retry: "تلاش مجدد برای پیامک‌های ناموفق",
++  // تنظیمات و ورود
++  settings_update: "تغییر تنظیمات سیستم",
++  support_login: "ورود پشتیبانی",
++};
++
++/* ─── نگاشت نوع موجودیت ← فارسی ──────────────────────────────────────── */
++
++const ENTITY_LABELS: Record<string, string> = {
++  Salon: "سالن",
++  User: "کاربر",
++  Review: "نظر مشتری",
++  SupportTicket: "تیکت پشتیبانی",
++  Package: "پلن قیمتی",
++  Discount: "کد تخفیف",
++  Notification: "پیامک",
++  Setting: "تنظیمات سیستم",
++  System: "کل سیستم",
++  Appointment: "نوبت",
++};
++
++/* ─── نگاشت نام فیلد ← فارسی ─────────────────────────────────────────── */
++
++const FIELD_LABELS: Record<string, string> = {
++  role: "نقش کاربر",
++  isActive: "فعال بودن",
++  isApproved: "تأیید شده",
++  status: "وضعیت",
++  priority: "اولویت",
++  replied: "پاسخ داده شد",
++  reply: "متن پاسخ",
++  repliedAt: "زمان پاسخ",
++  rating: "امتیاز",
++  comment: "متن نظر",
++  salonId: "شناسهٔ سالن",
++  salonName: "نام سالن",
++  staffId: "شناسهٔ آرایشگر",
++  customerId: "شناسهٔ مشتری",
++  appointmentId: "شناسهٔ نوبت",
++  audience: "مخاطبان",
++  recipients: "تعداد گیرندگان",
++  code: "کد تخفیف",
++  percent: "درصد تخفیف",
++  amount: "مبلغ",
++  name: "نام",
++  title: "عنوان",
++  price: "قیمت",
++  plan: "پلن",
++  key: "کلید تنظیم",
++  value: "مقدار",
++  saved: "تعداد ذخیره‌شده",
++  reset: "تعداد ریست‌شده",
++  processed: "تعداد پردازش‌شده",
++  sent: "تعداد ارسال موفق",
++  failed: "تعداد ناموفق",
++  attempts: "تعداد تلاش",
++  lastError: "آخرین خطا",
++  slug: "آدرس (slug)",
++  city: "شهر",
++  phone: "تلفن",
++  email: "ایمیل",
++  durationMin: "مدت (دقیقه)",
++  maxAdvanceDays: "حداکثر روز رزرو پیشاپیش",
++  maxBranches: "حداکثر شعبه",
++  maxStaff: "حداکثر کارکنان",
++};
++
++/* ─── نگاشت مقدارهای enum به فارسی ───────────────────────────────────── */
++
++const VALUE_LABELS: Record<string, string> = {
++  ADMIN: "مدیر کل",
++  SALON_OWNER: "مالک سالن",
++  AGENT: "نماینده",
++  CUSTOMER: "مشتری",
++  STYLIST: "آرایشگر",
++  PENDING: "در انتظار",
++  SENT: "ارسال شد",
++  DELIVERED: "تحویل شد",
++  FAILED: "ناموفق",
++  OPEN: "باز",
++  IN_PROGRESS: "در حال بررسی",
++  RESOLVED: "حل شده",
++  CLOSED: "بسته‌شده",
++  ACTIVE: "فعال",
++  TRIAL: "آزمایشی",
++  CANCELLED: "لغو شده",
++  EXPIRED: "منقضی شده",
++  PAID: "پرداخت‌شده",
++  VERIFIED: "تأیید دامنه شده",
++  NONE: "هیچ",
++  HIGH: "بالا",
++  NORMAL: "عادی",
++  LOW: "پایین",
++  URGENT: "فوری",
++  ALL_SALONS: "همهٔ سالن‌های فعال",
++  SALON_OWNERS: "همهٔ مالکان سالن",
++  ACTIVE_SUBS: "مشترکین فعال",
++};
++
++/** توضیح فارسی اقدام؛ برای کدهای ناشناخته خودِ کد برمی‌گردد (شفافیت: چیزی پنهان نمی‌شود) */
++export function describeAction(action: string): string {
++  return ACTION_LABELS[action] ?? action;
++}
++
++/** نام فارسی موجودیت؛ ناشناخته → همان مقدار انگلیسی */
++export function describeEntity(entityType: string): string {
++  return ENTITY_LABELS[entityType] ?? entityType;
++}
++
++/** برچسب فارسی فیلد؛ ناشناخته → خودِ نام فیلد */
++export function describeField(key: string): string {
++  return FIELD_LABELS[key] ?? key;
++}
++
++/** نمایش یک مقدار به فارسی: بولین → بله/خیر، enum → ترجمه، آبجکت/آرایه → JSON فشرده */
++export function formatAuditValue(value: unknown): string {
++  if (value === null || value === undefined || value === "") return "—";
++  if (typeof value === "boolean") return value ? "بله" : "خیر";
++  if (typeof value === "number") return String(value); // رقم لاتین: در متن فنی خوانا و قابل کپی
++  if (typeof value === "string") {
++    const enumFa = VALUE_LABELS[value];
++    if (enumFa) return `${enumFa} (${value})`;
++    return value.length > 120 ? `${value.slice(0, 120)}…` : value;
++  }
++  try {
++    const json = JSON.stringify(value);
++    return json.length > 160 ? `${json.slice(0, 160)}…` : json;
++  } catch {
++    return "—";
++  }
++}
++
++function isPlainObject(v: unknown): v is Record<string, unknown> {
++  return typeof v === "object" && v !== null && !Array.isArray(v);
++}
++
++export type AuditDiffRow = { key: string; label: string; from: string; to: string };
++
++/**
++ * جدول تغییرات قبل←بعد: اشتراک کلیدهای دو طرف، فقط فیلدهای واقعاً تغییرکرده.
++ * مقادیر شناسایی (id/createdAt/…) برای خوانایی حذف می‌شوند؛ اگر ورودی
++ * آبجکت ساده نباشد (آرایه/تهی) خروجی خالی است و UI همان JSON خام را نشان می‌دهد.
++ */
++export function diffAudit(before: unknown, after: unknown): AuditDiffRow[] {
++  const b = isPlainObject(before) ? before : {};
++  const a = isPlainObject(after) ? after : {};
++  const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(
++    (k) => !["id", "createdAt", "updatedAt"].includes(k)
++  );
++  const rows: AuditDiffRow[] = [];
++  for (const key of keys) {
++    const bv = key in b ? b[key] : undefined;
++    const av = key in a ? a[key] : undefined;
++    const same = JSON.stringify(bv ?? null) === JSON.stringify(av ?? null);
++    if (same) continue;
++    rows.push({ key, label: describeField(key), from: formatAuditValue(bv), to: formatAuditValue(av) });
++  }
++  return rows;
++}
++
++/** آیا اصلاً چیزی برای نمایش جزئیات وجود دارد؟ (قبل/بعد پر نباشد) */
++export function hasAuditDetails(before: unknown, after: unknown): boolean {
++  return (before !== null && before !== undefined) || (after !== null && after !== undefined);
++}
+diff --git a/src/lib/contact.ts b/src/lib/contact.ts
+new file mode 100644
+index 0000000..bfca308
+--- /dev/null
++++ b/src/lib/contact.ts
+@@ -0,0 +1,17 @@
++import { getSetting } from "@/lib/settings";
++
++/** اطلاعات تماس سایت از تنظیمات (کلیدهای contact.*) */
++export type ContactInfo = { phone: string; email: string; address: string };
++
++export async function getContactInfo(): Promise<ContactInfo> {
++  const [phone, email, address] = await Promise.all([
++    getSetting("contact.phone"),
++    getSetting("contact.email"),
++    getSetting("contact.address"),
++  ]);
++  return {
++    phone: phone?.trim() || "021-00000000",
++    email: email?.trim() || "info@nobino.local",
++    address: address?.trim() || "تهران",
++  };
++}
+diff --git a/src/lib/map-links.ts b/src/lib/map-links.ts
+new file mode 100644
+index 0000000..9026e72
+--- /dev/null
++++ b/src/lib/map-links.ts
+@@ -0,0 +1,54 @@
++/**
++ * لینک‌های عمیق نقشهٔ نشان و بلد.
++ * فرمت‌ها مستقیماً از سرویس‌ها بررسی و تأیید شده‌اند:
++ *  - نشان (مختصات): https://neshan.org/maps/share/{lat},{lng}  (همان مسیری که nsh.link ریدایرکت می‌کند)
++ *  - نشان (جست‌وجو): https://neshan.org/maps/search/{query}
++ *  - بلد (مختصات):  https://balad.ir/#{zoom}/{lat}/{lng}       (هش نقشهٔ وب بلد)
++ *  - بلد (جست‌وجو):  https://balad.ir/search?text={query}
++ * سالن‌هایی که هنوز مختصات ثبت نکرده‌اند با جست‌وجوی آدرس باز می‌شوند.
++ */
++
++export type MapCoords = { latitude: number; longitude: number };
++
++const BALAD_ZOOM = 16;
++
++/** مختصات معتبر جغرافیایی؟ (مقدارهای NaN/بی‌کران و بازه‌های نامعتبر رد می‌شوند) */
++function isValidCoords(c: MapCoords | null | undefined): c is MapCoords {
++  return (
++    !!c &&
++    Number.isFinite(c.latitude) &&
++    Number.isFinite(c.longitude) &&
++    Math.abs(c.latitude) <= 90 &&
++    Math.abs(c.longitude) <= 180
++  );
++}
++
++/** شش رقم اعشا برای پایداری URL (بدون نماد علمی) */
++function fmt(n: number): string {
++  return n.toFixed(6);
++}
++
++/** رشتهٔ جست‌وجوی امن از نام/شهر/آدرس؛ اگر آدرس با نام شهر شروع شود، شهر تکراری حذف می‌شود */
++export function mapSearchQuery(name: string, city?: string | null, address?: string | null): string {
++  const n = (name ?? "").trim();
++  let c = (city ?? "").trim();
++  const a = (address ?? "").trim();
++  if (c && a && (a === c || a.startsWith(`${c}،`) || a.startsWith(`${c},`) || a.startsWith(`${c} `))) c = "";
++  return [n, c, a].filter(Boolean).join(" ");
++}
++
++/** لینک نشان: با مختصات → پین روی نقشه؛ بدون مختصات → جست‌وجوی آدرس */
++export function neshanMapUrl(coords: MapCoords | null | undefined, query: string): string {
++  if (isValidCoords(coords)) {
++    return `https://neshan.org/maps/share/${fmt(coords.latitude)},${fmt(coords.longitude)}`;
++  }
++  return `https://neshan.org/maps/search/${encodeURIComponent(query.trim())}`;
++}
++
++/** لینک بلد: با مختصات → مرکز نقشه؛ بدون مختصات → جست‌وجوی آدرس */
++export function baladMapUrl(coords: MapCoords | null | undefined, query: string): string {
++  if (isValidCoords(coords)) {
++    return `https://balad.ir/#${BALAD_ZOOM}/${fmt(coords.latitude)}/${fmt(coords.longitude)}`;
++  }
++  return `https://balad.ir/search?text=${encodeURIComponent(query.trim())}`;
++}
+diff --git a/src/lib/notifications/fa.ts b/src/lib/notifications/fa.ts
+new file mode 100644
+index 0000000..801c7a8
+--- /dev/null
++++ b/src/lib/notifications/fa.ts
+@@ -0,0 +1,220 @@
++/**
++ * فارسی‌سازی برچسب‌ها و متن‌های فنی اعلان‌ها/پیامک‌ها برای پنل سوپرادمین.
++ * مقادیر دیتابیس (type/channel/status/خطاهای سرویس‌ها) انگلیسی می‌مانند و
++ * فقط در نمایش ترجمه می‌شوند.
++ */
++
++export const NOTIF_TYPE_LABELS: Record<string, string> = {
++  OTP: "کد تأیید ورود",
++  APPOINTMENT_CONFIRM: "تأیید نوبت",
++  APPOINTMENT_STATUS: "وضعیت نوبت",
++  APPOINTMENT_CANCEL: "لغو نوبت",
++  APPOINTMENT_CHANGED: "جابه‌جایی نوبت",
++  REMINDER: "یادآوری نوبت",
++  WAITLIST_FREED: "آزاد شدن صف انتظار",
++  SUBSCRIPTION: "اشتراک",
++  SUBSCRIPTION_ACTIVATED: "فعال‌سازی اشتراک",
++  SUBSCRIPTION_RENEWED: "تمدید اشتراک",
++  SUBSCRIPTION_EXPIRED: "اتمام اشتراک",
++  SUBSCRIPTION_RENEWAL_REMINDER: "یادآوری تمدید",
++  SUBSCRIPTION_PAYMENT_FAILED: "شکست پرداخت اشتراک",
++  INVOICE_PAY_LINK: "لینک پرداخت فاکتور",
++  SMS_LIMIT_REACHED: "اتمام سقف پیامک",
++  SUPPORT_REPLY: "پاسخ پشتیبانی",
++  BROADCAST: "پیام انبوه",
++  MARKETING: "کمپین تبلیغاتی",
++  TXT: "پیام متنی",
++};
++
++export function notifTypeLabel(type: string): string {
++  return NOTIF_TYPE_LABELS[type] ?? type;
++}
++
++export type BadgeMeta = { label: string; cls: string; dot: string };
++
++export const NOTIF_STATUS_META: Record<string, BadgeMeta> = {
++  PENDING: {
++    label: "در صف ارسال",
++    cls: "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-400/20",
++    dot: "bg-amber-500",
++  },
++  SENT: {
++    label: "ارسال‌شده",
++    cls: "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-400/20",
++    dot: "bg-emerald-500",
++  },
++  FAILED: {
++    label: "ناموفق",
++    cls: "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-400/20",
++    dot: "bg-red-500",
++  },
++  DROPPED: {
++    label: "از صف خارج شد",
++    cls: "bg-neutral-100 text-neutral-600 ring-neutral-500/20 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-500/25",
++    dot: "bg-neutral-400",
++  },
++};
++
++export const NOTIF_CHANNEL_META: Record<string, { label: string; icon: string }> = {
++  SMS: { label: "پیامک", icon: "💬" },
++  EMAIL: { label: "ایمیل", icon: "✉️" },
++  IN_APP: { label: "درون‌برنامه‌ای", icon: "🔔" },
++};
++
++export function notifStatusMeta(status: string): BadgeMeta {
++  return NOTIF_STATUS_META[status] ?? {
++    label: status,
++    cls: "bg-neutral-100 text-neutral-600 ring-neutral-500/20 dark:bg-neutral-800 dark:text-neutral-300",
++    dot: "bg-neutral-400",
++  };
++}
++
++export function notifChannelLabel(channel: string): string {
++  return NOTIF_CHANNEL_META[channel]?.label ?? channel;
++}
++
++const ERROR_PATTERNS: { re: RegExp; fa: (m: RegExpMatchArray) => string }[] = [
++  { re: /^SMS HTTP (\d+)/i, fa: (m) => `پاسخ سرویس پیامک: خطای ${m[1]}` },
++  { re: /invalid.*(api.?key|token|secret)/i, fa: () => "کلید API نامعتبر است" },
++  { re: /(wrong|invalid|incorrect).*(password|login|credential)/i, fa: () => "نام کاربری یا رمز سرویس اشتباه است" },
++  { re: /(not.?authenticated|unauthorized|permission)/i, fa: () => "مجوز دسترسی به سرویس پیامک وجود ندارد" },
++  { re: /(insufficient|not enough|invalid credit|credit)/i, fa: () => "اعتبار پنل پیامک کافی نیست" },
++  { re: /(blacklist|banned|spam)/i, fa: () => "خط در لیست سیاه سرویس پیامک است" },
++  { re: /(invalid|wrong).*(mobile|phone|number|recipient)/i, fa: () => "شماره گیرنده معتبر نیست" },
++  { re: /(ip|allowed ip|whitelist)/i, fa: () => "IP سرور در فهرست مجاز سرویس پیامک نیست" },
++  { re: /(timeout|timed out|ETIMEDOUT|ESOCKETTIMEDOUT)/i, fa: () => "اتمام زمان انتظار سرویس پیامک" },
++  { re: /(ENOTFOUND|ECONNREFUSED|ECONNRESET|network|fetch failed|socket)/i, fa: () => "خطای اتصال شبکه به سرویس پیامک" },
++  { re: /(rate|too many|limit)/i, fa: () => "سقف تعداد ارسال سرویس پیامک پر شده است" },
++  { re: /(empty|invalid).*(sender|from)/i, fa: () => "شماره خط فرستنده در تنظیمات سرویس پیامک نامعتبر است" },
++  { re: /(sms|message).*(not send|failed|error)/i, fa: () => "ارسال پیامک در سرویس ناموفق بود" },
++  { re: /(duplicate|already)/i, fa: () => "این پیام قبلاً ارسال شده است" },
++];
++
++/**
++ * ترجمهٔ خطاهای رایج سرویس‌های پیامک به فارسی؛ اگر الگوشناختی نبود، متن
++ * اصلی نگه داشته می‌شود تا برای پیگیری خطاهای فنی قابل خواندن بماند.
++ */
++export function localizeNotifError(err?: string | null): string {
++  if (!err) return "";
++  const text = String(err).trim();
++  for (const { re, fa } of ERROR_PATTERNS) {
++    const m = text.match(re);
++    if (m) return fa(m);
++  }
++  return text;
++}
++
++/** فاصلهٔ زمانی فارسی (مثل «۱۲ دقیقه پیش») */
++export function faTimeAgo(iso: string | Date): string {
++  const t = new Date(iso).getTime();
++  if (Number.isNaN(t)) return "";
++  const diff = Math.max(0, Date.now() - t);
++  const min = Math.floor(diff / 60000);
++  if (min < 1) return "هم‌اکنون";
++  if (min < 60) return `${faNum(min)} دقیقه پیش`;
++  const h = Math.floor(min / 60);
++  if (h < 24) return `${faNum(h)} ساعت پیش`;
++  const d = Math.floor(h / 24);
++  if (d < 30) return `${faNum(d)} روز پیش`;
++  return faDate(iso);
++}
++
++const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
++
++/** عدد به رقم فارسی */
++export function faNum(n: number | string): string {
++  return String(n).replace(/\d/g, (d) => FA_DIGITS[Number(d)]);
++}
++
++/**
++ * سازنده‌های Intl گران‌اند و جدول گزارش تا ۵۰۰ ردیف را رندر می‌کند؛ بنابراین
++ * formatterها یک‌بار ساخته و نتیجهٔ هر لحظه در حافظهٔ کوچک می‌ماند.
++ */
++let fmtDate: Intl.DateTimeFormat | null = null;
++let fmtTime: Intl.DateTimeFormat | null = null;
++let fmtFull: Intl.DateTimeFormat | null = null;
++const dateCache = new Map<string, string>();
++const fullCache = new Map<string, string>();
++
++function cacheSet(map: Map<string, string>, key: string, value: string): void {
++  if (map.size > 4000) map.clear();
++  map.set(key, value);
++}
++
++/** تاریخ و ساعت کامل شمسی (۱۴۰۵/۰۸/۰۹ ۱۴:۵۵) */
++export function faDate(iso: string | Date): string {
++  const key = typeof iso === "string" ? iso : iso.toISOString();
++  const hit = dateCache.get(key);
++  if (hit !== undefined) return hit;
++  const d = new Date(iso);
++  if (Number.isNaN(d.getTime())) return "";
++  fmtDate ??= new Intl.DateTimeFormat("fa-IR", { year: "numeric", month: "2-digit", day: "2-digit" });
++  fmtTime ??= new Intl.DateTimeFormat("fa-IR", { hour: "2-digit", minute: "2-digit", hour12: false });
++  const out = `${fmtDate.format(d)} ${fmtTime.format(d)}`;
++  cacheSet(dateCache, key, out);
++  return out;
++}
++
++/** تاریخ و ساعت شمسی با نام روز (برای ردیف جزئیات) */
++export function faDateFull(iso: string | Date): string {
++  const key = typeof iso === "string" ? iso : iso.toISOString();
++  const hit = fullCache.get(key);
++  if (hit !== undefined) return hit;
++  const d = new Date(iso);
++  if (Number.isNaN(d.getTime())) return "";
++  fmtFull ??= new Intl.DateTimeFormat("fa-IR", {
++    weekday: "long",
++    day: "numeric",
++    month: "long",
++    year: "numeric",
++    hour: "2-digit",
++    minute: "2-digit",
++  });
++  const out = fmtFull.format(d);
++  cacheSet(fullCache, key, out);
++  return out;
++}
++
++/**
++ * فاصلهٔ زمانی تا یک لحظهٔ آینده (مثل «۲۳ دقیقه دیگر»). برای زمان‌های گذشته
++ * همان «… پیش» برگردانده می‌شود و برای زمانِ رسیده «هم‌اکنون».
++ */
++export function faTimeUntil(iso: string | Date): string {
++  const t = new Date(iso).getTime();
++  if (Number.isNaN(t)) return "";
++  const diff = t - Date.now();
++  if (diff <= 30_000) return "هم‌اکنون";
++  const min = Math.round(diff / 60_000);
++  if (min < 60) return `${faNum(min)} دقیقه دیگر`;
++  const h = Math.floor(min / 60);
++  const rest = min % 60;
++  if (h < 24) return rest ? `${faNum(h)} ساعت و ${faNum(rest)} دقیقه دیگر` : `${faNum(h)} ساعت دیگر`;
++  const d = Math.floor(h / 24);
++  return `${faNum(d)} روز دیگر`;
++}
++
++/**
++ * متن پیامی که در صف ثبت شده (پیامک/درون‌برنامه‌ای: `message`، ایمیل: `subject`).
++ * payload در دیتابیس JSON است و ممکن است رشتهٔ خام JSON هم باشد.
++ */
++export function notifBodyText(payload: unknown, channel?: string): string {
++  let data: unknown = payload;
++  if (typeof data === "string") {
++    const raw = data;
++    try {
++      data = JSON.parse(raw);
++    } catch {
++      return channel === "EMAIL" ? "" : raw;
++    }
++  }
++  if (!data || typeof data !== "object") return "";
++  const rec = data as Record<string, unknown>;
++  const subject = typeof rec.subject === "string" ? rec.subject.trim() : "";
++  const message = typeof rec.message === "string" ? rec.message.trim() : "";
++  if (channel === "EMAIL") return subject;
++  return message || subject;
++}
++
++/** سقف تلاش‌های صف پیش از خارج شدن پیامک از صف (هم‌راستا با MAX_ATTEMPTS در queue.ts) */
++export const MAX_SMS_ATTEMPTS = 5;
++
+diff --git a/src/lib/reviews.ts b/src/lib/reviews.ts
+new file mode 100644
+index 0000000..03640b9
+--- /dev/null
++++ b/src/lib/reviews.ts
+@@ -0,0 +1,88 @@
++import { z } from "zod";
++import { prisma } from "@/lib/prisma";
++import { requireRole, requireSalonManage } from "@/lib/auth/guards";
++import { logAudit } from "@/lib/audit";
++import { httpError } from "@/lib/utils";
++
++export const reviewReplySchema = z.object({
++  reviewId: z.string().min(1),
++  reply: z.string().trim().max(1000).optional(),
++});
++
++export type ReviewReplyInput = z.infer<typeof reviewReplySchema>;
++
++/**
++ * ثبت یا ویرایش پاسخ به نظر مشتری.
++ * فقط سوپرادمین (هر نظری) و مالک سالن مربوطه می‌توانند پاسخ دهند؛
++ * بررسی مالکیت حتماً سمت سرور انجام می‌شود (tenant isolation).
++ * با reply خالی/بدون مقدار، پاسخ قبلی حذف می‌شود.
++ */
++export async function setReviewReplyForAdmin(input: ReviewReplyInput) {
++  const user = await requireRole(["ADMIN"]);
++  const before = await prisma.review.findUnique({
++    where: { id: input.reviewId },
++    select: { id: true, reply: true, salonId: true, salon: { select: { name: true } } },
++  });
++  if (!before) throw httpError("نظر یافت نشد", 404);
++  return applyReply(before, input.reply, user.id, user.phone);
++}
++
++/** همان کار برای سالن‌دار: فقط به نظرات سالن خودش */
++export async function setReviewReplyForSalon(salonId: string, input: ReviewReplyInput) {
++  const user = await requireSalonManage(salonId);
++  const before = await prisma.review.findUnique({
++    where: { id: input.reviewId },
++    select: { id: true, reply: true, salonId: true, salon: { select: { name: true } } },
++  });
++  if (!before || before.salonId !== salonId) throw httpError("نظر یافت نشد", 404);
++  return applyReply(before, input.reply, user.id, user.phone);
++}
++
++async function applyReply(
++  before: { id: string; reply: string | null; salonId: string; salon: { name: string } | null },
++  reply: string | undefined,
++  actorId: string,
++  actorPhone: string,
++) {
++  const trimmed = reply?.trim();
++  const nextReply = trimmed && trimmed.length > 0 ? trimmed : null;
++  const review = await prisma.review.update({
++    where: { id: before.id },
++    data: { reply: nextReply, repliedAt: nextReply ? new Date() : null },
++    select: { id: true, reply: true, repliedAt: true },
++  });
++  await logAudit({
++    actorId,
++    actorPhone,
++    action: nextReply ? "reply_review" : "delete_review_reply",
++    entityType: "Review",
++    entityId: before.id,
++    before: { reply: before.reply, salonId: before.salonId, salonName: before.salon?.name ?? null },
++    after: { reply: review.reply, repliedAt: review.repliedAt },
++  });
++  return review;
++}
++
++/** نظرات یک سالن به‌همراه پاسخ‌ها، برای پنل سالن‌دار */
++export async function listSalonReviewsForOwner(salonId: string) {
++  await requireSalonManage(salonId);
++  const reviews = await prisma.review.findMany({
++    where: { salonId },
++    include: {
++      customer: { select: { name: true, phone: true } },
++      staff: { select: { name: true } },
++    },
++    orderBy: { createdAt: "desc" },
++    take: 100,
++  });
++  return reviews.map((r) => ({
++    id: r.id,
++    rating: r.rating,
++    comment: r.comment,
++    customerName: r.customer.name ?? r.customer.phone,
++    staff: r.staff?.name ?? null,
++    reply: r.reply,
++    repliedAt: r.repliedAt,
++    createdAt: r.createdAt,
++  }));
++}
+diff --git a/src/lib/salon-url.ts b/src/lib/salon-url.ts
+new file mode 100644
+index 0000000..f25ec48
+--- /dev/null
++++ b/src/lib/salon-url.ts
+@@ -0,0 +1,106 @@
++/**
++ * یاریاب آدرس عمومی سالن — همهٔ نمایش‌ها و لینک‌های صفحهٔ سالن باید از این‌جا عبور کنند.
++ *
++ * اولویت آدرس:
++ * ۱) دامنهٔ اختصاصی تأییدشدهٔ سالن
++ * ۲) ساب‌دامین روی دامنهٔ اصلی (bahar.localhost:4173 یا bahar.example.com) — وقتی فعال باشد
++ * ۳) مسیر /s/<slug> روی همان اوریج (پیش‌فرض امن)
++ *
++ * تطبیق ساب‌دامین در `src/proxy.ts` انجام می‌شود؛ این فایل فقط آدرس را «می‌سازد».
++ * بدون import از ماژول‌های دیگر نوشته شده تا در تست‌های Node بدون resolver هم اجرا شود.
++ */
++
++/** آدرس پایهٔ نصب (مشابه `SITE_URL` در `src/lib/site.ts`) */
++function siteUrl(): string {
++  const raw =
++    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
++    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
++    "http://localhost:3000";
++  return raw.replace(/\/+$/, "");
++}
++
++function rootDomain(): string {
++  return (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "localhost").trim().toLowerCase();
++}
++
++/** برچسب DNS معتبر: فقط حرف کوچک/عدد/خط تیره، بدون خط تیره در ابتدا/انتها، حداکثر ۶۳ نویسه */
++function isDnsLabel(slug: string): boolean {
++  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(slug);
++}
++
++type OriginParts = { proto: string; hostname: string; port: string };
++
++/** تجزیهٔ اوریج یا هاست درخواست («http://localhost:4173» یا «localhost:4173») */
++export function parseOrigin(origin: string): OriginParts | null {
++  try {
++    const url = /^https?:\/\//i.test(origin) ? new URL(origin) : new URL(`http://${origin}`);
++    return { proto: url.protocol, hostname: url.hostname.toLowerCase(), port: url.port };
++  } catch {
++    return null;
++  }
++}
++
++function isLocalHost(hostname: string): boolean {
++  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
++}
++
++/** لوکال یا خودش ساب‌دامین لوکال («bahar.localhost») */
++function isLocalish(hostname: string): boolean {
++  return isLocalHost(hostname) || hostname.endsWith(".localhost");
++}
++
++/**
++ * آیا حالت ساب‌دامین برای این اوریج فعال است؟
++ * - روی localhost/127.0.0.1 همیشه فعال (مرورگرها `*.localhost` را خودکار به همین
++ *   آدرس حل می‌کنند؛ در ویندوز ۱۱ و کاوشگرهای مدرن نیاز به فایل hosts نیست)
++ * - در نصب واقعی: وقتی هاست، خودِ دامنهٔ اصلی یا ساب‌دامین آن است و ROOT_DOMAIN تنظیم شده
++ * اوریج‌های دیگر (دامنهٔ اختصاصی سالن) دست‌نخورده می‌مانند.
++ */
++export function subdomainMode(origin: string): boolean {
++  const parts = parseOrigin(origin);
++  if (!parts) return false;
++  const { hostname } = parts;
++  if (isLocalish(hostname)) return true;
++  const root = rootDomain();
++  if (root === "localhost") return false;
++  return hostname === root || hostname.endsWith(`.${root}`);
++}
++
++/**
++ * آدرس مطلق صفحهٔ عمومی سالن از روی اوریج جاری.
++ * اگر ساب‌دامین ممکن نباشد (اسلاگ غیرمجاز برای DNS یا میزبان نامرتبط)، مسیر /s/<slug> برمی‌گردد.
++ */
++export function salonUrlFromOrigin(slug: string, origin: string): string {
++  const base = origin.replace(/\/+$/, "");
++  const fallback = `${base}/s/${slug}`;
++  const parts = parseOrigin(origin);
++  if (!isDnsLabel(slug) || !parts || !subdomainMode(origin)) return fallback;
++  const { proto, hostname, port } = parts;
++  const portSuffix = port ? `:${port}` : "";
++  // روی localhost (یا خودش *.localhost) همیشه «<slug>.localhost» (پروتکل اوریج می‌ماند)
++  if (isLocalish(hostname)) return `${proto}//${slug}.localhost${portSuffix}`;
++  return `${proto}//${slug}.${rootDomain()}${portSuffix}`;
++}
++
++/**
++ * آدرس عمومی سالن در اجزای سمت سرور (داشبورد، متادیتا و …).
++ * @param host هاست درخواست جاری (هدر `host`) — اگر نبود، از آدرس پایهٔ نصب استفاده می‌شود
++ */
++export function salonPublicUrl(
++  salon: { slug: string; customDomain?: string | null; domainStatus?: string | null },
++  host?: string | null
++): string {
++  if (salon.customDomain && salon.domainStatus === "VERIFIED") {
++    return `https://${salon.customDomain}`;
++  }
++  if (!host) return salonUrlFromOrigin(salon.slug, siteUrl());
++  // هاست‌های غیرمحلی پشت پروکس HTTPS سرو می‌شوند (هدر host خودِ پورت را نگه می‌دارد)
++  const bare = host.toLowerCase().replace(/:[0-9]+$/, "");
++  const proto = isLocalHost(bare) || bare.endsWith(".localhost") ? guessLocalProto() : "https";
++  return salonUrlFromOrigin(salon.slug, `${proto}://${host}`);
++}
++
++/** در توسعه https فعال است فقط وقتی آدرس پایهٔ نصب https باشد (مثلاً bots…tr:8443) */
++function guessLocalProto(): string {
++  return siteUrl().startsWith("https://") ? "https" : "http";
++}
+diff --git a/src/lib/ui/agenda-filter.ts b/src/lib/ui/agenda-filter.ts
+new file mode 100644
+index 0000000..c45af10
+--- /dev/null
++++ b/src/lib/ui/agenda-filter.ts
+@@ -0,0 +1,32 @@
++/**
++ * فیلتر نوبت‌ها برای نمای تقویم سالن (SalonManager → CalendarView).
++ * خالص و بدون DOM است تا با `node --test` قابل تست باشد.
++ *
++ * نکتهٔ مهم: تطبیق آرایشگر با **شناسه** انجام می‌شود نه نام —
++ * اگر نام پرسنل ویرایش شود، فیلتر بر پایهٔ نام نوبت‌های درست را از دست می‌دهد
++ * و کاربر «همه آرایشگران» را انتخاب می‌کند ولی نتیجه خالی/گیج‌کننده می‌بیند.
++ */
++
++export type AgendaFilterRow = {
++  employeeId?: string | null;
++  service?: string | null;
++  status?: string | null;
++};
++
++export type AgendaFilters = {
++  /** رشتهٔ خالی = «همه آرایشگران» (پیش‌فرض): هیچ نوبتی به‌خاطر آرایشگر حذف نمی‌شود */
++  staffId?: string;
++  /** رشتهٔ خالی = «همه خدمات» */
++  service?: string;
++  /** رشتهٔ خالی = «همه وضعیت‌ها» */
++  status?: string;
++};
++
++export function filterAgenda<T extends AgendaFilterRow>(rows: T[], f: AgendaFilters): T[] {
++  return rows.filter((r) => {
++    if (f.staffId && r.employeeId !== f.staffId) return false;
++    if (f.service && r.service !== f.service) return false;
++    if (f.status && r.status !== f.status) return false;
++    return true;
++  });
++}
+diff --git a/src/proxy.ts b/src/proxy.ts
+index 8cf727a..9894073 100644
+--- a/src/proxy.ts
++++ b/src/proxy.ts
+@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
+  */
+ const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "localhost";
+ 
++// ساب‌دامین محلی توسعه: مرورگرها `*.localhost` را خودکار به 127.0.0.1 حل می‌کنند،
++// پس «bahar.localhost:4173» بدون hosts قابل استفاده است. برچسب DNS معتبر لازم است.
++const LOCALHOST_SUBDOMAIN = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)\.localhost$/;
++
+ // میزبان خودِ سایت (مثلاً bots.example.com). بدون این بررسی، اگر سایت اصلی روی
+ // یک ساب‌دامین نشسته باشد، خودش با ساب‌دامین سالن اشتباه گرفته و به /s/<slug>
+ // بازنویسی می‌شود و صفحهٔ «یافت نشد» برمی‌گرداند.
+@@ -16,7 +20,27 @@ const APP_HOST = (process.env.NEXT_PUBLIC_APP_URL ?? "")
+   .toLowerCase();
+ 
+ export async function proxy(request: NextRequest) {
+-  const { hostname, pathname } = request.nextUrl;
++  // در Next 16 وقتی میزبان از الگوی localhost/127.x/::1 پیروی کند، `nextUrl.hostname`
++  // نرمال‌سازی و به «localhost» تبدیل می‌شود («bahar.localhost» هم میزبان لوکال است!).
++  // بنابراین هاست واقعی را از هدر Host (یا x-forwarded-host) می‌خوانیم.
++  const rawHost =
++    request.headers.get("x-forwarded-host") ||
++    request.headers.get("host") ||
++    request.nextUrl.host ||
++    "localhost";
++  const hostname = rawHost.replace(/:[0-9]+$/, "").toLowerCase();
++  const { pathname } = request.nextUrl;
++  const isDevProxy = process.env.NODE_ENV !== "production" || process.env.PROXY_DIAGNOSTIC === "1";
++
++  // ۰) ساب‌دامین محلی (<slug>.localhost) — همیشه فعال، حتی وقتی ROOT_DOMAIN=localhost است
++  if (hostname !== "www.localhost") {
++    const local = LOCALHOST_SUBDOMAIN.exec(hostname);
++    if (local && !pathname.startsWith("/s/")) {
++      const rw = NextResponse.rewrite(new URL(`/s/${local[1]}${pathname}`, request.url));
++      if (isDevProxy) rw.headers.set("x-nobino-proxy", `sub:${local[1]}`);
++      return rw;
++    }
++  }
+ 
+   // ۱) ساب‌دامین روی دامنه اصلی
+   if (
+@@ -24,7 +48,7 @@ export async function proxy(request: NextRequest) {
+     hostname !== APP_HOST &&
+     hostname.endsWith(`.${ROOT_DOMAIN}`)
+   ) {
+-    const subdomain = hostname.replace(`.${ROOT_DOMAIN}`, "");
++    const subdomain = hostname.slice(0, -(ROOT_DOMAIN.length + 1));
+     if (subdomain && subdomain !== "www" && !pathname.startsWith("/s/")) {
+       return NextResponse.rewrite(new URL(`/s/${subdomain}${pathname}`, request.url));
+     }
+@@ -49,7 +73,9 @@ export async function proxy(request: NextRequest) {
+     }
+   }
+ 
+-  return NextResponse.next();
++  const pass = NextResponse.next();
++  if (isDevProxy) pass.headers.set("x-nobino-proxy", `host:${hostname}`);
++  return pass;
+ }
+ 
+ export const config = {
+diff --git a/tests/agenda-filter.test.ts b/tests/agenda-filter.test.ts
+new file mode 100644
+index 0000000..2fb516f
+--- /dev/null
++++ b/tests/agenda-filter.test.ts
+@@ -0,0 +1,36 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { filterAgenda, type AgendaFilterRow } from "../src/lib/ui/agenda-filter.ts";
++
++type Row = AgendaFilterRow & { id: string };
++
++const rows: Row[] = [
++  { id: "1", employeeId: "st-a", service: "کوتاهی", status: "CONFIRMED" },
++  { id: "2", employeeId: "st-b", service: "رنگ مو", status: "COMPLETED" },
++  { id: "3", employeeId: null, service: "کوتاهی", status: "REQUESTED" }, // بدون ترجیح آرایشگر
++];
++
++const ids = (r: Row[]) => r.map((x) => x.id).join(",");
++
++test("همه آرایشگران (رشتهٔ خالی = پیش‌فرض): هیچ نوبتی حذف نمی‌شود", () => {
++  assert.equal(ids(filterAgenda(rows, { staffId: "", service: "", status: "" })), "1,2,3");
++});
++
++test("فیلتر آرایشگر بر پایهٔ شناسه: فقط نوبت‌های همان نفر — حتی اگر نامش عوض شود", () => {
++  assert.equal(ids(filterAgenda(rows, { staffId: "st-a" })), "1");
++  assert.equal(ids(filterAgenda(rows, { staffId: "st-b" })), "2");
++});
++
++test("نوبت بدون آرایشگر هنگام انتخاب یک نفر خاص حذف می‌شود", () => {
++  assert.equal(filterAgenda(rows, { staffId: "st-a" }).some((r) => r.employeeId === null), false);
++});
++
++test("فیلتر خدمت و وضعیت ترکیبی کار می‌کند", () => {
++  assert.equal(ids(filterAgenda(rows, { service: "کوتاهی" })), "1,3");
++  assert.equal(ids(filterAgenda(rows, { service: "کوتاهی", status: "REQUESTED" })), "3");
++  assert.equal(ids(filterAgenda(rows, { staffId: "st-a", status: "COMPLETED" })), "");
++});
++
++test("رشتهٔ تعریف‌نشده (undefined) مثل «همه» رفتار می‌کند", () => {
++  assert.equal(ids(filterAgenda(rows, {})), "1,2,3");
++});
+diff --git a/tests/audit-labels.test.ts b/tests/audit-labels.test.ts
+new file mode 100644
+index 0000000..1c2e156
+--- /dev/null
++++ b/tests/audit-labels.test.ts
+@@ -0,0 +1,66 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import {
++  describeAction,
++  describeEntity,
++  describeField,
++  formatAuditValue,
++  diffAudit,
++  hasAuditDetails,
++} from "../src/lib/audit-labels.ts";
++
++test("اقدامات شناخته‌شده فارسی می‌شوند و ناشناخته خودِ کد می‌ماند (هیچ چیزی پنهان نمی‌شود)", () => {
++  assert.equal(describeAction("change_salon_status"), "تغییر وضعیت سالن (تأیید/فعال‌سازی)");
++  assert.equal(describeAction("broadcast"), "ارسال پیامک سراسری");
++  assert.equal(describeAction("some_future_action"), "some_future_action");
++});
++
++test("موجودیت و فیلد: ترجمه و fallback", () => {
++  assert.equal(describeEntity("SupportTicket"), "تیکت پشتیبانی");
++  assert.equal(describeEntity("Mystery"), "Mystery");
++  assert.equal(describeField("isApproved"), "تأیید شده");
++  assert.equal(describeField("weirdKey"), "weirdKey");
++});
++
++test("قالب‌بندی مقدار: بولین، خالی، enum، عدد لاتین، رشتهٔ بلند", () => {
++  assert.equal(formatAuditValue(true), "بله");
++  assert.equal(formatAuditValue(false), "خیر");
++  assert.equal(formatAuditValue(null), "—");
++  assert.equal(formatAuditValue(""), "—");
++  assert.equal(formatAuditValue("SALON_OWNER"), "مالک سالن (SALON_OWNER)");
++  assert.equal(formatAuditValue(120000), "120000");
++  const long = "الف".repeat(200);
++  assert.ok(formatAuditValue(long).endsWith("…") && formatAuditValue(long).length <= 122);
++});
++
++test("diffAudit فقط تغییرات واقعی را می‌آورد با قبل و بعد فارسی", () => {
++  const rows = diffAudit({ role: "CUSTOMER", isActive: true }, { role: "AGENT", isActive: true });
++  assert.equal(rows.length, 1);
++  assert.equal(rows[0].key, "role");
++  assert.equal(rows[0].from, "مشتری (CUSTOMER)");
++  assert.equal(rows[0].to, "نماینده (AGENT)");
++});
++
++test("diffAudit ساختار ایجاد/حذف: مقدار نبودن با — نمایش داده می‌شود", () => {
++  const created = diffAudit(null, { code: "VIP20", percent: 20 });
++  assert.equal(created.length, 2);
++  assert.equal(created[0].from, "—");
++  const deleted = diffAudit({ code: "VIP20" }, null);
++  assert.equal(deleted[0].to, "—");
++});
++
++test("diffAudit کلیدهای شناسایی را حذف می‌کند و آبجکت‌های تودرتو را JSON فشرده می‌کند", () => {
++  const rows = diffAudit(
++    { id: "x", createdAt: "2026-01-01", saved: [{ plan: "PRO", key: "maxBranches", value: 2 }] },
++    { saved: [{ plan: "PRO", key: "maxBranches", value: 5 }] }
++  );
++  assert.equal(rows.length, 1);
++  assert.match(rows[0].to, /maxBranches/);
++});
++
++test("hasAuditDetails: نبودِ قبل و بعد یعنی بدون جزئیات", () => {
++  assert.equal(hasAuditDetails(null, null), false);
++  assert.equal(hasAuditDetails(undefined, undefined), false);
++  assert.equal(hasAuditDetails(null, { a: 1 }), true);
++  assert.equal(hasAuditDetails({ a: 1 }, null), true);
++});
+diff --git a/tests/map-links.test.ts b/tests/map-links.test.ts
+new file mode 100644
+index 0000000..bdb4f9d
+--- /dev/null
++++ b/tests/map-links.test.ts
+@@ -0,0 +1,41 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { neshanMapUrl, baladMapUrl, mapSearchQuery } from "../src/lib/map-links.ts";
++
++const TEHRAN = { latitude: 35.6989, longitude: 51.3989 };
++
++test("نشان با مختصات: لینک share با ترتیب lat,lng و اعشار ثابت", () => {
++  assert.equal(neshanMapUrl(TEHRAN, "نام سالن تهران آدرس"), "https://neshan.org/maps/share/35.698900,51.398900");
++});
++
++test("نشان بدون مختصات: لینک جست‌وجو با encodeURIComponent", () => {
++  const q = "آرایشگاه مهرازا تهران، سعادت‌آباد";
++  assert.equal(neshanMapUrl(null, q), `https://neshan.org/maps/search/${encodeURIComponent(q)}`);
++});
++
++test("بلد با مختصات: هش zoom/lat/lng", () => {
++  assert.equal(baladMapUrl(TEHRAN, "بی‌اهمیت"), "https://balad.ir/#16/35.698900/51.398900");
++});
++
++test("بلد بدون مختصات: جست‌وجو با پارامتر text", () => {
++  const q = "سالن بی بی لوکس کیش";
++  assert.equal(baladMapUrl(undefined, q), `https://balad.ir/search?text=${encodeURIComponent(q)}`);
++});
++
++test("مختصات نامعتبر (NaN/خارج از بازه) مثل بدون مختصات رفتار می‌کند", () => {
++  const q = "تست";
++  assert.equal(neshanMapUrl({ latitude: NaN, longitude: 51.4 }, q), `https://neshan.org/maps/search/${encodeURIComponent(q)}`);
++  assert.equal(baladMapUrl({ latitude: 120, longitude: 51.4 }, q), `https://balad.ir/search?text=${encodeURIComponent(q)}`);
++});
++
++test("mapSearchQuery بخش‌های خالی را حذف و فاصلهٔ اضافی را جمع می‌کند", () => {
++  assert.equal(mapSearchQuery("  مهرازا ", null, " سعادت‌آباد "), "مهرازا سعادت‌آباد");
++  assert.equal(mapSearchQuery("مهرازا", "", undefined), "مهرازا");
++});
++
++test("mapSearchQuery شهر تکراری داخل آدرس را دوباره نمی‌آورد", () => {
++  assert.equal(mapSearchQuery("سالن ماه", "تهران", "تهران، سعادت‌آباد"), "سالن ماه تهران، سعادت‌آباد");
++  assert.equal(mapSearchQuery("سالن ماه", "تهران", "تهران"), "سالن ماه تهران");
++  // وقتی آدرس با شهر شروع نمی‌شود، شهر می‌ماند
++  assert.equal(mapSearchQuery("سالن ماه", "کرج", "سعادت‌آباد"), "سالن ماه کرج سعادت‌آباد");
++});
+diff --git a/tests/salon-url.test.ts b/tests/salon-url.test.ts
+new file mode 100644
+index 0000000..faf596a
+--- /dev/null
++++ b/tests/salon-url.test.ts
+@@ -0,0 +1,54 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { parseOrigin, subdomainMode, salonUrlFromOrigin, salonPublicUrl } from "../src/lib/salon-url.ts";
++
++// ROOT_DOMAIN پیش‌فرض در تست «localhost» است (بدون env) — حالت توسعهٔ محلی
++
++test("تجزیهٔ اوریج/هاست با پورت", () => {
++  assert.deepEqual(parseOrigin("http://localhost:4173"), { proto: "http:", hostname: "localhost", port: "4173" });
++  assert.deepEqual(parseOrigin("localhost:4173"), { proto: "http:", hostname: "localhost", port: "4173" });
++  assert.equal(parseOrigin("not a url"), null);
++});
++
++test("حالت ساب‌دامین روی localhost همیشه فعال است", () => {
++  assert.equal(subdomainMode("http://localhost:4173"), true);
++  assert.equal(subdomainMode("http://127.0.0.1:3000"), true);
++  // بدون ROOT_DOMAIN تنظیم‌شده، دامنهٔ واقعی ساب‌دامین نمی‌شود
++  assert.equal(subdomainMode("https://bots.example.com"), false);
++});
++
++test("آدرس سالن روی لوکال به شکل <slug>.localhost:<port> ساخته می‌شود", () => {
++  assert.equal(salonUrlFromOrigin("bahar", "http://localhost:4173"), "http://bahar.localhost:4173");
++  assert.equal(salonUrlFromOrigin("mah", "http://localhost:3000"), "http://mah.localhost:3000");
++});
++
++test("اسلاگ غیرمجاز DNS به مسیر /s/<slug> برمی‌گردد", () => {
++  // خط تیره در ابتدا/انتها برای برچسب DNS نامعتبر است
++  assert.equal(salonUrlFromOrigin("-bad", "http://localhost:4173"), "http://localhost:4173/s/-bad");
++  assert.equal(salonUrlFromOrigin("bad-", "http://localhost:4173"), "http://localhost:4173/s/bad-");
++});
++
++test("اوریج خودش ساب‌دامین لوکال باشد، آدرس ریشهٔ همان ساب‌دامین می‌ماند", () => {
++  assert.equal(salonUrlFromOrigin("bahar", "http://bahar.localhost:4178"), "http://bahar.localhost:4178");
++  // سالن دیگر از روی ساب‌دامین یک سالن دیگر هم به شکل ساب‌دامین ساخته می‌شود
++  assert.equal(salonUrlFromOrigin("gisso", "http://bahar.localhost:4178"), "http://gisso.localhost:4178");
++});
++
++test("سالن روی دامنهٔ اختصاصیِ تأییدشده، ساب‌دامین نمی‌گیرد", () => {
++  const url = salonPublicUrl({ slug: "bahar", customDomain: "bahar.ir", domainStatus: "VERIFIED" }, "localhost:4173");
++  assert.equal(url, "https://bahar.ir");
++});
++
++test("دامنهٔ اختصاصیِ تأییدنشده نادیده گرفته می‌شود", () => {
++  const url = salonPublicUrl({ slug: "bahar", customDomain: "bahar.ir", domainStatus: "PENDING" }, "localhost:4173");
++  assert.equal(url, "http://bahar.localhost:4173");
++});
++
++test("هاست درخواست بدون پورت لوکال → همان پروتکل و ساب‌دامین", () => {
++  assert.equal(salonPublicUrl({ slug: "nahal" }, "localhost"), "http://nahal.localhost");
++});
++
++test("میزبان نامرتبط (دامنهٔ اختصاصی سروشده) به مسیر /s/ تبدیل می‌شود", () => {
++  const url = salonPublicUrl({ slug: "bahar" }, "some-salon.ir");
++  assert.equal(url, "https://some-salon.ir/s/bahar");
++});
+-- 
+2.56.0.windows.2
+

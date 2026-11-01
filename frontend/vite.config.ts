@@ -13,7 +13,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5175,
+    // ساب‌دامین‌های لوکال (mah.localhost) هم باید پذیرفته شوند؛ Vite به‌طور
+    // پیش‌فرض فقط localhost/127.x را می‌پذیرد.
+    host: true,
+    allowedHosts: [".localhost", "localhost"],
     proxy: {
       "/api": { target: API_TARGET, changeOrigin: true, xfwd: true },
       "/uploads": { target: API_TARGET, changeOrigin: true, xfwd: true },

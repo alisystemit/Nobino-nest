@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { httpError } from "@/lib/utils";
+import { randomSalonSlug, slugCandidates } from "@/lib/slug";
 
 /**
  * یاریاب‌های خواندن سالنِ «اصلی» یک کاربر.
@@ -42,4 +44,38 @@ export async function resolveDashboardSalonId(userId: string, requested?: string
     if (own) return own.id;
   }
   return getPrimarySalonId(userId);
+}
+
+/**
+ * رزرو اسلاگ یکتا برای سالن جدید (یا تغییر اسلاگ سالن).
+ * اسلاگ همان آدرس عمومی/ساب‌دامین سالن است، پس باید یکتا باشد.
+ * اگر `wanted` داده نشده باشد، اسلاگ از نام سالن ساخته می‌شود.
+ * @throws اگر اسلاگ درخواستی گرفته شده باشد و `strict` باشد
+ */
+export async function reserveSalonSlug(wanted: string | null | undefined, name: string, strict = false): Promise<string> {
+  const requested = String(wanted ?? "").trim().toLowerCase();
+  const candidates = slugCandidates(requested || name);
+  const taken = new Set(
+    (await prisma.salon.findMany({ where: { slug: { in: candidates } }, select: { slug: true } })).map((s) => s.slug),
+  );
+  if (requested && taken.has(requested) && strict) {
+    throw httpError("این آدرس قبلاً استفاده شده است؛ یک اسلاگ دیگر انتخاب کنید", 409);
+  }
+  const free = candidates.find((c) => !taken.has(c));
+  if (free) return free;
+  // همهٔ نامزدها گرفته بود: اسلاگ تصادفی معتبر (با یک بار بررسی)
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const slug = randomSalonSlug();
+    const exists = await prisma.salon.findUnique({ where: { slug }, select: { id: true } });
+    if (!exists) return slug;
+  }
+  throw new Error("ساخت آدرس اختصاصی ممکن نشد؛ دوباره تلاش کنید");
+}
+
+/** آیا اسلاگ آزاد است؟ (برای پیشنهاد زنده در فرم ساخت سالن) */
+export async function isSlugFree(slug: string): Promise<boolean> {
+  const normalized = String(slug ?? "").trim().toLowerCase();
+  if (!normalized) return false;
+  const exists = await prisma.salon.findUnique({ where: { slug: normalized }, select: { id: true } });
+  return !exists;
 }

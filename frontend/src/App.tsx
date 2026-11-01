@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from "@/auth";
 import { I18nProvider } from "@/lib/i18n";
 import { ThemeProvider } from "@/lib/theme";
+import { currentSalonSlug } from "@/lib/subdomain";
 import GlobalHeader from "@/components/GlobalHeader";
 import PwaInstall from "@/components/PwaInstall";
 
@@ -54,6 +55,70 @@ function ScrollToTop() {
 }
 
 /**
+ * اگر کاربر روی یک ساب‌دامین سالن (مثل mah.localhost:5175) باشد، صفحهٔ سالن
+ * همان اسلاگ را نمایش می‌دهد — بدون نیاز به مسیر /s/<slug>. در غیر این صورت
+ * چیدمان سراسری و جدول مسیرهای عادی روتر اجرا می‌شوند.
+ */
+function AppInner() {
+  const slug = currentSalonSlug();
+  if (slug) {
+    return (
+      <div className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+        <SalonPage slug={slug} />
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      <GlobalHeader />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/help" element={<HelpPage />} />
+        <Route path="/offline" element={<OfflinePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/packages" element={<PackagesPage />} />
+        <Route path="/salons" element={<SalonsPage />} />
+        <Route path="/s/:slug" element={<SalonPage />} />
+        <Route path="/wa" element={<WaPage />} />
+        <Route path="/wa/salon/:slug" element={<WaSalonPage />} />
+        <Route path="/pay/:token" element={<PayPage />} />
+        <Route path="/payment/result" element={<PaymentResultPage />} />
+
+        <Route element={<RequireAuth />}>
+          <Route path="/dashboard" element={<DashboardHome />} />
+          <Route path="/dashboard/account" element={<DashboardAccount />} />
+          <Route path="/dashboard/appointments" element={<DashboardAppointments />} />
+          <Route path="/dashboard/wallet" element={<DashboardWallet />} />
+          <Route path="/dashboard/admin" element={<Navigate to="/admin" replace />} />
+        </Route>
+
+        <Route element={<RequireAuth roles={["SALON_OWNER", "ADMIN", "AGENT"]} />}>
+          <Route
+            path="/dashboard/new-appointment"
+            element={<DashboardNewAppointment />}
+          />
+          <Route
+            path="/dashboard/voice-booking"
+            element={<DashboardVoiceBooking />}
+          />
+        </Route>
+        <Route element={<RequireAuth roles={["SALON_OWNER", "ADMIN"]} />}>
+          <Route path="/dashboard/salon" element={<DashboardSalon />} />
+        </Route>
+
+        <Route element={<RequireAuth roles={["ADMIN"]} />}>
+          <Route path="/admin" element={<AdminPage />} />
+        </Route>
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <PwaInstall />
+    </div>
+  );
+}
+
+/**
  * اگر کاربر از برگهٔ یک سالن، اپ را نصب کرده باشد، اولین باز کردن اپِ نصب‌شده
  * (حالت standalone) مستقیم همان صفحهٔ سالن را باز می‌کند. در وبِ عادی هیچ کاری نمی‌کند.
  */
@@ -82,52 +147,7 @@ export function App() {
           <ThemeProvider>
             <ScrollToTop />
             <LaunchRedirect />
-            <div className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-              <GlobalHeader />
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/help" element={<HelpPage />} />
-                <Route path="/offline" element={<OfflinePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/packages" element={<PackagesPage />} />
-                <Route path="/salons" element={<SalonsPage />} />
-                <Route path="/s/:slug" element={<SalonPage />} />
-                <Route path="/wa" element={<WaPage />} />
-                <Route path="/wa/salon/:slug" element={<WaSalonPage />} />
-                <Route path="/pay/:token" element={<PayPage />} />
-                <Route path="/payment/result" element={<PaymentResultPage />} />
-
-                <Route element={<RequireAuth />}>
-                  <Route path="/dashboard" element={<DashboardHome />} />
-                  <Route path="/dashboard/account" element={<DashboardAccount />} />
-                  <Route path="/dashboard/appointments" element={<DashboardAppointments />} />
-                  <Route path="/dashboard/wallet" element={<DashboardWallet />} />
-                  <Route path="/dashboard/admin" element={<Navigate to="/admin" replace />} />
-                </Route>
-
-                <Route element={<RequireAuth roles={["SALON_OWNER", "ADMIN", "AGENT"]} />}>
-                  <Route
-                    path="/dashboard/new-appointment"
-                    element={<DashboardNewAppointment />}
-                  />
-                  <Route
-                    path="/dashboard/voice-booking"
-                    element={<DashboardVoiceBooking />}
-                  />
-                </Route>
-                <Route element={<RequireAuth roles={["SALON_OWNER", "ADMIN"]} />}>
-                  <Route path="/dashboard/salon" element={<DashboardSalon />} />
-                </Route>
-
-                <Route element={<RequireAuth roles={["ADMIN"]} />}>
-                  <Route path="/admin" element={<AdminPage />} />
-                </Route>
-                <Route path="/admin/login" element={<AdminLoginPage />} />
-
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-              <PwaInstall />
-            </div>
+            <AppInner />
           </ThemeProvider>
         </I18nProvider>
       </AuthProvider>

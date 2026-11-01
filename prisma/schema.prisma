@@ -1,4 +1,4 @@
-// Nobino — Prisma Schema
+// Nobino ΓÇö Prisma Schema
 // PostgreSQL database. Model covers multi-tenant salons, voice AI,
 // OTP auth, finance (wallet/commission/payout) and payments.
 
@@ -11,27 +11,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Enums ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 enum Role {
-  CUSTOMER // مشتری
-  SALON_OWNER // آرایشگر / صاحب سالن
-  AGENT // نماینده (کمیسیون درصدی)
-  ADMIN // سوپرادمین
+  CUSTOMER // ┘à╪┤╪¬╪▒█î
+  SALON_OWNER // ╪ó╪▒╪º█î╪┤┌»╪▒ / ╪╡╪º╪¡╪¿ ╪│╪º┘ä┘å
+  AGENT // ┘å┘à╪º█î┘å╪»┘ç (┌⌐┘à█î╪│█î┘ê┘å ╪»╪▒╪╡╪»█î)
+  ADMIN // ╪│┘ê┘╛╪▒╪º╪»┘à█î┘å
 }
 
 enum AppointmentStatus {
-  REQUESTED // در انتظار تأیید
-  CONFIRMED // تأیید شده
-  COMPLETED // انجام شده
-  CANCELLED // لغو شده
-  NO_SHOW // مراجعه نکرد
+  REQUESTED // ╪»╪▒ ╪º┘å╪¬╪╕╪º╪▒ ╪¬╪ú█î█î╪»
+  CONFIRMED // ╪¬╪ú█î█î╪» ╪┤╪»┘ç
+  COMPLETED // ╪º┘å╪¼╪º┘à ╪┤╪»┘ç
+  CANCELLED // ┘ä╪║┘ê ╪┤╪»┘ç
+  NO_SHOW // ┘à╪▒╪º╪¼╪╣┘ç ┘å┌⌐╪▒╪»
 }
 
 enum CreationChannel {
-  VOICE // ضبط صوتی/هوش مصنوعی
-  MANUAL // ثبت دستی
-  WEBAPP // وب‌اپ پیام‌رسان
+  VOICE // ╪╢╪¿╪╖ ╪╡┘ê╪¬█î/┘ç┘ê╪┤ ┘à╪╡┘å┘ê╪╣█î
+  MANUAL // ╪½╪¿╪¬ ╪»╪│╪¬█î
+  WEBAPP // ┘ê╪¿ΓÇî╪º┘╛ ┘╛█î╪º┘àΓÇî╪▒╪│╪º┘å
 }
 
 enum PaymentStatus {
@@ -43,8 +43,8 @@ enum PaymentStatus {
 }
 
 enum TransactionKind {
-  CREDIT // افزایش موجودی
-  DEBIT // کاهش موجودی
+  CREDIT // ╪º┘ü╪▓╪º█î╪┤ ┘à┘ê╪¼┘ê╪»█î
+  DEBIT // ┌⌐╪º┘ç╪┤ ┘à┘ê╪¼┘ê╪»█î
 }
 
 enum TransactionReason {
@@ -69,7 +69,7 @@ enum SupportTicketStatus {
   CLOSED
 }
 
-// ─── User & Auth ──────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ User & Auth ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 model User {
   id            String    @id @default(cuid())
@@ -104,7 +104,7 @@ model Otp {
   phone     String
   code      String
   purpose   String    @default("LOGIN") // LOGIN | VERIFY | EMAIL_LOGIN
-  attempts  Int       @default(0) // تعداد تلاش‌های ناموفق برای این کد
+  attempts  Int       @default(0) // ╪¬╪╣╪»╪º╪» ╪¬┘ä╪º╪┤ΓÇî┘ç╪º█î ┘å╪º┘à┘ê┘ü┘é ╪¿╪▒╪º█î ╪º█î┘å ┌⌐╪»
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
@@ -125,26 +125,26 @@ model Session {
   @@index([userId])
 }
 
-// ─── Salon (multi-tenant) ─────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Salon (multi-tenant) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 model Salon {
   id                 String    @id @default(cuid())
-  slug               String    @unique // ساب‌دامین
+  slug               String    @unique // ╪│╪º╪¿ΓÇî╪»╪º┘à█î┘å
   name               String
   phone              String
-  email              String?
-  whatsapp           String?
-  instagram          String?
-  website            String?
   city               String?
   address            String?
   description        String?
-  /** لینک اشتراک‌گذاری نقشه (بلد/نشان/گوگل) */
-  mapUrl             String?
-  /** لینک مستقیم مسیر بلد */
-  baladUrl           String?
-  /** لینک مستقیم مسیر نشان */
-  neshanUrl          String?
+
+  // ╪¬┘à╪º╪│ ┘ê ┘à┘ê┘é╪╣█î╪¬ (┘ü╪▒┘à ╪│╪º╪«╪¬/┘ê█î╪▒╪º█î╪┤ ╪│╪º┘ä┘å)
+  email              String?
+  whatsapp           String? // ┘ü┘é╪╖ ╪▒┘é┘à╪î ╪¿╪▒╪º█î ┘ä█î┘å┌⌐ wa.me
+  instagram          String? // @handle █î╪º URL ┌⌐╪º┘à┘ä
+  website            String?
+  mapUrl             String? // ┘ä█î┘å┌⌐ ┘à┘ê┘é╪╣█î╪¬ ╪»╪▒ ╪¿┘ä╪»/┘å╪┤╪º┘å (┘à┘å╪¿╪╣ ╪»┌⌐┘à┘ç┘ö ┘à╪│█î╪▒█î╪º╪¿█î)
+  neshanUrl          String? // لینک موقعیت در «نشان»
+  baladUrl           String? // لینک موقعیت در «بلد»
+
   logoUrl            String?
   bannerUrl          String?
   coverColor         String    @default("#f472b6")
@@ -161,7 +161,7 @@ model Salon {
   autoRenew          Boolean   @default(false)
   plan               String    @default("FREE") // FREE | BASIC | PRO | ENTERPRISE
 
-  // قوانین رزرو
+  // ┘é┘ê╪º┘å█î┘å ╪▒╪▓╪▒┘ê
   minNoticeMinutes    Int @default(60)
   maxAdvanceDays      Int @default(30)
   cancelDeadlineHours Int @default(24)
@@ -191,23 +191,23 @@ model Salon {
   branches        Branch[]
   cashEntries     CashRegisterEntry[]
   customers       SalonCustomer[]
-  customerMedia   SalonCustomerMedia[]
   invoices        Invoice[]
   campaigns       Campaign[]
+  customerMedia   SalonCustomerMedia[]
 
-  // یک کاربر می‌تواند چند سالن داشته باشد (سقف «تعداد سالن هر کاربر» در پلن‌ها اعمال می‌شود)
+  // █î┌⌐ ┌⌐╪º╪▒╪¿╪▒ ┘à█îΓÇî╪¬┘ê╪º┘å╪» ┌å┘å╪» ╪│╪º┘ä┘å ╪»╪º╪┤╪¬┘ç ╪¿╪º╪┤╪» (╪│┘é┘ü ┬½╪¬╪╣╪»╪º╪» ╪│╪º┘ä┘å ┘ç╪▒ ┌⌐╪º╪▒╪¿╪▒┬╗ ╪»╪▒ ┘╛┘ä┘åΓÇî┘ç╪º ╪º╪╣┘à╪º┘ä ┘à█îΓÇî╪┤┘ê╪»)
   @@index([ownerId])
 }
 
-// ─── CRM مشتریان هر سالن ─────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ CRM ┘à╪┤╪¬╪▒█î╪º┘å ┘ç╪▒ ╪│╪º┘ä┘å ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model SalonCustomer {
   id          String              @id @default(cuid())
   salonId     String
   salon       Salon               @relation(fields: [salonId], references: [id], onDelete: Cascade)
   phone       String
   name        String?
-  firstName   String?
-  lastName    String?
+  firstName    String?
+  lastName     String?
   note        String?
   visits      Int                 @default(0)
   spend       Int                 @default(0)
@@ -233,24 +233,24 @@ model SalonCustomerNote {
   @@index([customerId])
 }
 
-/** فایل‌های ضمیمهٔ پروندهٔ مشتری (عکس یا پیام صوتی) — متعلق به همان سالن */
 model SalonCustomerMedia {
-  id         String        @id @default(cuid())
+  id         String       @id @default(cuid())
   salonId    String
-  salon      Salon         @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  salon      Salon        @relation(fields: [salonId], references: [id], onDelete: Cascade)
   customerId String
   customer   SalonCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  type       String        @default("photo") // photo | voice
+  type       String       @default("photo") // photo | voice
   url        String
   name       String?
   mimeType   String?
-  size       Int           @default(0)
-  createdAt  DateTime      @default(now())
+  size       Int          @default(0)
+  createdAt  DateTime     @default(now())
 
-  @@index([salonId, customerId])
+  @@index([customerId])
+  @@index([salonId])
 }
 
-// ─── شعبه (چند شعبه برای یک سالن/برند) ─────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ╪┤╪╣╪¿┘ç (┌å┘å╪» ╪┤╪╣╪¿┘ç ╪¿╪▒╪º█î █î┌⌐ ╪│╪º┘ä┘å/╪¿╪▒┘å╪») ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model Branch {
   id        String   @id @default(cuid())
   salonId   String
@@ -273,7 +273,7 @@ model Branch {
   @@index([salonId])
 }
 
-// ─── صندوق / تسویه روزانه ────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ╪╡┘å╪»┘ê┘é / ╪¬╪│┘ê█î┘ç ╪▒┘ê╪▓╪º┘å┘ç ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model CashRegisterEntry {
   id            String   @id @default(cuid())
   salonId       String
@@ -281,10 +281,10 @@ model CashRegisterEntry {
   branchId      String?
   branch        Branch?  @relation(fields: [branchId], references: [id])
   date          DateTime @default(now())
-  cashAmount    Int      @default(0) // نقدی
-  cardAmount    Int      @default(0) // کارت‌خوان
-  onlineAmount  Int      @default(0) // آنلاین
-  expenseAmount Int      @default(0) // هزینه
+  cashAmount    Int      @default(0) // ┘å┘é╪»█î
+  cardAmount    Int      @default(0) // ┌⌐╪º╪▒╪¬ΓÇî╪«┘ê╪º┘å
+  onlineAmount  Int      @default(0) // ╪ó┘å┘ä╪º█î┘å
+  expenseAmount Int      @default(0) // ┘ç╪▓█î┘å┘ç
   note          String?
   createdById   String?
   createdAt     DateTime @default(now())
@@ -331,7 +331,7 @@ model OpeningHour {
   id        String  @id @default(cuid())
   salonId   String
   salon     Salon   @relation(fields: [salonId], references: [id], onDelete: Cascade)
-  dayOfWeek Int // 0..6 (شنبه = 0)
+  dayOfWeek Int // 0..6 (╪┤┘å╪¿┘ç = 0)
   openTime  String // "09:00"
   closeTime String // "21:00"
   isClosed  Boolean @default(false)
@@ -355,7 +355,7 @@ model Holiday {
   @@index([salonId, date])
 }
 
-// ─── Appointments & Voice AI ──────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Appointments & Voice AI ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 model Appointment {
   id        String   @id @default(cuid())
@@ -367,7 +367,7 @@ model Appointment {
   customerId String?
   customer   User?   @relation("AppointmentCustomer", fields: [customerId], references: [id])
 
-  // آرایشگر انتخاب‌شده (اختیاری)
+  // ╪ó╪▒╪º█î╪┤┌»╪▒ ╪º┘å╪¬╪«╪º╪¿ΓÇî╪┤╪»┘ç (╪º╪«╪¬█î╪º╪▒█î)
   employeeId String?
   employee   Staff?  @relation(fields: [employeeId], references: [id])
   branchId   String?
@@ -382,10 +382,10 @@ model Appointment {
   note              String?
   cancelReason      String?
   cancelledAt       DateTime?
-  depositAmount     Int? // پیش‌پرداخت/بیعانه (تومان)
+  depositAmount     Int? // ┘╛█î╪┤ΓÇî┘╛╪▒╪»╪º╪«╪¬/╪¿█î╪╣╪º┘å┘ç (╪¬┘ê┘à╪º┘å)
   depositPaid       Boolean           @default(false)
-  tempLockExpiresAt DateTime? // قفل موقت هنگام پرداخت
-  rescheduledFrom   String? // id نوبت قبلی هنگام جابه‌جایی
+  tempLockExpiresAt DateTime? // ┘é┘ü┘ä ┘à┘ê┘é╪¬ ┘ç┘å┌»╪º┘à ┘╛╪▒╪»╪º╪«╪¬
+  rescheduledFrom   String? // id ┘å┘ê╪¿╪¬ ┘é╪¿┘ä█î ┘ç┘å┌»╪º┘à ╪¼╪º╪¿┘çΓÇî╪¼╪º█î█î
   voiceCallId       String?           @unique
   voiceCall         VoiceCall?        @relation(fields: [voiceCallId], references: [id])
   review            Review?
@@ -404,9 +404,9 @@ model VoiceCall {
   salon       Salon        @relation(fields: [salonId], references: [id], onDelete: Cascade)
   audioUrl    String?
   durationSec Int?
-  transcript  String? // متن استخراج‌شده
-  rawText     String? // متن خام پیش از پردازش
-  extracted   Json? // اطلاعات نوبت استخراج‌شده
+  transcript  String? // ┘à╪¬┘å ╪º╪│╪¬╪«╪▒╪º╪¼ΓÇî╪┤╪»┘ç
+  rawText     String? // ┘à╪¬┘å ╪«╪º┘à ┘╛█î╪┤ ╪º╪▓ ┘╛╪▒╪»╪º╪▓╪┤
+  extracted   Json? // ╪º╪╖┘ä╪º╪╣╪º╪¬ ┘å┘ê╪¿╪¬ ╪º╪│╪¬╪«╪▒╪º╪¼ΓÇî╪┤╪»┘ç
   status      String       @default("PROCESSING") // PROCESSING | DONE | FAILED | CONFIRMED
   error       String?
   appointment Appointment?
@@ -416,13 +416,13 @@ model VoiceCall {
   @@index([salonId])
 }
 
-// ─── Financial: Wallet / Transaction / Commission / Payout ────────────
+// ΓöÇΓöÇΓöÇ Financial: Wallet / Transaction / Commission / Payout ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 model Wallet {
   id        String   @id @default(cuid())
   ownerId   String
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  balance   Int      @default(0) // تومان
+  balance   Int      @default(0) // ╪¬┘ê┘à╪º┘å
   currency  String   @default("IRR")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -439,7 +439,7 @@ model Transaction {
   wallet       Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
   kind         TransactionKind
   reason       TransactionReason
-  amount       Int // همیشه مثبت؛ جهت توسط kind مشخص می‌شود
+  amount       Int // ┘ç┘à█î╪┤┘ç ┘à╪½╪¿╪¬╪¢ ╪¼┘ç╪¬ ╪¬┘ê╪│╪╖ kind ┘à╪┤╪«╪╡ ┘à█îΓÇî╪┤┘ê╪»
   balanceAfter Int
   refType      String? // Order | Appointment | Payout
   refId        String?
@@ -477,17 +477,17 @@ model Payout {
   @@index([walletId])
 }
 
-// ─── Packages, Subscriptions, Orders & Payments ───────────────────────
+// ΓöÇΓöÇΓöÇ Packages, Subscriptions, Orders & Payments ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 model Package {
   id           String   @id @default(cuid())
   name         String
   description  String?
   plan         String   @default("BASIC") // FREE | BASIC | PRO | ENTERPRISE
-  price        Int // تومان (ماهانه)
-  yearlyPrice  Int? // تومان در سال (اگر خالی باشد = price * 10)
+  price        Int // ╪¬┘ê┘à╪º┘å (┘à╪º┘ç╪º┘å┘ç)
+  yearlyPrice  Int? // ╪¬┘ê┘à╪º┘å ╪»╪▒ ╪│╪º┘ä (╪º┌»╪▒ ╪«╪º┘ä█î ╪¿╪º╪┤╪» = price * 10)
   durationDays Int
-  features     Json? // آرایه‌ای از امکانات
+  features     Json? // ╪ó╪▒╪º█î┘çΓÇî╪º█î ╪º╪▓ ╪º┘à┌⌐╪º┘å╪º╪¬
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
@@ -523,7 +523,7 @@ model Invoice {
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   orderId        String?       @unique
   order          Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  kind           String        @default("SUBSCRIPTION") // SUBSCRIPTION | SERVICE (فاکتور خدماتی برای مشتری)
+  kind           String        @default("SUBSCRIPTION") // SUBSCRIPTION | SERVICE (┘ü╪º┌⌐╪¬┘ê╪▒ ╪«╪»┘à╪º╪¬█î ╪¿╪▒╪º█î ┘à╪┤╪¬╪▒█î)
   customerName   String?
   customerPhone  String?
   description    String?
@@ -572,8 +572,8 @@ model Order {
   package        Package       @relation(fields: [packageId], references: [id])
   discountId     String?
   discount       Discount?     @relation(fields: [discountId], references: [id])
-  amount         Int // مبلغ نهایی پس از تخفیف
-  originalAmount Int? // پیش از تخفیف
+  amount         Int // ┘à╪¿┘ä╪║ ┘å┘ç╪º█î█î ┘╛╪│ ╪º╪▓ ╪¬╪«┘ü█î┘ü
+  originalAmount Int? // ┘╛█î╪┤ ╪º╪▓ ╪¬╪«┘ü█î┘ü
   period         String        @default("MONTHLY") // MONTHLY | YEARLY
   autoRenew      Boolean       @default(false)
   status         PaymentStatus @default(PENDING)
@@ -593,8 +593,8 @@ model Payment {
   gateway     String // zarinpal | mellat | ...
   amount      Int
   status      PaymentStatus @default(PENDING)
-  authority   String? // کد مرجع درگاه
-  refId       String? // کد پیگیری تراکنش
+  authority   String? // ┌⌐╪» ┘à╪▒╪¼╪╣ ╪»╪▒┌»╪º┘ç
+  refId       String? // ┌⌐╪» ┘╛█î┌»█î╪▒█î ╪¬╪▒╪º┌⌐┘å╪┤
   cardPan     String?
   payload     Json?
   callbackUrl String?
@@ -606,15 +606,15 @@ model Payment {
   @@index([gateway])
 }
 
-// ─── کارت هدیه / بسته خدمات ───────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┌⌐╪º╪▒╪¬ ┘ç╪»█î┘ç / ╪¿╪│╪¬┘ç ╪«╪»┘à╪º╪¬ ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model GiftCard {
   id        String    @id @default(cuid())
   code      String    @unique
-  balance   Int // تومان
+  balance   Int // ╪¬┘ê┘à╪º┘å
   currency  String    @default("IRR")
   ownerId   String
   owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  salonId   String? // اگر فقط برای یک سالن معتبر است
+  salonId   String? // ╪º┌»╪▒ ┘ü┘é╪╖ ╪¿╪▒╪º█î █î┌⌐ ╪│╪º┘ä┘å ┘à╪╣╪¬╪¿╪▒ ╪º╪│╪¬
   expiresAt DateTime?
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
@@ -623,7 +623,7 @@ model GiftCard {
   @@index([ownerId])
 }
 
-// ─── لیست انتظار ────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┘ä█î╪│╪¬ ╪º┘å╪¬╪╕╪º╪▒ ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model WaitlistEntry {
   id            String    @id @default(cuid())
   salonId       String
@@ -640,7 +640,7 @@ model WaitlistEntry {
   @@index([salonId, status])
 }
 
-// ─── وب‌هوک (ارسال رویداد به URL مشتری) ────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┘ê╪¿ΓÇî┘ç┘ê┌⌐ (╪º╪▒╪│╪º┘ä ╪▒┘ê█î╪»╪º╪» ╪¿┘ç URL ┘à╪┤╪¬╪▒█î) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model WebhookConfig {
   id        String   @id @default(cuid())
   salonId   String
@@ -671,12 +671,12 @@ model WebhookDelivery {
   @@index([status])
 }
 
-// ─── کد تخفیف ────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┌⌐╪» ╪¬╪«┘ü█î┘ü ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model Discount {
   id        String    @id @default(cuid())
   code      String    @unique
   percent   Int // 1..100
-  maxUses   Int       @default(0) // 0 = نامحدود
+  maxUses   Int       @default(0) // 0 = ┘å╪º┘à╪¡╪»┘ê╪»
   usedCount Int       @default(0)
   expiresAt DateTime?
   isActive  Boolean   @default(true)
@@ -685,7 +685,7 @@ model Discount {
   orders Order[]
 }
 
-// ─── لاگ حسابرسی (اقدامات مدیران/پشتیبانی) ────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┘ä╪º┌» ╪¡╪│╪º╪¿╪▒╪│█î (╪º┘é╪»╪º┘à╪º╪¬ ┘à╪»█î╪▒╪º┘å/┘╛╪┤╪¬█î╪¿╪º┘å█î) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
@@ -701,22 +701,22 @@ model AuditLog {
   @@index([entityType, entityId])
 }
 
-// ─── System Settings (پویا، قابل ویرایش توسط سوپرادمین) ────────────────
-// برای ذخیره API_KEYها، انتخاب سرویس‌دهنده فعال و هر تنظیم دیگر.
+// ΓöÇΓöÇΓöÇ System Settings (┘╛┘ê█î╪º╪î ┘é╪º╪¿┘ä ┘ê█î╪▒╪º█î╪┤ ╪¬┘ê╪│╪╖ ╪│┘ê┘╛╪▒╪º╪»┘à█î┘å) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ╪¿╪▒╪º█î ╪░╪«█î╪▒┘ç API_KEY┘ç╪º╪î ╪º┘å╪¬╪«╪º╪¿ ╪│╪▒┘ê█î╪│ΓÇî╪»┘ç┘å╪»┘ç ┘ü╪╣╪º┘ä ┘ê ┘ç╪▒ ╪¬┘å╪╕█î┘à ╪»█î┌»╪▒.
 model Setting {
   id          String   @id @default(cuid())
-  key         String   @unique // مثل sms.active_provider
-  value       String? // مقدار (برای secret با isSecret=true)
+  key         String   @unique // ┘à╪½┘ä sms.active_provider
+  value       String? // ┘à┘é╪»╪º╪▒ (╪¿╪▒╪º█î secret ╪¿╪º isSecret=true)
   group       String   @default("general")
   type        String   @default("string") // string | secret | number | boolean | select
-  options     String? // برای type=select: لیست JSON
+  options     String? // ╪¿╪▒╪º█î type=select: ┘ä█î╪│╪¬ JSON
   description String?
   isSecret    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-// ─── کارکنان / آرایشگران (Staff) ────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┌⌐╪º╪▒┌⌐┘å╪º┘å / ╪ó╪▒╪º█î╪┤┌»╪▒╪º┘å (Staff) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model Staff {
   id       String  @id @default(cuid())
   salonId  String
@@ -725,17 +725,17 @@ model Staff {
   branch   Branch? @relation(fields: [branchId], references: [id])
 
   name              String
-  title             String? // مثل «آرایشگر ارشد»
+  title             String? // ┘à╪½┘ä ┬½╪ó╪▒╪º█î╪┤┌»╪▒ ╪º╪▒╪┤╪»┬╗
   role              String   @default("STYLIST") // OWNER | MANAGER | RECEPTION | STYLIST
-  commissionPercent Int      @default(0) // سهم آرایشگر از هر خدمت (٪)
-  userId            String? // حساب کاربری مرتبط برای پرداخت کمیسیون
+  commissionPercent Int      @default(0) // ╪│┘ç┘à ╪ó╪▒╪º█î╪┤┌»╪▒ ╪º╪▓ ┘ç╪▒ ╪«╪»┘à╪¬ (┘¬)
+  userId            String? // ╪¡╪│╪º╪¿ ┌⌐╪º╪▒╪¿╪▒█î ┘à╪▒╪¬╪¿╪╖ ╪¿╪▒╪º█î ┘╛╪▒╪»╪º╪«╪¬ ┌⌐┘à█î╪│█î┘ê┘å
   user              User?    @relation("StaffUser", fields: [userId], references: [id])
   bio               String?
   avatarUrl         String?
-  specialties       String[] // لیست تخصص‌ها
+  specialties       String[] // ┘ä█î╪│╪¬ ╪¬╪«╪╡╪╡ΓÇî┘ç╪º
   isActive          Boolean  @default(true)
 
-  // برنامه کاری هفتگی: آرایه‌ای از { day, open, close, isClosed }
+  // ╪¿╪▒┘å╪º┘à┘ç ┌⌐╪º╪▒█î ┘ç┘ü╪¬┌»█î: ╪ó╪▒╪º█î┘çΓÇî╪º█î ╪º╪▓ { day, open, close, isClosed }
   schedule Json?
 
   services     Service[]
@@ -749,7 +749,7 @@ model Staff {
   @@index([salonId])
 }
 
-// ─── مسدودسازی زمان (ناهار، تعمیرات، مرخصی،...) ─────────────────────────
+// ΓöÇΓöÇΓöÇ ┘à╪│╪»┘ê╪»╪│╪º╪▓█î ╪▓┘à╪º┘å (┘å╪º┘ç╪º╪▒╪î ╪¬╪╣┘à█î╪▒╪º╪¬╪î ┘à╪▒╪«╪╡█î╪î...) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model TimeBlock {
   id        String   @id @default(cuid())
   salonId   String
@@ -767,7 +767,7 @@ model TimeBlock {
   @@index([staffId])
 }
 
-// ─── نظرات و امتیازها ────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┘å╪╕╪▒╪º╪¬ ┘ê ╪º┘à╪¬█î╪º╪▓┘ç╪º ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model Review {
   id            String       @id @default(cuid())
   salonId       String
@@ -780,7 +780,7 @@ model Review {
   appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   rating        Int // 1..5
   comment       String?
-  reply         String? // پاسخ سالن‌دار / سوپرادمین به نظر
+  reply         String? // ┘╛╪º╪│╪« ╪│╪º┘ä┘åΓÇî╪»╪º╪▒ / ╪│┘ê┘╛╪▒╪º╪»┘à█î┘å ╪¿┘ç ┘å╪╕╪▒
   repliedAt     DateTime?
   createdAt     DateTime     @default(now())
 
@@ -788,7 +788,7 @@ model Review {
   @@index([customerId])
 }
 
-// ─── علاقه‌مندی‌ها (سالن‌های محبوب) ───────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ╪╣┘ä╪º┘é┘çΓÇî┘à┘å╪»█îΓÇî┘ç╪º (╪│╪º┘ä┘åΓÇî┘ç╪º█î ┘à╪¡╪¿┘ê╪¿) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model Favorite {
   id        String   @id @default(cuid())
   userId    String
@@ -800,7 +800,7 @@ model Favorite {
   @@unique([userId, salonId])
 }
 
-// ─── پشتیبانی و شکایت‌ها ─────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ ┘╛╪┤╪¬█î╪¿╪º┘å█î ┘ê ╪┤┌⌐╪º█î╪¬ΓÇî┘ç╪º ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model SupportTicket {
   id          String              @id @default(cuid())
   userId      String?
@@ -823,17 +823,17 @@ model SupportTicket {
   @@index([userId])
 }
 
-// ─── صف پیامک/اعلان (با تلاش مجدد و حذف تکراری) ─────────────────────────
+// ΓöÇΓöÇΓöÇ ╪╡┘ü ┘╛█î╪º┘à┌⌐/╪º╪╣┘ä╪º┘å (╪¿╪º ╪¬┘ä╪º╪┤ ┘à╪¼╪»╪» ┘ê ╪¡╪░┘ü ╪¬┌⌐╪▒╪º╪▒█î) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 model Notification {
   id            String    @id @default(cuid())
   type          String // OTP | APPOINTMENT_CONFIRM | REMINDER | CANCEL | SUBSCRIPTION
   channel       String    @default("SMS")
   recipient     String
   userId        String?
-  salonId       String? // سالنی که پیامک را مصرف می‌کند (برای شمارش سقف پیامک ماهانه)
-  readAt        DateTime? // شماره یا ایمیل
+  salonId       String? // ╪│╪º┘ä┘å█î ┌⌐┘ç ┘╛█î╪º┘à┌⌐ ╪▒╪º ┘à╪╡╪▒┘ü ┘à█îΓÇî┌⌐┘å╪» (╪¿╪▒╪º█î ╪┤┘à╪º╪▒╪┤ ╪│┘é┘ü ┘╛█î╪º┘à┌⌐ ┘à╪º┘ç╪º┘å┘ç)
+  readAt        DateTime? // ╪┤┘à╪º╪▒┘ç █î╪º ╪º█î┘à█î┘ä
   payload       Json?
-  uniqueKey     String?   @unique // برای جلوگیری از ارسال تکراری
+  uniqueKey     String?   @unique // ╪¿╪▒╪º█î ╪¼┘ä┘ê┌»█î╪▒█î ╪º╪▓ ╪º╪▒╪│╪º┘ä ╪¬┌⌐╪▒╪º╪▒█î
   status        String    @default("PENDING") // PENDING | SENT | FAILED | DROPPED
   attempts      Int       @default(0)
   lastError     String?
