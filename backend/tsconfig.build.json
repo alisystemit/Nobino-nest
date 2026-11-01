@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*.spec.ts",
+    "src/lib/browser/use-mic-capability.ts",
+    "src/lib/pwa-install.ts"
+  ],
+  "//": "دو فایل بالا هوک React با برچسب \"use client\" هستند که در پورت خودکار از frant‌اند Next به backend/src/lib کپی شده‌اند؛ هیچ ماژول بک‌اند آن‌ها را import نمی‌کند (نسخهٔ فعال‌شان در frontend/src/lib است) و `react` هم وابستگی بک‌اند نیست، پس از بیلد API خارج‌اند."
+}

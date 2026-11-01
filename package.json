@@ -1,0 +1,32 @@
+{
+  "name": "nobino-nest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nobino — خط NestJS: بک‌اند NestJS 11 (backend/) + فرانت React/Vite (frontend/)؛ schema و کلاینت Prisma در ریشه به‌صورت مشترک",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "seed": "node prisma/seed.mjs",
+    "build:backend": "npm --prefix backend run build",
+    "start:backend": "npm --prefix backend start",
+    "build:frontend": "npm --prefix frontend run build",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "verify": "npm run db:generate && npm run build:backend && npm run build:frontend"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "node prisma/seed.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true
+  }
+}

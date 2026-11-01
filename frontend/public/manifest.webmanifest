@@ -1,0 +1,65 @@
+{
+  "name": "نوبینو — نوبت‌دهی هوشمند آرایشگاه",
+  "short_name": "نوبینو",
+  "description": "رزرو آنلاین و صوتی نوبت آرایشگاه، یادآوری پیامکی، پرداخت فاکتور و مدیریت سالن زیبایی",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "fa",
+  "background_color": "#fafafa",
+  "theme_color": "#ec4899",
+  "categories": ["beauty", "business", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "رزرو نوبت",
+      "short_name": "رزرو",
+      "description": "جستجوی سالن و رزرو نوبت",
+      "url": "/salons",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "رزرو صوتی با هوش مصنوعی",
+      "short_name": "رزرو صوتی",
+      "description": "نوبت خود را با صدای خودتان رزرو کنید",
+      "url": "/dashboard/voice-booking",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "رزرو دستی نوبت",
+      "short_name": "رزرو دستی",
+      "description": "ثبت نوبت با تایپ اطلاعات (مشتری تلفنی یا حضوری)",
+      "url": "/dashboard/new-appointment",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "راهنمای نوبینو",
+      "short_name": "راهنما",
+      "description": "مرکز راهنما و سوالات متداول",
+      "url": "/help",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

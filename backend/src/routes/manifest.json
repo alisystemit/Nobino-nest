@@ -1,0 +1,878 @@
+[
+  {
+    "path": "account/reviews",
+    "url": "/api/account/reviews",
+    "module": "@/routes/api/account__reviews",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/audit",
+    "url": "/api/admin/audit",
+    "module": "@/routes/api/admin__audit",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/auth/login",
+    "url": "/api/admin/auth/login",
+    "module": "@/routes/api/admin__auth__login",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "admin/broadcast",
+    "url": "/api/admin/broadcast",
+    "module": "@/routes/api/admin__broadcast",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "admin/charts",
+    "url": "/api/admin/charts",
+    "module": "@/routes/api/admin__charts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/discounts",
+    "url": "/api/admin/discounts",
+    "module": "@/routes/api/admin__discounts",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "admin/discounts/[id]",
+    "url": "/api/admin/discounts/:id",
+    "module": "@/routes/api/admin__discounts__id",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "admin/invoices",
+    "url": "/api/admin/invoices",
+    "module": "@/routes/api/admin__invoices",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/limits",
+    "url": "/api/admin/limits",
+    "module": "@/routes/api/admin__limits",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "admin/notifications",
+    "url": "/api/admin/notifications",
+    "module": "@/routes/api/admin__notifications",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "admin/packages",
+    "url": "/api/admin/packages",
+    "module": "@/routes/api/admin__packages",
+    "methods": [
+      "GET",
+      "PATCH",
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "admin/reviews",
+    "url": "/api/admin/reviews",
+    "module": "@/routes/api/admin__reviews",
+    "methods": [
+      "GET",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "admin/saas-metrics",
+    "url": "/api/admin/saas-metrics",
+    "module": "@/routes/api/admin__saas-metrics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/salons/[id]",
+    "url": "/api/admin/salons/:id",
+    "module": "@/routes/api/admin__salons__id",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/salons/[id]/status",
+    "url": "/api/admin/salons/:id/status",
+    "module": "@/routes/api/admin__salons__id__status",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "path": "admin/settings",
+    "url": "/api/admin/settings",
+    "module": "@/routes/api/admin__settings",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "admin/sms/test",
+    "url": "/api/admin/sms/test",
+    "module": "@/routes/api/admin__sms__test",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "admin/subscriptions",
+    "url": "/api/admin/subscriptions",
+    "module": "@/routes/api/admin__subscriptions",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "admin/support",
+    "url": "/api/admin/support",
+    "module": "@/routes/api/admin__support",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "admin/users",
+    "url": "/api/admin/users",
+    "module": "@/routes/api/admin__users",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "ai/analyze",
+    "url": "/api/ai/analyze",
+    "module": "@/routes/api/ai__analyze",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "ai/chat",
+    "url": "/api/ai/chat",
+    "module": "@/routes/api/ai__chat",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "ai/generate-content",
+    "url": "/api/ai/generate-content",
+    "module": "@/routes/api/ai__generate-content",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "appointments/hold/confirm",
+    "url": "/api/appointments/hold/confirm",
+    "module": "@/routes/api/appointments__hold__confirm",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "appointments/hold",
+    "url": "/api/appointments/hold",
+    "module": "@/routes/api/appointments__hold",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "appointments",
+    "url": "/api/appointments",
+    "module": "@/routes/api/appointments",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "appointments/[id]/cancel",
+    "url": "/api/appointments/:id/cancel",
+    "module": "@/routes/api/appointments__id__cancel",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "appointments/[id]/reschedule",
+    "url": "/api/appointments/:id/reschedule",
+    "module": "@/routes/api/appointments__id__reschedule",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "appointments/[id]",
+    "url": "/api/appointments/:id",
+    "module": "@/routes/api/appointments__id",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "path": "auth/email/request",
+    "url": "/api/auth/email/request",
+    "module": "@/routes/api/auth__email__request",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "auth/email/verify",
+    "url": "/api/auth/email/verify",
+    "module": "@/routes/api/auth__email__verify",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "auth/logout",
+    "url": "/api/auth/logout",
+    "module": "@/routes/api/auth__logout",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "auth/me",
+    "url": "/api/auth/me",
+    "module": "@/routes/api/auth__me",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "auth/otp/dev-last",
+    "url": "/api/auth/otp/dev-last",
+    "module": "@/routes/api/auth__otp__dev-last",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "auth/otp/request",
+    "url": "/api/auth/otp/request",
+    "module": "@/routes/api/auth__otp__request",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "auth/otp/verify",
+    "url": "/api/auth/otp/verify",
+    "module": "@/routes/api/auth__otp__verify",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "auth/password/login",
+    "url": "/api/auth/password/login",
+    "module": "@/routes/api/auth__password__login",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "auth/password/set",
+    "url": "/api/auth/password/set",
+    "module": "@/routes/api/auth__password__set",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "auth/password/status",
+    "url": "/api/auth/password/status",
+    "module": "@/routes/api/auth__password__status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "auth/sessions",
+    "url": "/api/auth/sessions",
+    "module": "@/routes/api/auth__sessions",
+    "methods": [
+      "GET",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "commission",
+    "url": "/api/commission",
+    "module": "@/routes/api/commission",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "cron/holds",
+    "url": "/api/cron/holds",
+    "module": "@/routes/api/cron__holds",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "cron/notifications",
+    "url": "/api/cron/notifications",
+    "module": "@/routes/api/cron__notifications",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "cron/reminders",
+    "url": "/api/cron/reminders",
+    "module": "@/routes/api/cron__reminders",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "cron/subscriptions",
+    "url": "/api/cron/subscriptions",
+    "module": "@/routes/api/cron__subscriptions",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "cron/waitlist",
+    "url": "/api/cron/waitlist",
+    "module": "@/routes/api/cron__waitlist",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/appointments.csv",
+    "url": "/api/dashboard/salons/:id/appointments.csv",
+    "module": "@/routes/api/dashboard__salons__id__appointments.csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/blocks",
+    "url": "/api/dashboard/salons/:id/blocks",
+    "module": "@/routes/api/dashboard__salons__id__blocks",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/blocks/[blockId]",
+    "url": "/api/dashboard/salons/:id/blocks/:blockId",
+    "module": "@/routes/api/dashboard__salons__id__blocks__blockId",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/branches",
+    "url": "/api/dashboard/salons/:id/branches",
+    "module": "@/routes/api/dashboard__salons__id__branches",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/branches/[branchId]",
+    "url": "/api/dashboard/salons/:id/branches/:branchId",
+    "module": "@/routes/api/dashboard__salons__id__branches__branchId",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/campaigns",
+    "url": "/api/dashboard/salons/:id/campaigns",
+    "module": "@/routes/api/dashboard__salons__id__campaigns",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/campaigns/[campaignId]/run",
+    "url": "/api/dashboard/salons/:id/campaigns/:campaignId/run",
+    "module": "@/routes/api/dashboard__salons__id__campaigns__campaignId__run",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/cash",
+    "url": "/api/dashboard/salons/:id/cash",
+    "module": "@/routes/api/dashboard__salons__id__cash",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/customers",
+    "url": "/api/dashboard/salons/:id/customers",
+    "module": "@/routes/api/dashboard__salons__id__customers",
+    "methods": [
+      "GET",
+      "PATCH",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/customers/[customerId]/notes",
+    "url": "/api/dashboard/salons/:id/customers/:customerId/notes",
+    "module": "@/routes/api/dashboard__salons__id__customers__customerId__notes",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/domain",
+    "url": "/api/dashboard/salons/:id/domain",
+    "module": "@/routes/api/dashboard__salons__id__domain",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/domain/verify",
+    "url": "/api/dashboard/salons/:id/domain/verify",
+    "module": "@/routes/api/dashboard__salons__id__domain__verify",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/excel",
+    "url": "/api/dashboard/salons/:id/excel",
+    "module": "@/routes/api/dashboard__salons__id__excel",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/financial",
+    "url": "/api/dashboard/salons/:id/financial",
+    "module": "@/routes/api/dashboard__salons__id__financial",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/holidays",
+    "url": "/api/dashboard/salons/:id/holidays",
+    "module": "@/routes/api/dashboard__salons__id__holidays",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/holidays/[holidayId]",
+    "url": "/api/dashboard/salons/:id/holidays/:holidayId",
+    "module": "@/routes/api/dashboard__salons__id__holidays__holidayId",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/hours",
+    "url": "/api/dashboard/salons/:id/hours",
+    "module": "@/routes/api/dashboard__salons__id__hours",
+    "methods": [
+      "GET",
+      "PUT"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/images",
+    "url": "/api/dashboard/salons/:id/images",
+    "module": "@/routes/api/dashboard__salons__id__images",
+    "methods": [
+      "POST",
+      "DELETE",
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/import/appointments",
+    "url": "/api/dashboard/salons/:id/import/appointments",
+    "module": "@/routes/api/dashboard__salons__id__import__appointments",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/import/customers",
+    "url": "/api/dashboard/salons/:id/import/customers",
+    "module": "@/routes/api/dashboard__salons__id__import__customers",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/invoices",
+    "url": "/api/dashboard/salons/:id/invoices",
+    "module": "@/routes/api/dashboard__salons__id__invoices",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/invoices/[invoiceId]/resend",
+    "url": "/api/dashboard/salons/:id/invoices/:invoiceId/resend",
+    "module": "@/routes/api/dashboard__salons__id__invoices__invoiceId__resend",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/reminders",
+    "url": "/api/dashboard/salons/:id/reminders",
+    "module": "@/routes/api/dashboard__salons__id__reminders",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/report",
+    "url": "/api/dashboard/salons/:id/report",
+    "module": "@/routes/api/dashboard__salons__id__report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/revenue",
+    "url": "/api/dashboard/salons/:id/revenue",
+    "module": "@/routes/api/dashboard__salons__id__revenue",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]",
+    "url": "/api/dashboard/salons/:id",
+    "module": "@/routes/api/dashboard__salons__id",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/services",
+    "url": "/api/dashboard/salons/:id/services",
+    "module": "@/routes/api/dashboard__salons__id__services",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/services/[serviceId]",
+    "url": "/api/dashboard/salons/:id/services/:serviceId",
+    "module": "@/routes/api/dashboard__salons__id__services__serviceId",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/staff",
+    "url": "/api/dashboard/salons/:id/staff",
+    "module": "@/routes/api/dashboard__salons__id__staff",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/staff/[staffId]",
+    "url": "/api/dashboard/salons/:id/staff/:staffId",
+    "module": "@/routes/api/dashboard__salons__id__staff__staffId",
+    "methods": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/webhooks",
+    "url": "/api/dashboard/salons/:id/webhooks",
+    "module": "@/routes/api/dashboard__salons__id__webhooks",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/webhooks/[webhookId]",
+    "url": "/api/dashboard/salons/:id/webhooks/:webhookId",
+    "module": "@/routes/api/dashboard__salons__id__webhooks__webhookId",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/stats",
+    "url": "/api/dashboard/stats",
+    "module": "@/routes/api/dashboard__stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "favorites",
+    "url": "/api/favorites",
+    "module": "@/routes/api/favorites",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "favorites/[salonId]",
+    "url": "/api/favorites/:salonId",
+    "module": "@/routes/api/favorites__salonId",
+    "methods": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "giftcards/redeem",
+    "url": "/api/giftcards/redeem",
+    "module": "@/routes/api/giftcards__redeem",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "giftcards",
+    "url": "/api/giftcards",
+    "module": "@/routes/api/giftcards",
+    "methods": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "path": "loyalty/redeem",
+    "url": "/api/loyalty/redeem",
+    "module": "@/routes/api/loyalty__redeem",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "notifications",
+    "url": "/api/notifications",
+    "module": "@/routes/api/notifications",
+    "methods": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "packages",
+    "url": "/api/packages",
+    "module": "@/routes/api/packages",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "pay/[token]",
+    "url": "/api/pay/:token",
+    "module": "@/routes/api/pay__token",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "payments/callback/[gateway]",
+    "url": "/api/payments/callback/:gateway",
+    "module": "@/routes/api/payments__callback__gateway",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "payments/create",
+    "url": "/api/payments/create",
+    "module": "@/routes/api/payments__create",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "payments/gateways",
+    "url": "/api/payments/gateways",
+    "module": "@/routes/api/payments__gateways",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "payments/mock-pay",
+    "url": "/api/payments/mock-pay",
+    "module": "@/routes/api/payments__mock-pay",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "public/announcement",
+    "url": "/api/public/announcement",
+    "module": "@/routes/api/public__announcement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "salons",
+    "url": "/api/salons",
+    "module": "@/routes/api/salons",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "salons/search",
+    "url": "/api/salons/search",
+    "module": "@/routes/api/salons__search",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "salons/[slug]/ai/suggest",
+    "url": "/api/salons/:slug/ai/suggest",
+    "module": "@/routes/api/salons__slug__ai__suggest",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "salons/[slug]/availability",
+    "url": "/api/salons/:slug/availability",
+    "module": "@/routes/api/salons__slug__availability",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "salons/[slug]/reviews",
+    "url": "/api/salons/:slug/reviews",
+    "module": "@/routes/api/salons__slug__reviews",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "salons/[slug]",
+    "url": "/api/salons/:slug",
+    "module": "@/routes/api/salons__slug",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "salons/[slug]/waitlist",
+    "url": "/api/salons/:slug/waitlist",
+    "module": "@/routes/api/salons__slug__waitlist",
+    "methods": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "path": "salons/[slug]/waitlist/[id]",
+    "url": "/api/salons/:slug/waitlist/:id",
+    "module": "@/routes/api/salons__slug__waitlist__id",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "path": "support",
+    "url": "/api/support",
+    "module": "@/routes/api/support",
+    "methods": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "path": "upload/avatar",
+    "url": "/api/upload/avatar",
+    "module": "@/routes/api/upload__avatar",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "voice/transcribe",
+    "url": "/api/voice/transcribe",
+    "module": "@/routes/api/voice__transcribe",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "wallet",
+    "url": "/api/wallet",
+    "module": "@/routes/api/wallet",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  }
+]

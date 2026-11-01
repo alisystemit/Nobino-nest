@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── فونت‌های محلی (Yekan / IranSans) ─── */
+@font-face {
+  font-family: "Yekan";
+  src: url("/fonts/Yekan-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Yekan";
+  src: url("/fonts/Yekan-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IranSans";
+  src: url("/fonts/IRANSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+/* Rakh (رخ) و Plak (پلاک) — وقتی فایل وبر در public/fonts قرار گرفت فعال می‌شوند
+   در غیر این صورت به زیباترین جایگزین (Yekan/Vazirmatn) برمی‌گردند.
+   بلوک Rakh عمداً کامنت است چون public/fonts/Rakh-Regular.woff2 در ریپو نیست؛
+   بدون آن مرورگر هر بار خطای Not Found 404 می‌گرفت. بعد از افزودن فایل، همین بلوک را باز کنید. */
+/*
+@font-face {
+  font-family: "Rakh";
+  src: url("/fonts/Rakh-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+*/
+@font-face {
+  font-family: "Plak";
+  src: url("/fonts/Plak-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-sans: var(--font-vazir), sans-serif;
+  --font-yekan: "Yekan", var(--font-vazir), sans-serif;
+  --font-iransans: "IranSans", var(--font-vazir), sans-serif;
+  --font-rakh: "Rakh", var(--font-vazir), sans-serif;
+  --font-plak: "Plak", var(--font-yekan), sans-serif;
+}
+
+:root {
+  --bg: #fafafa;
+  --fg: #18181b;
+  --surface: #ffffff;
+  --surface-muted: #f4f4f5;
+  --line: #e4e4e7;
+}
+.dark {
+  --bg: #09090c;
+  --fg: #f4f4f5;
+  --surface: #131318;
+  --surface-muted: #1c1c23;
+  --line: #26262d;
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* ─── اعمال فونت‌ها بر اساس مکان ─── */
+/* سرتیترها و عناوین → یه‌کان (نمایشی، شیک) */
+h1, h2, h3, h4, h5, h6,
+.font-heading {
+  font-family: var(--font-yekan);
+  letter-spacing: 0;
+}
+/* دکمه‌ها و منو → یه‌کان */
+button, .btn, [role="button"], input[type="submit"],
+.font-action {
+  font-family: var(--font-yekan);
+}
+/* ورودی‌ها و جداول → ایران سنس (خوانا برای داده) */
+input, textarea, select, table, th, td, kbd,
+.font-form {
+  font-family: var(--font-iransans);
+}
+
+/* ─── اسکرول‌بار ظریف ─── */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e4e4e7;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d8;
+}
+
+/* ─── انیمیشن‌ها ─── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+.animate-float { animation: float 5s ease-in-out infinite; }
+.animate-float-delay { animation: float 6s ease-in-out infinite 1.2s; }
+
+@keyframes ping-slow {
+  0% { transform: scale(1); opacity: 0.7; }
+  70%, 100% { transform: scale(2.2); opacity: 0; }
+}
+.animate-ping-slow { animation: ping-slow 1.6s cubic-bezier(0,0,0.2,1) infinite; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.6s ease-out both; }
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes gradient-move {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-move 8s ease infinite;
+}
+
+/* ─── ابزارهای کاربردی ─── */
+.text-gradient {
+  background: linear-gradient(120deg, #ec4899, #a855f7, #6366f1);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-brand-gradient {
+  background: linear-gradient(135deg, #ec4899 0%, #d946ef 30%, #a855f7 60%, #6366f1 100%);
+}
+
+.bg-brand-gradient-soft {
+  background: linear-gradient(135deg, #fdf2f8 0%, #f5f3ff 50%, #eef2ff 100%);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px -18px rgba(168, 85, 247, 0.35);
+}
+
+.bg-hero-pattern {
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255,255,255,0.25), transparent 40%),
+    radial-gradient(circle at 80% 30%, rgba(255,255,255,0.12), transparent 40%),
+    radial-gradient(circle at 50% 90%, rgba(0,0,0,0.15), transparent 50%);
+}
+
+/* فونت وزیرمتن (جایگزین next/font) — از @fontsource در main.tsx بارگذاری می‌شود */
+:root {
+  --font-vazir: "Vazirmatn";
+}

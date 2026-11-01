@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f9a8d4"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <radialGradient id="r" cx="50%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#g)"/>
+  <rect width="600" height="600" fill="url(#r)"/>
+  <circle cx="300" cy="230" r="115" fill="#fff" opacity="0.35"/>
+  <path d="M175 430 Q215 260 300 260 Q385 260 425 430 Q360 360 300 360 Q240 360 175 430Z" fill="#6d28d9" opacity="0.5"/>
+  <path d="M200 430 Q240 300 300 300 Q360 300 400 430 Q345 380 300 380 Q255 380 200 430Z" fill="#4c1d95" opacity="0.5"/>
+  <text x="300" y="530" font-family="Vazirmatn,Arial" font-size="36" font-weight="bold" fill="#fff" text-anchor="middle">💇‍♀️ استایل مو</text>
+</svg>

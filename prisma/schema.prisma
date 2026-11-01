@@ -1,0 +1,816 @@
+// Nobino — Prisma Schema
+// PostgreSQL database. Model covers multi-tenant salons, voice AI,
+// OTP auth, finance (wallet/commission/payout) and payments.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER // مشتری
+  SALON_OWNER // آرایشگر / صاحب سالن
+  AGENT // نماینده (کمیسیون درصدی)
+  ADMIN // سوپرادمین
+}
+
+enum AppointmentStatus {
+  REQUESTED // در انتظار تأیید
+  CONFIRMED // تأیید شده
+  COMPLETED // انجام شده
+  CANCELLED // لغو شده
+  NO_SHOW // مراجعه نکرد
+}
+
+enum CreationChannel {
+  VOICE // ضبط صوتی/هوش مصنوعی
+  MANUAL // ثبت دستی
+  WEBAPP // وب‌اپ پیام‌رسان
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum TransactionKind {
+  CREDIT // افزایش موجودی
+  DEBIT // کاهش موجودی
+}
+
+enum TransactionReason {
+  PACKAGE_PURCHASE
+  COMMISSION_EARNING
+  COMMISSION_PAYOUT
+  PAYOUT
+  REFUND
+  ADMIN_ADJUSTMENT
+}
+
+enum PayoutStatus {
+  REQUESTED
+  PROCESSING
+  PAID
+  REJECTED
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+// ─── User & Auth ──────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  phone         String    @unique
+  name          String?
+  email         String?   @unique
+  avatarUrl     String?
+  role          Role      @default(CUSTOMER)
+  passwordHash  String?
+  verifiedAt    DateTime?
+  isActive      Boolean   @default(true)
+  loyaltyPoints Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // relations
+  ownedSalons     Salon[]          @relation("SalonOwner")
+  votes           Appointment[]    @relation("AppointmentCustomer")
+  wallets         Wallet[]
+  orders          Order[]
+  sessions        Session[]
+  commissionPlans CommissionPlan[] @relation("AgentPlan")
+  favorites       Favorite[]
+  reviews         Review[]         @relation("ReviewCustomer")
+  giftCards       GiftCard[]
+  staffAccounts   Staff[]          @relation("StaffUser")
+  supportTickets  SupportTicket[]   @relation("SupportTickets")
+}
+
+model Otp {
+  id        String    @id @default(cuid())
+  phone     String
+  code      String
+  purpose   String    @default("LOGIN") // LOGIN | VERIFY | EMAIL_LOGIN
+  attempts  Int       @default(0) // تعداد تلاش‌های ناموفق برای این کد
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone, purpose])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  device    String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─── Salon (multi-tenant) ─────────────────────────────────────────────
+
+model Salon {
+  id                 String    @id @default(cuid())
+  slug               String    @unique // ساب‌دامین
+  name               String
+  phone              String
+  city               String?
+  address            String?
+  description        String?
+  logoUrl            String?
+  bannerUrl          String?
+  coverColor         String    @default("#f472b6")
+  timezone           String    @default("Asia/Tehran")
+  latitude           Float?
+  longitude          Float?
+  customDomain       String?   @unique
+  domainStatus       String    @default("NONE") // NONE | PENDING | VERIFIED
+  domainToken        String?
+  isApproved         Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  subscriptionEndsAt DateTime?
+  trialEndsAt        DateTime?
+  autoRenew          Boolean   @default(false)
+  plan               String    @default("FREE") // FREE | BASIC | PRO | ENTERPRISE
+
+  // قوانین رزرو
+  minNoticeMinutes    Int @default(60)
+  maxAdvanceDays      Int @default(30)
+  cancelDeadlineHours Int @default(24)
+  bufferMinutes       Int @default(10)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation("SalonOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  services        Service[]
+  appointments    Appointment[]
+  voiceCalls      VoiceCall[]
+  galleryItems    GalleryItem[]
+  openingHours    OpeningHour[]
+  subscriptions   Subscription[]
+  commissionPlans CommissionPlan[]
+  orders          Order[]
+  staff           Staff[]
+  timeBlocks      TimeBlock[]
+  reviews         Review[]
+  holidays        Holiday[]
+  favorites       Favorite[]
+  waitlist        WaitlistEntry[]     @relation("WaitlistSalon")
+  webhooks        WebhookConfig[]     @relation("WebhookSalon")
+  branches        Branch[]
+  cashEntries     CashRegisterEntry[]
+  customers       SalonCustomer[]
+  invoices        Invoice[]
+  campaigns       Campaign[]
+
+  // یک کاربر می‌تواند چند سالن داشته باشد (سقف «تعداد سالن هر کاربر» در پلن‌ها اعمال می‌شود)
+  @@index([ownerId])
+}
+
+// ─── CRM مشتریان هر سالن ─────────────────────────────────────────────────
+model SalonCustomer {
+  id          String              @id @default(cuid())
+  salonId     String
+  salon       Salon               @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  phone       String
+  name        String?
+  note        String?
+  visits      Int                 @default(0)
+  spend       Int                 @default(0)
+  lastVisitAt DateTime?
+  tags        String[]            @default([])
+  notes       SalonCustomerNote[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([salonId, phone])
+  @@index([salonId])
+}
+
+model SalonCustomerNote {
+  id         String        @id @default(cuid())
+  customerId String
+  customer   SalonCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  authorId   String?
+  note       String
+  createdAt  DateTime      @default(now())
+
+  @@index([customerId])
+}
+
+// ─── شعبه (چند شعبه برای یک سالن/برند) ─────────────────────────────────────
+model Branch {
+  id        String   @id @default(cuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  name      String
+  city      String?
+  address   String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff        Staff[]
+  services     Service[]
+  appointments Appointment[]
+  timeBlocks   TimeBlock[]
+  cashEntries  CashRegisterEntry[]
+  holidays     Holiday[]
+
+  @@index([salonId])
+}
+
+// ─── صندوق / تسویه روزانه ────────────────────────────────────────────────
+model CashRegisterEntry {
+  id            String   @id @default(cuid())
+  salonId       String
+  salon         Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  branchId      String?
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+  date          DateTime @default(now())
+  cashAmount    Int      @default(0) // نقدی
+  cardAmount    Int      @default(0) // کارت‌خوان
+  onlineAmount  Int      @default(0) // آنلاین
+  expenseAmount Int      @default(0) // هزینه
+  note          String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@index([salonId, date])
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  salonId     String
+  salon       Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  name        String
+  durationMin Int
+  price       Int
+  description String?
+  category    String?
+  bufferMin   Int      @default(0)
+  steps       Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  appointments Appointment[]
+  staff        Staff[]
+
+  @@index([salonId])
+}
+
+model GalleryItem {
+  id        String   @id @default(cuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  title     String?
+  imageUrl  String
+  type      String   @default("image") // image | video
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([salonId])
+}
+
+model OpeningHour {
+  id        String  @id @default(cuid())
+  salonId   String
+  salon     Salon   @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  dayOfWeek Int // 0..6 (شنبه = 0)
+  openTime  String // "09:00"
+  closeTime String // "21:00"
+  isClosed  Boolean @default(false)
+
+  @@unique([salonId, dayOfWeek])
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  date      DateTime
+  isClosed  Boolean  @default(true)
+  openTime  String?
+  closeTime String?
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([salonId, date])
+}
+
+// ─── Appointments & Voice AI ──────────────────────────────────────────
+
+model Appointment {
+  id        String   @id @default(cuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id])
+
+  customerId String?
+  customer   User?   @relation("AppointmentCustomer", fields: [customerId], references: [id])
+
+  // آرایشگر انتخاب‌شده (اختیاری)
+  employeeId String?
+  employee   Staff?  @relation(fields: [employeeId], references: [id])
+  branchId   String?
+  branch     Branch? @relation(fields: [branchId], references: [id])
+
+  customerName      String
+  customerPhone     String
+  startAt           DateTime
+  endAt             DateTime
+  status            AppointmentStatus @default(REQUESTED)
+  channel           CreationChannel   @default(MANUAL)
+  note              String?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  depositAmount     Int? // پیش‌پرداخت/بیعانه (تومان)
+  depositPaid       Boolean           @default(false)
+  tempLockExpiresAt DateTime? // قفل موقت هنگام پرداخت
+  rescheduledFrom   String? // id نوبت قبلی هنگام جابه‌جایی
+  voiceCallId       String?           @unique
+  voiceCall         VoiceCall?        @relation(fields: [voiceCallId], references: [id])
+  review            Review?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salonId, startAt])
+  @@index([employeeId])
+  @@index([customerPhone])
+}
+
+model VoiceCall {
+  id          String       @id @default(cuid())
+  salonId     String
+  salon       Salon        @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  audioUrl    String?
+  durationSec Int?
+  transcript  String? // متن استخراج‌شده
+  rawText     String? // متن خام پیش از پردازش
+  extracted   Json? // اطلاعات نوبت استخراج‌شده
+  status      String       @default("PROCESSING") // PROCESSING | DONE | FAILED | CONFIRMED
+  error       String?
+  appointment Appointment?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([salonId])
+}
+
+// ─── Financial: Wallet / Transaction / Commission / Payout ────────────
+
+model Wallet {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  balance   Int      @default(0) // تومان
+  currency  String   @default("IRR")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+  payouts      Payout[]
+
+  @@unique([ownerId])
+}
+
+model Transaction {
+  id           String            @id @default(cuid())
+  walletId     String
+  wallet       Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  kind         TransactionKind
+  reason       TransactionReason
+  amount       Int // همیشه مثبت؛ جهت توسط kind مشخص می‌شود
+  balanceAfter Int
+  refType      String? // Order | Appointment | Payout
+  refId        String?
+  description  String?
+  createdAt    DateTime          @default(now())
+
+  @@index([walletId])
+}
+
+model CommissionPlan {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     User     @relation("AgentPlan", fields: [agentId], references: [id], onDelete: Cascade)
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  percent   Float // 0..100
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([agentId, salonId])
+}
+
+model Payout {
+  id          String       @id @default(cuid())
+  walletId    String
+  wallet      Wallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount      Int
+  method      String       @default("BANK") // BANK | CARD | SMS
+  bankInfo    String?
+  status      PayoutStatus @default(REQUESTED)
+  requestedAt DateTime     @default(now())
+  processedAt DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([walletId])
+}
+
+// ─── Packages, Subscriptions, Orders & Payments ───────────────────────
+
+model Package {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  plan         String   @default("BASIC") // FREE | BASIC | PRO | ENTERPRISE
+  price        Int // تومان (ماهانه)
+  yearlyPrice  Int? // تومان در سال (اگر خالی باشد = price * 10)
+  durationDays Int
+  features     Json? // آرایه‌ای از امکانات
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  subscriptions Subscription[]
+  orders        Order[]
+}
+
+model Subscription {
+  id          String    @id @default(cuid())
+  salonId     String
+  salon       Salon     @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  packageId   String
+  package     Package   @relation(fields: [packageId], references: [id])
+  startsAt    DateTime
+  endsAt      DateTime
+  period      String    @default("MONTHLY") // MONTHLY | YEARLY
+  autoRenew   Boolean   @default(false)
+  status      String    @default("ACTIVE") // ACTIVE | SUSPENDED | CANCELLED | EXPIRED
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  invoices    Invoice[]
+
+  @@index([salonId])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  number         String        @unique
+  salonId        String
+  salon          Salon         @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  orderId        String?       @unique
+  order          Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  kind           String        @default("SUBSCRIPTION") // SUBSCRIPTION | SERVICE (فاکتور خدماتی برای مشتری)
+  customerName   String?
+  customerPhone  String?
+  description    String?
+  payToken       String?       @unique
+  amount         Int
+  originalAmount Int?
+  period         String        @default("MONTHLY")
+  status         PaymentStatus @default(PENDING)
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  payments Payment[]
+
+  @@index([salonId])
+  @@index([subscriptionId])
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  salonId     String
+  salon       Salon     @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  name        String
+  channel     String    @default("SMS") // SMS | EMAIL
+  segment     String    @default("ALL") // ALL | RETURNING
+  message     String
+  status      String    @default("DRAFT") // DRAFT | SENT | SCHEDULED
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  sentCount   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([salonId])
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salonId        String?
+  salon          Salon?        @relation(fields: [salonId], references: [id])
+  packageId      String
+  package        Package       @relation(fields: [packageId], references: [id])
+  discountId     String?
+  discount       Discount?     @relation(fields: [discountId], references: [id])
+  amount         Int // مبلغ نهایی پس از تخفیف
+  originalAmount Int? // پیش از تخفیف
+  period         String        @default("MONTHLY") // MONTHLY | YEARLY
+  autoRenew      Boolean       @default(false)
+  status         PaymentStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  payments Payment[]
+  invoice  Invoice?
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  orderId     String?
+  order       Order?        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  invoiceId   String?
+  invoice     Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  gateway     String // zarinpal | mellat | ...
+  amount      Int
+  status      PaymentStatus @default(PENDING)
+  authority   String? // کد مرجع درگاه
+  refId       String? // کد پیگیری تراکنش
+  cardPan     String?
+  payload     Json?
+  callbackUrl String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([invoiceId])
+  @@index([gateway])
+}
+
+// ─── کارت هدیه / بسته خدمات ───────────────────────────────────────────────
+model GiftCard {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  balance   Int // تومان
+  currency  String    @default("IRR")
+  ownerId   String
+  owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  salonId   String? // اگر فقط برای یک سالن معتبر است
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ownerId])
+}
+
+// ─── لیست انتظار ────────────────────────────────────────────────────────────
+model WaitlistEntry {
+  id            String    @id @default(cuid())
+  salonId       String
+  salon         Salon     @relation("WaitlistSalon", fields: [salonId], references: [id], onDelete: Cascade)
+  employeeId    String?
+  serviceId     String?
+  customerName  String
+  customerPhone String
+  note          String?
+  status        String    @default("WAITING") // WAITING | NOTIFIED | BOOKED | EXPIRED
+  notifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([salonId, status])
+}
+
+// ─── وب‌هوک (ارسال رویداد به URL مشتری) ────────────────────────────────────
+model WebhookConfig {
+  id        String   @id @default(cuid())
+  salonId   String
+  salon     Salon    @relation("WebhookSalon", fields: [salonId], references: [id], onDelete: Cascade)
+  url       String
+  secret    String?
+  events    String[] // ["appointment.confirmed","appointment.cancelled",...]
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  deliveries WebhookDelivery[]
+
+  @@index([salonId])
+}
+
+model WebhookDelivery {
+  id             String        @id @default(cuid())
+  configId       String
+  config         WebhookConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  event          String
+  payload        Json?
+  status         String        @default("PENDING") // PENDING | SUCCESS | FAILED
+  responseStatus Int?
+  attempts       Int           @default(0)
+  lastError      String?
+  createdAt      DateTime      @default(now())
+
+  @@index([status])
+}
+
+// ─── کد تخفیف ────────────────────────────────────────────────────────────
+model Discount {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  percent   Int // 1..100
+  maxUses   Int       @default(0) // 0 = نامحدود
+  usedCount Int       @default(0)
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  orders Order[]
+}
+
+// ─── لاگ حسابرسی (اقدامات مدیران/پشتیبانی) ────────────────────────────────
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorPhone String?
+  action     String // approve_salon | suspend_salon | settings_update | support_login | ...
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// ─── System Settings (پویا، قابل ویرایش توسط سوپرادمین) ────────────────
+// برای ذخیره API_KEYها، انتخاب سرویس‌دهنده فعال و هر تنظیم دیگر.
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique // مثل sms.active_provider
+  value       String? // مقدار (برای secret با isSecret=true)
+  group       String   @default("general")
+  type        String   @default("string") // string | secret | number | boolean | select
+  options     String? // برای type=select: لیست JSON
+  description String?
+  isSecret    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── کارکنان / آرایشگران (Staff) ────────────────────────────────────────
+model Staff {
+  id       String  @id @default(cuid())
+  salonId  String
+  salon    Salon   @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  name              String
+  title             String? // مثل «آرایشگر ارشد»
+  role              String   @default("STYLIST") // OWNER | MANAGER | RECEPTION | STYLIST
+  commissionPercent Int      @default(0) // سهم آرایشگر از هر خدمت (٪)
+  userId            String? // حساب کاربری مرتبط برای پرداخت کمیسیون
+  user              User?    @relation("StaffUser", fields: [userId], references: [id])
+  bio               String?
+  avatarUrl         String?
+  specialties       String[] // لیست تخصص‌ها
+  isActive          Boolean  @default(true)
+
+  // برنامه کاری هفتگی: آرایه‌ای از { day, open, close, isClosed }
+  schedule Json?
+
+  services     Service[]
+  appointments Appointment[]
+  timeBlocks   TimeBlock[]
+  reviews      Review[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salonId])
+}
+
+// ─── مسدودسازی زمان (ناهار، تعمیرات، مرخصی،...) ─────────────────────────
+model TimeBlock {
+  id        String   @id @default(cuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  staffId   String?
+  staff     Staff?   @relation(fields: [staffId], references: [id])
+  startAt   DateTime
+  endAt     DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([salonId, startAt])
+  @@index([staffId])
+}
+
+// ─── نظرات و امتیازها ────────────────────────────────────────────────────
+model Review {
+  id            String       @id @default(cuid())
+  salonId       String
+  salon         Salon        @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  staffId       String?
+  staff         Staff?       @relation(fields: [staffId], references: [id])
+  customerId    String
+  customer      User         @relation("ReviewCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  rating        Int // 1..5
+  comment       String?
+  reply         String? // پاسخ سالن‌دار / سوپرادمین به نظر
+  repliedAt     DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([salonId])
+  @@index([customerId])
+}
+
+// ─── علاقه‌مندی‌ها (سالن‌های محبوب) ───────────────────────────────────────
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, salonId])
+}
+
+// ─── پشتیبانی و شکایت‌ها ─────────────────────────────────────────────────
+model SupportTicket {
+  id          String              @id @default(cuid())
+  userId      String?
+  user        User?               @relation("SupportTickets", fields: [userId], references: [id], onDelete: SetNull)
+  name        String
+  phone       String
+  email       String?
+  category    String              @default("GENERAL") // GENERAL | BOOKING | PAYMENT | TECHNICAL | COMPLAINT
+  subject     String
+  message     String
+  status      SupportTicketStatus @default(OPEN)
+  priority    String              @default("NORMAL") // LOW | NORMAL | HIGH
+  adminReply  String?
+  repliedAt   DateTime?
+  repliedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+// ─── صف پیامک/اعلان (با تلاش مجدد و حذف تکراری) ─────────────────────────
+model Notification {
+  id            String    @id @default(cuid())
+  type          String // OTP | APPOINTMENT_CONFIRM | REMINDER | CANCEL | SUBSCRIPTION
+  channel       String    @default("SMS")
+  recipient     String
+  userId        String?
+  salonId       String? // سالنی که پیامک را مصرف می‌کند (برای شمارش سقف پیامک ماهانه)
+  readAt        DateTime? // شماره یا ایمیل
+  payload       Json?
+  uniqueKey     String?   @unique // برای جلوگیری از ارسال تکراری
+  status        String    @default("PENDING") // PENDING | SENT | FAILED | DROPPED
+  attempts      Int       @default(0)
+  lastError     String?
+  nextAttemptAt DateTime
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([salonId, channel, createdAt])
+}
