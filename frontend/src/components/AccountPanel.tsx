@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "@/router-shim";
 import { useRouter } from "@/router-shim";
 import { LogOut } from "lucide-react";
 import RescheduleModal from "@/components/RescheduleModal";
+import Pagination from "@/components/ui/Pagination";
 import { toJalali, toPersianDigits } from "@/lib/utils";
 
 type Appointment = {
@@ -93,6 +94,34 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]["id"];
 
+/** فهرست‌های صفحه‌بندی‌شدهٔ پنل حساب و endpoint هرکدام */
+type ListKey = "appointments" | "favorites" | "reviews" | "sessions" | "tickets";
+const LIST_LIMIT = 10;
+const LIST_ENDPOINTS: Record<ListKey, string> = {
+  appointments: "/api/appointments",
+  favorites: "/api/favorites",
+  reviews: "/api/account/reviews",
+  sessions: "/api/auth/sessions",
+  tickets: "/api/support",
+};
+/** هر تب کدام فهرست را نمایش می‌دهد (پروفایل داده‌ای نمی‌خواهد) */
+const LIST_BY_TAB: Record<TabId, ListKey | null> = {
+  appointments: "appointments",
+  favorites: "favorites",
+  reviews: "reviews",
+  profile: null,
+  support: "tickets",
+  security: "sessions",
+};
+type Pager = { page: number; total: number; totalPages: number };
+const initialPagers: Record<ListKey, Pager> = {
+  appointments: { page: 1, total: 0, totalPages: 1 },
+  favorites: { page: 1, total: 0, totalPages: 1 },
+  reviews: { page: 1, total: 0, totalPages: 1 },
+  sessions: { page: 1, total: 0, totalPages: 1 },
+  tickets: { page: 1, total: 0, totalPages: 1 },
+};
+
 /** زمان فعلی با به‌روزرسانی دوره‌ای — برای فیلتر نوبت‌های آینده/گذشته */
 function useNow(): number {
   const [now, setNow] = useState(() => Date.now());
@@ -115,45 +144,78 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pagers, setPagers] = useState<Record<ListKey, Pager>>(initialPagers);
+  /** فهرست‌هایی که با صفحهٔ فعلی‌شان بارگذاری شده‌اند — مانع فراخوانی تکراری می‌شود */
+  const loadedRef = useRef(new Set<ListKey>());
+  const pendingRef = useRef(0);
 
-  /** بارگیری داده‌ها بدون تغییر وضعیت هم‌زمان — قابل فراخوانی از effect */
-  function fetchAllData() {
-    type Api<T> = { success: boolean; error?: string } & Partial<T>;
-    return Promise.all([
-      fetch("/api/appointments"),
-      fetch("/api/favorites"),
-      fetch("/api/account/reviews"),
-      fetch("/api/auth/sessions"),
-      fetch("/api/support"),
-    ])
-      .then(
-        (rs) =>
-          Promise.all(rs.map((r) => r.json())) as Promise<
-            [Api<{ appointments: Appointment[] }>, Api<{ favorites: Favorite[] }>, Api<{ reviews: Review[] }>, Api<{ sessions: SessionInfo[] }>, Api<{ tickets: SupportTicket[] }>]
-          >
-      )
-      .then(([a, f, r, s, t]) => {
-        if (a.success && a.appointments) setAppointments(a.appointments);
-        if (f.success && f.favorites) setFavorites(f.favorites);
-        if (r.success && r.reviews) setReviews(r.reviews);
-        if (s.success && s.sessions) setSessions(s.sessions);
-        if (t.success && t.tickets) setTickets(t.tickets);
-      })
-      .catch(() => {
-        setMsg({ ok: false, text: "خطا در بارگیری اطلاعات. اتصال اینترنت را بررسی کنید." });
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+  function setRows(key: ListKey, rows: unknown[]) {
+    if (key === "appointments") setAppointments(rows as Appointment[]);
+    else if (key === "favorites") setFavorites(rows as Favorite[]);
+    else if (key === "reviews") setReviews(rows as Review[]);
+    else if (key === "sessions") setSessions(rows as SessionInfo[]);
+    else setTickets(rows as SupportTicket[]);
   }
 
-  function loadAll() {
+  /** بارگیری یک فهرست با صفحه‌بندی — فقط endpoint همان فهرست صدا زده می‌شود */
+  async function loadList(key: ListKey, page: number): Promise<void> {
+    loadedRef.current.add(key);
+    pendingRef.current += 1;
     setLoading(true);
-    fetchAllData();
+
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(LIST_LIMIT));
+
+    try {
+      const res = await fetch(`${LIST_ENDPOINTS[key]}?${params.toString()}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "خطا");
+      const rows: unknown[] = data[key] ?? [];
+      const total: number = data.total ?? rows.length;
+      const totalPages: number = data.totalPages ?? Math.max(1, Math.ceil(total / LIST_LIMIT));
+      // صفحه‌ای که دیگر وجود ندارد (مثلاً پس از حذف آخرین آیتم) — بازمگشت به آخرین صفحهٔ معتبر
+      if (rows.length === 0 && page > 1 && totalPages < page) {
+        loadedRef.current.delete(key);
+        return loadList(key, Math.max(1, totalPages));
+      }
+      setRows(key, rows);
+      setPagers((prev) => ({ ...prev, [key]: { page, total, totalPages } }));
+    } catch {
+      loadedRef.current.delete(key);
+      setMsg({ ok: false, text: "خطا در بارگیری اطلاعات. اتصال اینترنت را بررسی کنید." });
+    } finally {
+      pendingRef.current -= 1;
+      if (pendingRef.current === 0) setLoading(false);
+    }
+  }
+
+  /** تغییر صفحهٔ یک فهرست */
+  function reloadList(key: ListKey, page: number) {
+    void loadList(key, Math.max(1, page));
+  }
+
+  /** بارگذاری تنبل فهرست تب فعال، فقط اگر قبلاً بارگذاری نشده باشد */
+  function ensureListLoaded(key: ListKey) {
+    if (loadedRef.current.has(key)) return;
+    void loadList(key, pagers[key].page);
+  }
+
+  function openTab(next: TabId) {
+    setTab(next);
+    const key = LIST_BY_TAB[next];
+    if (key) ensureListLoaded(key);
+  }
+
+  /** پس از لغو/حذف/ثبت، همان صفحهٔ فعلی فهرست‌های درگیر دوباره خوانده می‌شود */
+  function refreshAfterMutation(keys: ListKey[]) {
+    keys.forEach((key) => void loadList(key, pagers[key].page));
   }
 
   useEffect(() => {
-    fetchAllData();
+    // بار اولیه: نوبت‌ها (تب پیش‌فرض) + نظرات (برای تشخیص نوبت‌هایی که نظر داده‌ایم)
+    ensureListLoaded("appointments");
+    ensureListLoaded("reviews");
   }, []);
 
   const now = useNow();
@@ -182,7 +244,7 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
     });
     const data = await res.json();
     setMsg({ ok: !!data.success, text: data.success ? "نوبت لغو شد." : data.error || "خطا" });
-    if (data.success) loadAll();
+    if (data.success) refreshAfterMutation(["appointments"]);
   }
 
   function rescheduleAppointment(appointment: Appointment) {
@@ -200,7 +262,8 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
       ok: !!data.success,
       text: data.success ? "درخواست شما ثبت شد. تیم پشتیبانی به‌زودی پاسخ می‌دهد." : data.error || "خطا",
     });
-    if (data.success) loadAll();
+    // درخواست تازه در صفحهٔ ۱ (جدیدترین‌ها) نمایش داده می‌شود
+    if (data.success) void loadList("tickets", 1);
     return !!data.success;
   }
 
@@ -213,19 +276,23 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
     });
     const data = await res.json();
     setMsg({ ok: !!data.success, text: data.success ? "نظر شما ثبت شد. ممنون!" : data.error || "خطا" });
-    if (data.success) loadAll();
+    // نظر تازه در صفحهٔ ۱ است و فهرست نوبت‌ها هم باید وضعیت «نظر داده شد» را تازه ببیند
+    if (data.success) {
+      void loadList("reviews", 1);
+      refreshAfterMutation(["appointments"]);
+    }
   }
 
   async function removeFavorite(salonId: string) {
     const res = await fetch(`/api/favorites/${salonId}`, { method: "DELETE" });
     const data = await res.json();
-    if (data.success) setFavorites((prev) => prev.filter((f) => f.salon.id !== salonId));
+    if (data.success) refreshAfterMutation(["favorites"]);
   }
 
   async function revokeSession(id: string) {
     const res = await fetch(`/api/auth/sessions?id=${id}`, { method: "DELETE" });
     const data = await res.json();
-    if (data.success) setSessions((prev) => prev.filter((s) => s.id !== id));
+    if (data.success) refreshAfterMutation(["sessions"]);
     else setMsg({ ok: false, text: data.error || "خطا" });
   }
 
@@ -253,7 +320,7 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => openTab(t.id)}
               aria-current={tab === t.id ? "page" : undefined}
               className={`flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition sm:px-4 sm:text-sm ${
                 tab === t.id
@@ -331,6 +398,13 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
                   </div>
                 )}
               </div>
+
+              <Pagination
+                page={pagers.appointments.page}
+                totalPages={pagers.appointments.totalPages}
+                total={pagers.appointments.total}
+                onChange={(p) => reloadList("appointments", p)}
+              />
             </div>
           )}
 
@@ -366,6 +440,13 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
                   ))}
                 </div>
               )}
+
+              <Pagination
+                page={pagers.favorites.page}
+                totalPages={pagers.favorites.totalPages}
+                total={pagers.favorites.total}
+                onChange={(p) => reloadList("favorites", p)}
+              />
             </div>
           )}
 
@@ -388,12 +469,28 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
                   </div>
                 ))
               )}
+
+              <Pagination
+                page={pagers.reviews.page}
+                totalPages={pagers.reviews.totalPages}
+                total={pagers.reviews.total}
+                onChange={(p) => reloadList("reviews", p)}
+              />
             </div>
           )}
 
           {tab === "profile" && <ProfileForm me={me} onSave={saveProfile} />}
 
-          {tab === "support" && <SupportView tickets={tickets} onSubmit={submitTicket} />}
+          {tab === "support" && (
+            <SupportView
+              tickets={tickets}
+              page={pagers.tickets.page}
+              totalPages={pagers.tickets.totalPages}
+              total={pagers.tickets.total}
+              onPageChange={(p) => reloadList("tickets", p)}
+              onSubmit={submitTicket}
+            />
+          )}
 
           {tab === "security" && (
             <div>
@@ -416,6 +513,13 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
                 ))}
                 {sessions.length === 0 && <p className="text-sm text-neutral-400">نشست فعالی یافت نشد.</p>}
               </div>
+
+              <Pagination
+                page={pagers.sessions.page}
+                totalPages={pagers.sessions.totalPages}
+                total={pagers.sessions.total}
+                onChange={(p) => reloadList("sessions", p)}
+              />
             </div>
           )}
         </div>
@@ -433,7 +537,7 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
           onDone={(text) => {
             setRescheduleTarget(null);
             setMsg({ ok: true, text });
-            loadAll();
+            refreshAfterMutation(["appointments"]);
           }}
         />
       )}
@@ -443,9 +547,17 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
 
 function SupportView({
   tickets,
+  page,
+  totalPages,
+  total,
+  onPageChange,
   onSubmit,
 }: {
   tickets: SupportTicket[];
+  page: number;
+  totalPages: number;
+  total: number;
+  onPageChange: (page: number) => void;
   onSubmit: (input: { subject: string; category: string; message: string }) => Promise<boolean>;
 }) {
   const [subject, setSubject] = useState("");
@@ -536,6 +648,8 @@ function SupportView({
             ))}
           </div>
         )}
+
+        <Pagination page={page} totalPages={totalPages} total={total} onChange={onPageChange} />
       </div>
     </div>
   );

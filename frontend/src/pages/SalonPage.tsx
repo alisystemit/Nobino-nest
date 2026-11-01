@@ -2,44 +2,77 @@
  * صفحهٔ عمومی سالن — معادل src/app/s/[slug]/page.tsx.
  * دیتا (شامل JSON-LD و متادیتا) از /api/pages/salon?slug= می‌آید.
  */
+import { useState } from "react";
 import { useParamsTyped, Link } from "@/router-shim";
 import SalonBooking from "@/components/SalonBooking";
 import AssistantChat from "@/components/AssistantChat";
 import FavoriteButton from "@/components/FavoriteButton";
 import SafeImage from "@/components/SafeImage";
 import SalonIcon from "@/components/icons/SalonIcon";
+import Pagination from "@/components/ui/Pagination";
 import { toPersianDigits, formatToman } from "@/lib/utils";
 import { usePageData } from "@/lib/page-data";
 import { useMeta } from "@/lib/use-meta";
-import PwaInstallButton from "@/components/PwaInstallButton";
+import SalonQrCard from "@/components/SalonQrCard";
+import SalonInstallBanner from "@/components/SalonInstallBanner";
+import SalonAnimations from "@/components/SalonAnimations";
 
 const days = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
 
-/** ساخت لینک «نشان» و «بلد» — با مختصات، پین/مرکز; وگرنه جست‌وجوی آدرس */
-function buildMapDeepLinks(salon: any): { neshan: string; balad: string } {
+/** مختصات معتبر سالن یا null — با Number(null) سالنِ بی‌مختصات روی ۰،۰ پین می‌شد */
+function toCoord(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * ساخت لینک‌های پویای «نشان» و «بلد» برای هر سالن:
+ *   ۱) لینکی که صاحب سالن در بخش ساخت/ویرایش تنظیم کرده (neshanUrl/baladUrl)
+ *   ۲) پین روی مختصات ثبت‌شدهٔ همان سالن
+ *   ۳) جست‌وجوی نام/شهر/آدرس سالن
+ */
+function buildMapDeepLinks(salon: any): { neshan: string; balad: string; hasCoords: boolean } {
   const q = [salon.name, salon.city, salon.address].filter(Boolean).join(" ").trim();
-  const lat = Number(salon.latitude);
-  const lng = Number(salon.longitude);
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const lat = toCoord(salon.latitude);
+  const lng = toCoord(salon.longitude);
+  const hasCoords =
+    lat !== null &&
+    lng !== null &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180;
   const fmt = (n: number) => n.toFixed(6);
   return {
+    hasCoords,
     neshan:
       salon.neshanUrl ||
       (hasCoords
-        ? `https://neshan.org/maps/share/${fmt(lat)},${fmt(lng)}`
+        ? `https://neshan.org/maps/share/${fmt(lat!)},${fmt(lng!)}`
         : `https://neshan.org/maps/search/${encodeURIComponent(q)}`),
     balad:
       salon.baladUrl ||
       (hasCoords
-        ? `https://balad.ir/#16/${fmt(lat)}/${fmt(lng)}`
+        ? `https://balad.ir/#16/${fmt(lat!)}/${fmt(lng!)}`
         : `https://balad.ir/search?text=${encodeURIComponent(q)}`),
   };
+}
+
+/** لینک جاسازسی نقشهٔ سالن — فقط نشانی‌های embeddable؛ وگرنه از مختصات/آدرس ساخته می‌شود */
+function buildMapEmbed(salon: any, hasCoords: boolean): string {
+  const q = [salon.address, salon.city].filter(Boolean).join(" ").trim();
+  const fallback = hasCoords
+    ? `https://maps.google.com/maps?q=${toCoord(salon.latitude)},${toCoord(salon.longitude)}&z=16&output=embed`
+    : `https://maps.google.com/maps?q=${encodeURIComponent(q || salon.name || "")}&z=15&output=embed`;
+  const explicit = typeof salon.mapUrl === "string" ? salon.mapUrl : "";
+  return explicit.includes("output=embed") ? explicit : fallback;
 }
 
 export default function SalonPage({ slug: slugProp }: { slug?: string }) {
   const params = useParamsTyped<{ slug: string }>();
   const slug = slugProp ?? params.slug;
-  const { data, loading } = usePageData<any>("salon", { slug });
+  // صفحه‌بندی نظرات — دیتا از همان هندلرِ /api/pages/salon می‌آید (۱۲ نظر در هر صفحه)
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const { data, loading } = usePageData<any>("salon", { slug, reviewsPage: String(reviewsPage) });
 
   useMeta(data?.meta?.title, data?.meta?.description);
 
@@ -70,6 +103,8 @@ export default function SalonPage({ slug: slugProp }: { slug?: string }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(data.jsonLd).replace(/</g, "\\u003c") }}
       />
       <AssistantChat salonId={salon.id} />
+      {/* بنر یک‌کلیک نصب اپ — میانبرِ همان سالن روی گوشی ساخته می‌شود */}
+      <SalonInstallBanner slug={salon.slug} name={salon.name} logoUrl={salon.logoUrl} />
       {/* Header */}
       <header className="relative h-[18rem] w-full sm:h-80">
         <div
@@ -85,6 +120,7 @@ export default function SalonPage({ slug: slugProp }: { slug?: string }) {
           fallbackClassName="absolute inset-0 !bg-gradient-to-br !from-pink-500 !to-purple-700"
         />
         <div className="absolute inset-0 bg-hero-pattern" />
+        <SalonAnimations />
         <div className="absolute inset-0 bg-black/40" />
         <div className="absolute bottom-0 left-0 right-0 mx-auto max-w-6xl px-4 pb-6 sm:px-6 sm:pb-8">
           <div className="flex items-end gap-3 sm:gap-5">
@@ -134,7 +170,7 @@ export default function SalonPage({ slug: slugProp }: { slug?: string }) {
             <p className="mt-3 leading-relaxed text-neutral-600">{salon.description ?? "توضیحی ثبت نشده است."}</p>
           </section>
 
-          {salon.address && (
+          {(salon.address || maps.hasCoords || salon.baladUrl || salon.neshanUrl || salon.mapUrl) && (
             <section>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xl font-extrabold text-neutral-900">موقعیت روی نقشه</h2>
@@ -158,23 +194,13 @@ export default function SalonPage({ slug: slugProp }: { slug?: string }) {
                 </div>
               </div>
               <div className="mt-4 overflow-hidden rounded-2xl border border-neutral-200">
-                {salon.mapUrl || salon.baladUrl || salon.neshanUrl ? (
-                  <iframe
-                    title="موقعیت سالن"
-                    className="h-64 w-full"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    src={salon.mapUrl || salon.baladUrl || salon.neshanUrl}
-                  />
-                ) : (
-                  <iframe
-                    title="موقعیت سالن"
-                    className="h-64 w-full"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    src={`https://maps.google.com/maps?q=${encodeURIComponent(`${salon.address} ${salon.city ?? ""}`)}&z=15&output=embed`}
-                  />
-                )}
+                <iframe
+                  title="موقعیت سالن"
+                  className="h-64 w-full"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={buildMapEmbed(salon, maps.hasCoords)}
+                />
               </div>
             </section>
           )}
@@ -296,6 +322,14 @@ export default function SalonPage({ slug: slugProp }: { slug?: string }) {
                 ))}
               </div>
             )}
+            {(data.reviewsTotalPages ?? 1) > 1 && (
+              <Pagination
+                page={reviewsPage}
+                totalPages={data.reviewsTotalPages ?? 1}
+                total={data.reviewCount}
+                onChange={setReviewsPage}
+              />
+            )}
             <p className="mt-3 text-xs text-neutral-400">
               فقط مشتریانی که نوبت «انجام‌شده» در این سالن دارند می‌توانند نظر ثبت کنند.
             </p>
@@ -331,12 +365,18 @@ export default function SalonPage({ slug: slugProp }: { slug?: string }) {
             staff={salon.staff}
             branches={salon.branches}
           />
+          {/* کیو‌آر کد صفحهٔ سالن — برای چاپ در ورودی یا استوری اینستاگرام */}
           <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <h3 className="mb-2 text-sm font-bold text-neutral-700 dark:text-neutral-300">📱 نصب اپلیکیشن</h3>
+            <h3 className="mb-1 text-sm font-bold text-neutral-700 dark:text-neutral-300">🔳 کیو‌آر کد سالن</h3>
             <p className="mb-3 text-xs text-neutral-500 dark:text-neutral-400">
-              این سالن را به صفحه اصلی گوشی خود اضافه کنید تا در هر زمان به راحتی به نوبت‌دهی دسترسی داشته باشید.
+              این کد را چاپ کنید یا در اینستاگرام بگذارید؛ با اسکن، همین صفحه باز می‌شود.
             </p>
-            <PwaInstallButton launchPath={`/s/${salon.slug}`} className="w-full" />
+            <SalonQrCard
+              slug={salon.slug}
+              name={salon.name}
+              customDomain={salon.customDomain}
+              domainStatus={salon.domainStatus}
+            />
           </div>
         </aside>
       </div>

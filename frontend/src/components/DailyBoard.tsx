@@ -87,6 +87,8 @@ export default function DailyBoard({ salonId }: { salonId: string }) {
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [query, setQuery] = useState("");
+  const [appointmentsTotal, setAppointmentsTotal] = useState(0);
+  const [remindersTotal, setRemindersTotal] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,15 +97,20 @@ export default function DailyBoard({ salonId }: { salonId: string }) {
         setLoading(true);
         setError("");
         return Promise.all([
-          fetch(`/api/appointments?from=${date}&to=${date}`).then((r) => r.json()),
-          fetch(`/api/dashboard/salons/${salonId}/reminders?date=${date}`).then((r) => r.json()),
+          // limit=200 صریح: تختهٔ یک روز باید کل نوبت‌های آن روز را داشته باشد
+          fetch(`/api/appointments?from=${date}&to=${date}&limit=200`).then((r) => r.json()),
+          fetch(`/api/dashboard/salons/${salonId}/reminders?date=${date}&limit=200`).then((r) => r.json()),
         ]);
       })
       .then(([d, rem]) => {
         if (cancelled) return;
         if (!d.success) throw new Error(d.error || "خطا در دریافت نوبت‌ها");
         setRows(d.appointments ?? []);
-        if (rem.success && Array.isArray(rem.items)) setReminders(rem.items as ReminderItem[]);
+        setAppointmentsTotal(typeof d.total === "number" ? d.total : (d.appointments ?? []).length);
+        if (rem.success && Array.isArray(rem.items)) {
+          setReminders(rem.items as ReminderItem[]);
+          setRemindersTotal(typeof rem.total === "number" ? rem.total : rem.items.length);
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "خطا در دریافت نوبت‌ها");
@@ -256,6 +263,11 @@ export default function DailyBoard({ salonId }: { salonId: string }) {
         </p>
       ) : (
         <div className="space-y-5">
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+            نوبت‌ها: {toPersianDigits(appointmentsTotal)}
+            {appointmentsTotal > rows.length ? ` — ${toPersianDigits(rows.length)} نوبت نخست در این روز بارگذاری شده است` : ""}
+            {remindersTotal > reminders.length ? ` — یادآوری‌ها: ${toPersianDigits(remindersTotal)}` : ""}
+          </p>
           {groups.map(([service, list]) => {
             const groupRevenue = list.reduce((s, r) => s + (r.status === "COMPLETED" ? r.servicePrice ?? 0 : 0), 0);
             const groupPrepaid = list.reduce((s, r) => s + (r.depositPaid ? r.depositAmount ?? 0 : 0), 0);

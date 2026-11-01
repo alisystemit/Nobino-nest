@@ -5,6 +5,7 @@ import { Banknote, Landmark, Receipt, TrendingUp, Wallet } from "lucide-react";
 import { formatToman, toPersianDigits } from "@/lib/utils";
 import DashboardShell from "@/components/DashboardShell";
 import { Badge, PanelCard, StatCard } from "@/components/ui/Stats";
+import Pagination from "@/components/ui/Pagination";
 
 type Tx = { id: string; kind: string; reason: string; amount: number; balanceAfter: number; description?: string; createdAt: string };
 
@@ -36,6 +37,10 @@ export default function WalletPage() {
   const [role, setRole] = useState("");
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Tx[]>([]);
+  const [transactionsTotal, setTransactionsTotal] = useState(0);
+  const [creditSum, setCreditSum] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [amount, setAmount] = useState("");
   const [bankInfo, setBankInfo] = useState("");
   const [loading, setLoading] = useState(true);
@@ -43,12 +48,15 @@ export default function WalletPage() {
   const [submitting, setSubmitting] = useState(false);
 
   function load() {
-    fetch("/api/wallet")
+    fetch(`/api/wallet?page=${page}&limit=25`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
           setBalance(data.wallet.balance);
           setTransactions(data.wallet.transactions);
+          setTransactionsTotal(data.wallet.transactionsTotal ?? 0);
+          setCreditSum(data.wallet.summary?.credit ?? 0);
+          setTotalPages(Math.max(1, Math.ceil((data.wallet.transactionsTotal ?? 0) / 25)));
         }
         setLoading(false);
       });
@@ -62,7 +70,8 @@ export default function WalletPage() {
         setRole(me.user?.role ?? "");
       } catch {}
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   async function requestPayout() {
     setSubmitting(true);
@@ -86,8 +95,6 @@ export default function WalletPage() {
     }
   }
 
-  const creditSum = transactions.filter((t) => t.kind === "CREDIT").reduce((a, t) => a + t.amount, 0);
-
   if (loading) return <DashboardShell role={role} title="کیف پول"><p className="py-10 text-center text-neutral-400">در حال بارگیری...</p></DashboardShell>;
 
   const input = "h-11 w-full rounded-xl border border-neutral-200 bg-neutral-50/60 px-4 text-sm outline-none focus:border-pink-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800";
@@ -108,12 +115,12 @@ export default function WalletPage() {
           value={formatToman(creditSum)}
           icon={<TrendingUp className="h-5 w-5" />}
           iconClass="bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-300"
-          sub={`در ${toPersianDigits(transactions.length)} تراکنش ثبت‌شده`}
+          sub={`در ${toPersianDigits(transactionsTotal)} تراکنش ثبت‌شده`}
         />
         <div className="col-span-2 sm:col-span-1">
         <StatCard
           label="تراکنش‌ها"
-          value={toPersianDigits(transactions.length)}
+          value={toPersianDigits(transactionsTotal)}
           icon={<Receipt className="h-5 w-5" />}
           iconClass="bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300"
           sub="تاریخچه کامل واریز و برداشت کیف پول"
@@ -176,7 +183,7 @@ export default function WalletPage() {
           title="تراکنش‌ها"
           subtitle="همه واریزها و برداشت‌های کیف پول"
           icon={<Receipt className="h-5 w-5" />}
-          action={<Badge tone="brand">{toPersianDigits(transactions.length)} مورد</Badge>}
+          action={<Badge tone="brand">{toPersianDigits(transactionsTotal)} مورد</Badge>}
           bodyClassName="p-0"
         >
           <div className="max-h-[60dvh] overflow-y-auto sm:max-h-[560px]">
@@ -206,6 +213,9 @@ export default function WalletPage() {
                 </div>
               </div>
             ))}
+          </div>
+          <div className="border-t border-neutral-100 p-3 dark:border-neutral-800">
+            <Pagination page={page} totalPages={totalPages} total={transactionsTotal} onChange={setPage} />
           </div>
         </PanelCard>
       </div>

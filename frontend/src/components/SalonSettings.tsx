@@ -1,15 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@/router-shim";
 import SalonIcon from "@/components/icons/SalonIcon";
 import TimeField from "@/components/ui/TimeField";
+import Pagination from "@/components/ui/Pagination";
+
+/** اندازهٔ صفحهٔ گالری — هم‌راستا با پیش‌فرض سرور */
+const IMAGES_LIMIT = 100;
+
+/** پارامترهای صفحه‌بندی گالری */
+function imagesQuery(page: number) {
+  const q = new URLSearchParams();
+  q.set("page", String(page));
+  q.set("limit", String(IMAGES_LIMIT));
+  return q.toString();
+}
+
+/** نرمال‌سازی پاسخ /images (items + total + totalPages) */
+function parseImagesPayload(data: any) {
+  const items = data.items ?? [];
+  return {
+    items,
+    total: typeof data.total === "number" ? data.total : items.length,
+    totalPages: data.totalPages ?? Math.max(1, Math.ceil((data.total ?? items.length) / IMAGES_LIMIT)),
+  };
+}
 
 type Salon = {
   id: string;
   name: string;
   slug: string;
   phone: string;
+  email: string | null;
+  whatsapp: string | null;
+  website: string | null;
   city: string | null;
   address: string | null;
   description: string | null;
@@ -39,11 +64,14 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
   const [form, setForm] = useState({
     name: salon.name,
     phone: salon.phone,
+    email: salon.email ?? "",
+    whatsapp: salon.whatsapp ?? "",
+    website: salon.website ?? "",
     city: salon.city ?? "",
     address: salon.address ?? "",
     description: salon.description ?? "",
     coverColor: salon.coverColor,
-    timezone: salon.timezone ?? "Asia/Tehran",
+    timezone: "Asia/Tehran",
     instagram: salon.instagram ?? "",
     latitude: salon.latitude ?? "",
     longitude: salon.longitude ?? "",
@@ -64,24 +92,47 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
   const [uploading, setUploading] = useState<"logo" | "banner" | "gallery" | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [imgPage, setImgPage] = useState(1);
+  const [imgTotalPages, setImgTotalPages] = useState(1);
+  const [imgTotal, setImgTotal] = useState(0);
+  /** سالن قبلی — برای بازگرداندن گالری به صفحه ۱ هنگام تغییر سالن */
+  const lastImagesSalonRef = useRef(salon.id);
 
-  async function loadImages() {
+  async function loadImages(page = imgPage) {
     try {
-      const res = await fetch(`/api/dashboard/salons/${salon.id}/images`);
+      const res = await fetch(`/api/dashboard/salons/${salon.id}/images?${imagesQuery(page)}`);
       const data = await res.json();
-      if (data.success) setGallery(data.items ?? []);
+      if (data.success) {
+        const p = parseImagesPayload(data);
+        setGallery(p.items);
+        setImgTotal(p.total);
+        setImgTotalPages(p.totalPages);
+      }
     } catch {
       /* بی‌صدا */
     }
   }
 
   useEffect(() => {
+    // تغییر سالن: اول صفحه را به ۱ برگردان (افکت با dep جدید دوباره اجرا می‌شود)
+    if (lastImagesSalonRef.current !== salon.id) {
+      lastImagesSalonRef.current = salon.id;
+      if (imgPage !== 1) {
+        setImgPage(1);
+        return;
+      }
+    }
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/dashboard/salons/${salon.id}/images`);
+        const res = await fetch(`/api/dashboard/salons/${salon.id}/images?${imagesQuery(imgPage)}`);
         const data = await res.json();
-        if (!cancelled && data.success) setGallery(data.items ?? []);
+        if (!cancelled && data.success) {
+          const p = parseImagesPayload(data);
+          setGallery(p.items);
+          setImgTotal(p.total);
+          setImgTotalPages(p.totalPages);
+        }
       } catch {
         /* بی‌صدا */
       }
@@ -89,7 +140,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
     return () => {
       cancelled = true;
     };
-  }, [salon.id]);
+  }, [salon.id, imgPage]);
 
   async function uploadImage(kind: "logo" | "banner" | "gallery", file: File) {
     setUploading(kind);
@@ -150,6 +201,9 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
         body: JSON.stringify({
           name: form.name,
           phone: form.phone,
+          email: form.email.trim() || null,
+          whatsapp: form.whatsapp.trim() || null,
+          website: form.website.trim() || null,
           city: form.city,
           address: form.address,
           description: form.description,
@@ -248,7 +302,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
         <div className="mt-5 border-t border-neutral-100 pt-4 dark:border-neutral-800">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-xs font-extrabold text-neutral-700 dark:text-neutral-200">گالری نمونه‌کارها</h4>
-            <span className="text-[11px] text-neutral-400">{gallery.length.toLocaleString("fa-IR")} تصویر</span>
+            <span className="text-[11px] text-neutral-400">{(imgTotal || gallery.length).toLocaleString("fa-IR")} تصویر</span>
           </div>
           <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {gallery.map((g) => (
@@ -265,6 +319,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
               </div>
             ))}
           </div>
+          <Pagination page={imgPage} totalPages={imgTotalPages} total={imgTotal} onChange={setImgPage} />
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input
               className={input}
@@ -313,18 +368,27 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
         <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">توضیحات</label>
         <textarea className={`${input} min-h-[80px]`} value={form.description} onChange={set("description")} />
       </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">رنگ زمینه</label>
-        <input type="color" className="h-11 w-full cursor-pointer rounded-xl border border-neutral-300" value={form.coverColor} onChange={set("coverColor")} />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">منطقه زمانی</label>
-        <input className={input} value={form.timezone} onChange={set("timezone")} />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">صفحه اینستاگرام</label>
-        <input className={input} dir="ltr" placeholder="instagram.com/mysalon" value={form.instagram} onChange={set("instagram")} />
-        <p className="mt-1 text-[11px] text-neutral-400">این لینک در صفحه عمومی سالن نمایش داده می‌شود.</p>
+      <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <h3 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">راه‌های ارتباطی</h3>
+        <p className="mt-1 text-[11px] leading-5 text-neutral-400">این لینک‌ها در صفحهٔ عمومی سالن نمایش داده می‌شوند و مشتری از همان‌جا با شما تماس می‌گیرد.</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">ایمیل</label>
+            <input className={input} dir="ltr" placeholder="info@mysalon.com" value={form.email} onChange={set("email")} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">واتساپ</label>
+            <input className={input} dir="ltr" placeholder="+98 912 000 0000" value={form.whatsapp} onChange={set("whatsapp")} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">وب‌سایت</label>
+            <input className={input} dir="ltr" placeholder="mysalon.com" value={form.website} onChange={set("website")} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">اینستاگرام</label>
+            <input className={input} dir="ltr" placeholder="instagram.com/mysalon" value={form.instagram} onChange={set("instagram")} />
+          </div>
+        </div>
       </div>
       <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
         <h3 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">موقعیت و نقشه</h3>
@@ -380,12 +444,6 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           </div>
         )}
       </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">دامنه اختصاصی (برای پلن سازمانی)</label>
-        <input className={input} dir="ltr" placeholder="salon.com" value={form.customDomain} onChange={set("customDomain")} />
-        <p className="mt-1 text-[11px] text-neutral-400">باید DNS دامنه به این سرویس اشاره کند.</p>
-      </div>
-
       {/* قوانین رزرو */}
       <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
         <h3 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">قوانین رزرو</h3>
@@ -437,6 +495,10 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           ))}
         </div>
       </div>
+
+      <Link href="/help#owner" className="block text-center text-xs font-bold text-pink-600 hover:underline">
+        📘 راهنمای کامل تنظیمات سالن و لینک نقشه
+      </Link>
 
       <button
         onClick={save}

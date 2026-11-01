@@ -6,6 +6,7 @@ import RevenueChart from "@/components/RevenueChart";
 import DailyBoard from "@/components/DailyBoard";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import TimeField from "@/components/ui/TimeField";
+import Pagination from "@/components/ui/Pagination";
 import { zonedTimeToIso } from "@/lib/time/zoned";
 import { formatJalali, toPersianDigits } from "@/lib/time/jalali";
 import { useI18n } from "@/lib/i18n";
@@ -467,18 +468,33 @@ function BranchForm({ ctx }: { ctx: Ctx }) {
 
 function WaitlistView({ ctx }: { ctx: Ctx }) {
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    setPage(1);
+  }, [ctx.salonSlug]);
+
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/salons/${ctx.salonSlug}/waitlist`)
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", "25");
+    fetch(`/api/salons/${ctx.salonSlug}/waitlist?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled && d.success) setEntries(d.entries as WaitlistEntry[]);
+        if (!cancelled && d.success) {
+          setEntries(d.entries as WaitlistEntry[]);
+          setTotal(d.total ?? 0);
+          setTotalPages(d.totalPages ?? Math.max(1, Math.ceil((d.total ?? 0) / 25)));
+        }
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [ctx.salonSlug]);
+  }, [ctx.salonSlug, page]);
 
   return (
     <div className="space-y-2">
@@ -513,6 +529,8 @@ function WaitlistView({ ctx }: { ctx: Ctx }) {
           </div>
         );
       })}
+
+      <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
     </div>
   );
 }
@@ -803,7 +821,6 @@ function BookingForm({ ctx }: { ctx: Ctx }) {
   const [employeeId, setEmployeeId] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [channel, setChannel] = useState("MANUAL");
   async function submit() {
     if (!date || !time) return ctx.setMsg({ ok: false, text: "تاریخ و ساعت را انتخاب کنید" });
     let startAt: string;
@@ -822,7 +839,6 @@ function BookingForm({ ctx }: { ctx: Ctx }) {
         customerName,
         customerPhone,
         startAt,
-        channel,
       },
       "نوبت ثبت شد ✅"
     );
@@ -849,11 +865,6 @@ function BookingForm({ ctx }: { ctx: Ctx }) {
         <JalaliDatePicker value={date} onChange={setDate} timeZone={ctx.timezone} placeholder="تاریخ (شمسی)" />
         <TimeField value={time} onChange={setTime} />
       </div>
-      <select className={inputCls} value={channel} onChange={(e) => setChannel(e.target.value)}>
-        <option value="MANUAL">تلفنی/حضوری</option>
-        <option value="WEBAPP">شبکه اجتماعی</option>
-        <option value="VOICE">صوتی</option>
-      </select>
       <button onClick={submit} className={`${primaryBtn} sm:col-span-2`}>
         ثبت نوبت دستی
       </button>
@@ -972,6 +983,10 @@ function HolidaysView({ ctx }: { ctx: Ctx }) {
 function CustomersView({ ctx }: { ctx: Ctx }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [q, setQ] = useState("");
+  const [qParam, setQParam] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Customer | null>(null);
   const [detail, setDetail] = useState<{
     customer: { id: string; phone: string; name?: string | null; firstName?: string | null; lastName?: string | null; note?: string | null };
@@ -987,29 +1002,43 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
   const [savingNote, setSavingNote] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // جستجو سمت سرور انجام می‌شود تا نتایج صفحه‌های دیگر هم گم نشوند
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQParam(q.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [ctx.base]);
+
   useEffect(() => {
     let cancelled = false;
-    fetch(`${ctx.base}/customers`)
+    const params = new URLSearchParams();
+    if (qParam) params.set("q", qParam);
+    params.set("page", String(page));
+    params.set("limit", "25");
+    fetch(`${ctx.base}/customers?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled && d.success) setCustomers(d.customers as Customer[]);
+        if (!cancelled && d.success) {
+          setCustomers(d.customers as Customer[]);
+          setTotal(d.total ?? 0);
+          // این endpoint تنها total را برمی‌گرداند؛ تعداد صفحه‌ها اینجا محاسبه می‌شود
+          setTotalPages(Math.max(1, Math.ceil((d.total ?? 0) / 25)));
+        }
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [ctx.base]);
+  }, [ctx.base, qParam, page]);
 
   const displayName = (c: { firstName?: string | null; lastName?: string | null; name?: string | null }) =>
     [c.firstName, c.lastName].filter(Boolean).join(" ") || c.name || "مشتری";
-
-  const filtered = customers.filter((c) =>
-    !q ||
-    (c.name ?? "").includes(q) ||
-    (c.firstName ?? "").includes(q) ||
-    (c.lastName ?? "").includes(q) ||
-    c.phone.includes(q)
-  );
 
   async function openProfile(c: Customer) {
     setSelected(c);
@@ -1079,14 +1108,15 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
 
       {/* ── لیست مشتریان ─ */}
       <div className="mt-4 space-y-2">
-        {filtered.length === 0 && <p className="py-6 text-center text-sm text-neutral-400">مشتری‌ای یافت نشد.</p>}
-        {filtered.map((c) => {
+        {customers.length === 0 && <p className="py-6 text-center text-sm text-neutral-400">مشتری‌ای یافت نشد.</p>}
+        {customers.map((c) => {
           const active = selected?.id === c.id;
           return (
             <div
               key={c.id}
-              className={`rounded-2xl border px-4 py-3 shadow-sm transition ${
-                active ? "border-pink-400 bg-pink-50/40 dark:border-pink-500/60 dark:bg-pink-950/20" : "border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+              onClick={() => (active ? setSelected(null) : openProfile(c))}
+              className={`cursor-pointer rounded-2xl border px-4 py-3 shadow-sm transition ${
+                active ? "border-pink-400 bg-pink-50/40 dark:border-pink-500/60 dark:bg-pink-950/20" : "border-neutral-200 bg-white hover:border-pink-200 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-pink-500/40"
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1105,7 +1135,10 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                   {(c.notesCount ?? 0) > 0 && <span className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">📝 {toPersianDigits(c.notesCount!)} یادداشت</span>}
                 </div>
                 <button
-                  onClick={() => (active ? setSelected(null) : openProfile(c))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    active ? setSelected(null) : openProfile(c);
+                  }}
                   className="h-10 shrink-0 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                 >
                   {active ? "بستن" : "مشاهده پرونده"}
@@ -1116,31 +1149,26 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
         })}
       </div>
 
-      {/* ── پروفایل مشتری ─ */}
+      <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+
+      {/* ── پنجره پاپ‌اپ پروفایل مشتری ─ */}
       {selected && (
-        <div className="mt-5 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h4 className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">{displayName(selected)}</h4>
-              <div className="text-sm text-neutral-500" dir="ltr">{toPersianDigits(selected.phone)}</div>
-            </div>
-            <button onClick={() => setSelected(null)} className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
+            <button
+              onClick={() => setSelected(null)}
+              className="absolute right-4 top-4 h-10 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            >
               بستن پرونده
             </button>
-          </div>
-
-          {loadingDetail && <p className="py-6 text-center text-neutral-400">در حال بارگذاری پرونده...</p>}
-
-          {detail && !loadingDetail && (
-            <>
               {/* آمار */}
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {[
-                  ["نوبت‌ها", detail.stats.visits],
-                  ["انجام‌شده", detail.stats.completed],
-                  ["لغو", detail.stats.cancelled],
-                  ["عدم حضور", detail.stats.noShow],
-                  ["هزینه‌کرد", `${Number(detail.stats.spend || 0).toLocaleString("fa-IR")}`],
+                  ["نوبت‌ها", detail?.stats?.visits ?? 0],
+                  ["انجام‌شده", detail?.stats?.completed ?? 0],
+                  ["لغو", detail?.stats?.cancelled ?? 0],
+                  ["عدم حضور", detail?.stats?.noShow ?? 0],
+                  ["هزینه‌کرد", `${Number(detail?.stats?.spend || 0).toLocaleString("fa-IR")}`],
                 ].map(([l, v]) => (
                   <div key={l} className="rounded-xl bg-neutral-50 px-3 py-2 text-center dark:bg-neutral-800">
                     <div className="text-base font-black text-neutral-900 dark:text-neutral-100">{toPersianDigits(String(v))}</div>
@@ -1152,11 +1180,11 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
               {/* رزروهای قبلی */}
               <div className="mt-6">
                 <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">رزروهای قبلی</h5>
-                {detail.appointments.length === 0 ? (
+                {(detail?.appointments?.length ?? 0) === 0 ? (
                   <p className="mt-2 text-sm text-neutral-400">رزروی ثبت نشده است.</p>
                 ) : (
                   <div className="mt-2 max-h-72 space-y-2 overflow-y-auto">
-                    {detail.appointments.map((a) => {
+                    {detail?.appointments?.map((a) => {
                       const st = APPT_STATUS[a.status] ?? { label: a.status, cls: "bg-neutral-100 text-neutral-500" };
                       return (
                         <div key={a.id} className="rounded-xl border border-neutral-100 px-3 py-2.5 text-sm dark:border-neutral-800">
@@ -1181,11 +1209,11 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
               <div className="mt-6">
                 <div className="flex items-center justify-between">
                   <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">یادداشت‌ها</h5>
-                  <span className="text-[11px] text-neutral-400">{toPersianDigits(detail.notes.length)} / {toPersianDigits(detail.noteLimit)}</span>
+                  <span className="text-[11px] text-neutral-400">{toPersianDigits(detail?.notes?.length ?? 0)} / {toPersianDigits(detail?.noteLimit ?? 5)}</span>
                 </div>
                 <div className="mt-2 space-y-2">
-                  {detail.notes.length === 0 && <p className="text-xs text-neutral-400">یادداشتی ثبت نشده است.</p>}
-                  {detail.notes.map((n) => (
+                  {(detail?.notes?.length ?? 0) === 0 && <p className="text-xs text-neutral-400">یادداشتی ثبت نشده است.</p>}
+                  {detail?.notes?.map((n) => (
                     <div key={n.id} className="flex items-start justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
                       <div>
                         <p className="text-xs leading-5 text-amber-900 dark:text-amber-200">{n.note}</p>
@@ -1197,7 +1225,7 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                     </div>
                   ))}
                 </div>
-                {detail.notes.length < detail.noteLimit && (
+                {(detail?.notes?.length ?? 0) < (detail?.noteLimit ?? 5) && (
                   <div className="mt-2 flex gap-2">
                     <input
                       className={inputCls}
@@ -1217,11 +1245,11 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
               <div className="mt-6">
                 <div className="flex items-center justify-between">
                   <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">عکس‌ها و صداها</h5>
-                  <span className="text-[11px] text-neutral-400">{toPersianDigits(detail.media.length)} / {toPersianDigits(detail.mediaLimit)}</span>
+                  <span className="text-[11px] text-neutral-400">{toPersianDigits(detail?.media?.length ?? 0)} / {toPersianDigits(detail?.mediaLimit ?? 10)}</span>
                 </div>
 
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  {detail.media.map((m) => (
+                  {detail?.media?.map((m) => (
                     <div key={m.id} className="group relative overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
                       {m.type === "photo" ? (
                         <img src={m.url} alt={m.name ?? "عکس مشتری"} className="h-24 w-full object-cover" />
@@ -1241,7 +1269,7 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                   ))}
                 </div>
 
-                {detail.media.length < detail.mediaLimit && (
+                {(detail?.media?.length ?? 0) < (detail?.mediaLimit ?? 10) && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     <label className="flex h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
                       {uploading ? "در حال بارگذاری..." : "📷 عکس"}
@@ -1255,11 +1283,10 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                   </div>
                 )}
               </div>
-            </>
+            </div>
+            </div>
           )}
         </div>
-      )}
-    </div>
   );
 }
 
@@ -1268,6 +1295,9 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
 function BillingView({ ctx }: { ctx: Ctx }) {
   const { t } = useI18n();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ customerName: "", customerPhone: "", description: "", amount: "" });
   const [saving, setSaving] = useState(false);
@@ -1275,18 +1305,29 @@ function BillingView({ ctx }: { ctx: Ctx }) {
   const [copied, setCopied] = useState<string | null>(null);
   const [resending, setResending] = useState<string | null>(null);
 
+  useEffect(() => {
+    setPage(1);
+  }, [ctx.base]);
+
   const load = useCallback(() => {
     let cancelled = false;
-    fetch(`${ctx.base}/invoices`)
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", "25");
+    fetch(`${ctx.base}/invoices?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled && d.success) setInvoices(d.invoices as Invoice[]);
+        if (!cancelled && d.success) {
+          setInvoices(d.invoices as Invoice[]);
+          setTotal(d.total ?? 0);
+          setTotalPages(d.totalPages ?? Math.max(1, Math.ceil((d.total ?? 0) / 25)));
+        }
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [ctx.base]);
+  }, [ctx.base, page]);
 
   useEffect(() => load(), [load]);
 
@@ -1475,6 +1516,8 @@ function BillingView({ ctx }: { ctx: Ctx }) {
           </div>
         ))}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
     </div>
   );
 }
@@ -1497,30 +1540,35 @@ const CAMPAIGN_TEMPLATES: { icon: string; name: string; text: string }[] = [
 function CampaignsView({ ctx }: { ctx: Ctx }) {
   const { t } = useI18n();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [segment, setSegment] = useState("ALL");
   const [channel, setChannel] = useState("SMS");
   const [showTemplates, setShowTemplates] = useState(false);
 
-  const load = useCallback(async () => {
-    const r = await fetch(`${ctx.base}/campaigns`);
-    const d = await r.json();
-    if (d.success) setCampaigns(d.campaigns as Campaign[]);
+  useEffect(() => {
+    setPage(1);
   }, [ctx.base]);
 
+  const load = useCallback(async () => {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", "25");
+    const r = await fetch(`${ctx.base}/campaigns?${params.toString()}`);
+    const d = await r.json();
+    if (d.success) {
+      setCampaigns(d.campaigns as Campaign[]);
+      setTotal(d.total ?? 0);
+      setTotalPages(d.totalPages ?? Math.max(1, Math.ceil((d.total ?? 0) / 25)));
+    }
+  }, [ctx.base, page]);
+
   useEffect(() => {
-    let cancelled = false;
-    fetch(`${ctx.base}/campaigns`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled && d.success) setCampaigns(d.campaigns as Campaign[]);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [ctx.base]);
+    void load();
+  }, [load]);
 
   function applyTemplate(tpl: { name: string; text: string }) {
     setName(tpl.name);
@@ -1609,6 +1657,8 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
           </div>
         ))}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
     </div>
   );
 }
@@ -1928,10 +1978,12 @@ export default function SalonManager({
   salonId,
   salonSlug,
   timezone = "Asia/Tehran",
+  excludeTabs = [],
 }: {
   salonId: string;
   salonSlug?: string;
   timezone?: string;
+  excludeTabs?: Tab[];
 }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<Tab>("services");
@@ -1940,6 +1992,9 @@ export default function SalonManager({
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [cash, setCash] = useState<{ entries: CashEntry[]; todayTotals: CashTotals | null }>({ entries: [], todayTotals: null });
+  const [cashPage, setCashPage] = useState(1);
+  const [cashTotalPages, setCashTotalPages] = useState(1);
+  const [cashTotal, setCashTotal] = useState(0);
   const [msg, setMsg] = useState<Msg | null>(null);
 
   const base = `/api/dashboard/salons/${salonId}`;
@@ -1969,20 +2024,35 @@ export default function SalonManager({
   }, [base]);
 
   const refreshCash = useCallback(async () => {
-    const r = await fetch(`${base}/cash`);
+    const params = new URLSearchParams();
+    params.set("page", String(cashPage));
+    params.set("limit", "25");
+    const r = await fetch(`${base}/cash?${params.toString()}`);
     const d = await r.json();
-    if (d.success) setCash({ entries: d.entries as CashEntry[], todayTotals: (d.todayTotals ?? null) as CashTotals | null });
+    if (d.success) {
+      // جمع‌های روز (todayTotals) سمت سرور از تجمیع پایگاه داده می‌آید؛ بازسازی نکنیم
+      setCash({ entries: d.entries as CashEntry[], todayTotals: (d.todayTotals ?? null) as CashTotals | null });
+      setCashTotal(d.total ?? 0);
+      setCashTotalPages(d.totalPages ?? Math.max(1, Math.ceil((d.total ?? 0) / 25)));
+    }
+  }, [base, cashPage]);
+
+  useEffect(() => {
+    setCashPage(1);
   }, [base]);
 
   useEffect(() => {
+    void refreshCash();
+  }, [refreshCash]);
+
+  useEffect(() => {
     const load = (p: string) => fetch(`${base}${p}`).then((r) => r.json());
-    Promise.all([load("/services"), load("/staff"), load("/blocks"), load("/branches"), load("/cash")])
-      .then(([s, st, b, br, c]) => {
+    Promise.all([load("/services"), load("/staff"), load("/blocks"), load("/branches")])
+      .then(([s, st, b, br]) => {
         if (s.success && s.services) setServices(s.services as Service[]);
         if (st.success && st.staff) setStaff(st.staff as StaffItem[]);
         if (b.success && b.blocks) setBlocks(b.blocks as Block[]);
         if (br.success && br.branches) setBranches(br.branches as Branch[]);
-        if (c.success) setCash({ entries: (c.entries as CashEntry[]) ?? [], todayTotals: (c.todayTotals ?? null) as CashTotals | null });
       })
       .catch(() => {});
   }, [base]);
@@ -2044,6 +2114,9 @@ export default function SalonManager({
     { id: "booking", label: t("manager.tabs.booking"), icon: "➕" },
   ];
 
+  // حذف تب‌های فیلتر شده
+  const filteredTabs = tabs.filter((tb) => !excludeTabs.includes(tb.id));
+
   return (
     <div>
       {msg && (
@@ -2053,7 +2126,7 @@ export default function SalonManager({
       )}
 
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tabs.map((tb) => (
+        {filteredTabs.map((tb) => (
           <button
             key={tb.id}
             onClick={() => setTab(tb.id)}
@@ -2134,6 +2207,8 @@ export default function SalonManager({
                 </div>
               ))}
             </div>
+
+            <Pagination page={cashPage} totalPages={cashTotalPages} total={cashTotal} onChange={setCashPage} />
           </>
         )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toJalali } from "@/lib/utils";
+import { toJalali, toPersianDigits } from "@/lib/utils";
 
 type Notification = {
   id: string;
@@ -11,44 +11,67 @@ type Notification = {
   createdAt: string;
 };
 
+const PAGE_LIMIT = 10;
+
 /** زنگ اعلان‌های درون‌برنامه‌ای (نوبت، پاسخ پشتیبانی و...) */
 export default function NotificationBell() {
   const [items, setItems] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [authed, setAuthed] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [unread, setUnread] = useState(0);
+
+  /** خواندن صفحهٔ فعلی از سرور */
+  async function load() {
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(PAGE_LIMIT));
+      const res = await fetch(`/api/notifications?${params.toString()}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!data.success) {
+        if (res.status === 401) setAuthed(false);
+        return;
+      }
+      setAuthed(true);
+      const rows: Notification[] = data.notifications ?? [];
+      const serverTotal: number = data.total ?? rows.length;
+      setItems(rows);
+      setTotal(serverTotal);
+      setUnread(data.unread ?? rows.filter((n) => !n.readAt).length);
+      setTotalPages(data.totalPages ?? Math.max(1, Math.ceil(serverTotal / PAGE_LIMIT)));
+    } catch {
+      /* خطای شبکه — در تلاش بعدی دوباره امتحان می‌شود */
+    }
+  }
 
   useEffect(() => {
-    const load = () => {
-      fetch("/api/notifications", { cache: "no-store" })
-        .then(async (res) => {
-          const data = await res.json();
-          if (!data.success) {
-            if (res.status === 401) setAuthed(false);
-            return;
-          }
-          setAuthed(true);
-          setItems(data.notifications ?? []);
-        })
-        .catch(() => {
-          /* خطای شبکه — در تلاش بعدی دوباره امتحان می‌شود */
-        });
-    };
     const timer = setInterval(load, 60_000);
     load();
     return () => clearInterval(timer);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  function goPage(next: number) {
+    const target = Math.min(Math.max(1, next), totalPages);
+    if (target === page) return;
+    setPage(target);
+  }
 
   async function toggle() {
     const next = !open;
     setOpen(next);
     if (next && items.some((n) => !n.readAt)) {
       setItems((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
-      fetch("/api/notifications", { method: "PATCH" }).catch(() => {});
+      setUnread(0);
+      await fetch("/api/notifications", { method: "PATCH" }).catch(() => {});
+      load(); // همگام‌سازی شمارنده‌ها با سرور، روی همان صفحهٔ فعلی
     }
   }
 
   if (!authed) return null;
-  const unread = items.filter((n) => !n.readAt).length;
 
   return (
     <div className="relative">
@@ -82,6 +105,30 @@ export default function NotificationBell() {
                   </li>
                 ))}
               </ul>
+            )}
+
+            {totalPages > 1 && (
+              <div className="mt-1 flex items-center gap-1.5 border-t border-neutral-200 px-2 pb-1 pt-2 dark:border-neutral-700">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => goPage(page - 1)}
+                  className="rounded-lg bg-neutral-100 px-2 py-1 text-[11px] font-bold text-neutral-600 transition hover:bg-neutral-200 disabled:opacity-40 dark:bg-neutral-800 dark:text-neutral-300"
+                >
+                  قبلی
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => goPage(page + 1)}
+                  className="rounded-lg bg-neutral-100 px-2 py-1 text-[11px] font-bold text-neutral-600 transition hover:bg-neutral-200 disabled:opacity-40 dark:bg-neutral-800 dark:text-neutral-300"
+                >
+                  بعدی
+                </button>
+                <span className="flex-1 text-center text-[10px] text-neutral-500">
+                  خوانده‌نشده: {toPersianDigits(unread)} — کل: {toPersianDigits(total)}
+                </span>
+              </div>
             )}
           </div>
         </>
