@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 const createSchema = z.object({
   branchId: z.string().optional(),
@@ -18,27 +18,45 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
     const { id } = await params;
     await requireSalonManage(id);
 
-    const entries = await prisma.cashRegisterEntry.findMany({
-      where: { salonId: id },
-      include: { branch: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
-
+    const { page, limit, skip, take } = getPagination(_req.url, 25, 200);
+    const entriesWhere = { salonId: id };
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const today = entries.filter((e) => e.createdAt >= todayStart);
-    const sum = (arr: typeof today, key: "cashAmount" | "cardAmount" | "onlineAmount" | "expenseAmount") =>
-      arr.reduce((s, e) => s + e[key], 0);
+
+    // جمع‌های روز از پایگاه داده می‌آیند (نه از صفحهٔ جاری) تا با صفحه‌بندی درست بمانند
+    const [entries, total, todayAgg] = await Promise.all([
+      prisma.cashRegisterEntry.findMany({
+        where: entriesWhere,
+        include: { branch: { select: { name: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
+      }),
+      prisma.cashRegisterEntry.count({ where: entriesWhere }),
+      prisma.cashRegisterEntry.aggregate({
+        where: { salonId: id, createdAt: { gte: todayStart } },
+        _sum: { cashAmount: true, cardAmount: true, onlineAmount: true, expenseAmount: true },
+      }),
+    ]);
+
+    const t = todayAgg._sum;
+    const cash = t.cashAmount ?? 0;
+    const card = t.cardAmount ?? 0;
+    const online = t.onlineAmount ?? 0;
+    const expense = t.expenseAmount ?? 0;
 
     return json({
       success: true,
       entries,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
       todayTotals: {
-        cash: sum(today, "cashAmount"),
-        card: sum(today, "cardAmount"),
-        online: sum(today, "onlineAmount"),
-        expense: sum(today, "expenseAmount"),
-        net: sum(today, "cashAmount") + sum(today, "cardAmount") + sum(today, "onlineAmount") - sum(today, "expenseAmount"),
+        cash,
+        card,
+        online,
+        expense,
+        net: cash + card + online - expense,
       },
     });
   } catch (err) {

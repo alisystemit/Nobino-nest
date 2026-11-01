@@ -3,18 +3,20 @@
 
 import { requireAuth } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
-/** لیست اعلان‌های داخل برنامه‌ای کاربر جاری */
+/** لیست اعلان‌های داخل برنامه‌ای کاربر جاری — صفحه‌بندی‌شده */
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireAuth();
-    const notifications = await prisma.notification.findMany({
-      where: { userId: user.id, channel: "IN_APP" },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
-    return json({ success: true, notifications });
+    const { page, limit, skip, take } = getPagination(_req.url, 20, 100);
+    const where = { userId: user.id, channel: "IN_APP" as const };
+    const [notifications, total, unread] = await Promise.all([
+      prisma.notification.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip, take }),
+      prisma.notification.count({ where }),
+      prisma.notification.count({ where: { ...where, readAt: null } }),
+    ]);
+    return json({ success: true, notifications, total, unread, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

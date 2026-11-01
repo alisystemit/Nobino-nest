@@ -1,7 +1,8 @@
 // خودکار: پورت‌شده از src/app/api/dashboard/salons/[id]/reminders/route.ts — بدون تغییر منطق
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
+import type { Prisma } from "@prisma/client";
 
 const WINDOWS = ["24h", "2h", "1h"];
 
@@ -27,18 +28,25 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
     const startAt = new Date(`${date}T00:00:00.000Z`);
     const endAt = new Date(`${date}T23:59:59.999Z`);
 
-    const appointments = await prisma.appointment.findMany({
-      where: {
-        salonId: id,
-        status: { in: ["REQUESTED", "CONFIRMED"] },
-        startAt: { gte: startAt, lte: endAt },
-      },
-      select: { id: true, customerName: true, customerPhone: true, startAt: true, status: true },
-      orderBy: { startAt: "asc" },
-    });
+    const { page, limit, skip, take } = getPagination(_req.url, 50, 200);
+    const appointmentWhere: Prisma.AppointmentWhereInput = {
+      salonId: id,
+      status: { in: ["REQUESTED", "CONFIRMED"] },
+      startAt: { gte: startAt, lte: endAt },
+    };
+    const [appointments, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where: appointmentWhere,
+        select: { id: true, customerName: true, customerPhone: true, startAt: true, status: true },
+        orderBy: [{ startAt: "asc" }, { id: "asc" }],
+        skip,
+        take,
+      }),
+      prisma.appointment.count({ where: appointmentWhere }),
+    ]);
 
     if (appointments.length === 0) {
-      return json({ success: true, timezone: tz, items: [] });
+      return json({ success: true, timezone: tz, items: [], total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
     }
 
     // کلیدهای یکتای یادآوری برای همه نوبت‌های این روز
@@ -75,7 +83,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
       };
     });
 
-    return json({ success: true, timezone: tz, items });
+    return json({ success: true, timezone: tz, items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

@@ -7,7 +7,7 @@ import { requireRole } from "@/lib/auth/guards";
 import { processPendingNotifications } from "@/lib/notifications/queue";
 import { getSetting } from "@/lib/settings";
 import { logAudit } from "@/lib/audit";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 /** گزارش ارسال پیامک/ایمیل: وضعیت، خطاها، تلاش مجدد و هزینه تخمینی */
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
@@ -16,16 +16,18 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
     const url = new URL(req.url);
     const status = url.searchParams.get("status") ?? "";
     const channel = url.searchParams.get("channel") ?? "";
+    const { page, limit, skip, take } = getPagination(req.url, 25, 200);
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (channel) where.channel = channel;
 
-    const [notifications, statusGroups, channelGroups, sentSms] = await Promise.all([
+    const [notifications, total, statusGroups, channelGroups, sentSms] = await Promise.all([
       prisma.notification.findMany({
         where,
-        orderBy: { createdAt: "desc" },
-        take: 150,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
         select: {
           id: true,
           type: true,
@@ -40,6 +42,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
           salonId: true,
         },
       }),
+      prisma.notification.count({ where }),
       prisma.notification.groupBy({ by: ["status"], _count: { _all: true } }),
       prisma.notification.groupBy({ by: ["channel"], _count: { _all: true } }),
       prisma.notification.count({ where: { channel: "SMS", status: "SENT" } }),
@@ -66,6 +69,9 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
     return json({
       success: true,
       notifications: enriched,
+      total,
+      page,
+      limit,
       summary: {
         ...statusSummary,
         channels: channelSummary,

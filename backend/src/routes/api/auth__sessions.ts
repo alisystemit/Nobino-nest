@@ -6,18 +6,25 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
 
 import { AUTH_COOKIE } from "@/lib/auth/guards";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 import { createHash } from "node:crypto";
 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireAuth();
-    const sessions = await prisma.session.findMany({
-      where: { userId: user.id, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, device: true, ip: true, createdAt: true, expiresAt: true },
-    });
-    return json({ success: true, sessions });
+    const { page, limit, skip, take } = getPagination(_req.url, 20, 100);
+    const where = { userId: user.id, expiresAt: { gt: new Date() } };
+    const [sessions, total] = await Promise.all([
+      prisma.session.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        select: { id: true, device: true, ip: true, createdAt: true, expiresAt: true },
+        skip,
+        take,
+      }),
+      prisma.session.count({ where }),
+    ]);
+    return json({ success: true, sessions, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

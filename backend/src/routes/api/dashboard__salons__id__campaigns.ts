@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { assertLimit } from "@/lib/plans/limits";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -17,8 +17,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
   try {
     const { id } = await params;
     await requireSalonManage(id);
-    const campaigns = await prisma.campaign.findMany({ where: { salonId: id }, orderBy: { createdAt: "desc" }, take: 100 });
-    return json({ success: true, campaigns });
+    const { page, limit, skip, take } = getPagination(_req.url, 25, 200);
+    const where = { salonId: id };
+    const [campaigns, total] = await Promise.all([
+      prisma.campaign.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip, take }),
+      prisma.campaign.count({ where }),
+    ]);
+    return json({ success: true, campaigns, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

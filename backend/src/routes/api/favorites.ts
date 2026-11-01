@@ -3,18 +3,29 @@
 
 import { requireAuth } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireAuth();
-    const favorites = await prisma.favorite.findMany({
-      where: { userId: user.id },
-      include: { salon: { select: { id: true, slug: true, name: true, city: true, coverColor: true, bannerUrl: true } } },
-      orderBy: { createdAt: "desc" },
-    });
+    const { page, limit, skip, take } = getPagination(_req.url, 20, 100);
+    const where = { userId: user.id };
+    const [favorites, total] = await Promise.all([
+      prisma.favorite.findMany({
+        where,
+        include: { salon: { select: { id: true, slug: true, name: true, city: true, coverColor: true, bannerUrl: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
+      }),
+      prisma.favorite.count({ where }),
+    ]);
     return json({
       success: true,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
       favorites: favorites.map((f) => ({ id: f.id, salon: f.salon })),
     });
   } catch (err) {

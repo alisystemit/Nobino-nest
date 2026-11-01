@@ -3,7 +3,7 @@ import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { storeFile } from "@/lib/storage";
 import { checkLimit } from "@/lib/plans/limits";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 const MAX_BYTES = 5 * 1024 * 1024; // ۵ مگابایت
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/avif"];
@@ -91,11 +91,22 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
   try {
     const { id } = await params;
     await requireSalonManage(id);
-    const [items, salon] = await Promise.all([
-      prisma.galleryItem.findMany({ where: { salonId: id }, orderBy: { sortOrder: "asc" } }),
+    const { page, limit, skip, take } = getPagination(_req.url, 100, 500);
+    const [items, galleryTotal, salon] = await Promise.all([
+      prisma.galleryItem.findMany({ where: { salonId: id }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], skip, take }),
+      prisma.galleryItem.count({ where: { salonId: id } }),
       prisma.salon.findUnique({ where: { id }, select: { logoUrl: true, bannerUrl: true } }),
     ]);
-    return json({ success: true, items, logoUrl: salon?.logoUrl ?? null, bannerUrl: salon?.bannerUrl ?? null });
+    return json({
+      success: true,
+      items,
+      logoUrl: salon?.logoUrl ?? null,
+      bannerUrl: salon?.bannerUrl ?? null,
+      total: galleryTotal,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(galleryTotal / limit)),
+    });
   } catch (err) {
     return apiError(err);
   }

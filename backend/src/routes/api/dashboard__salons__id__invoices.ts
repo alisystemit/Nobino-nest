@@ -4,7 +4,7 @@ import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { createServiceInvoice } from "@/lib/invoices";
 import { enqueueSms } from "@/lib/notifications/queue";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 
 /** فاکتور/رسیدهای اشتراک و خدماتی سالن */
@@ -12,18 +12,24 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
   try {
     const { id } = await params;
     await requireSalonManage(id);
-    const invoices = await prisma.invoice.findMany({
-      where: { salonId: id },
-      include: { subscription: { include: { package: { select: { name: true } } } } },
-      orderBy: { issuedAt: "desc" },
-      take: 300,
-    });
+    const { page, limit, skip, take } = getPagination(_req.url, 25, 200);
+    const where = { salonId: id };
+    const [invoices, total] = await Promise.all([
+      prisma.invoice.findMany({
+        where,
+        include: { subscription: { include: { package: { select: { name: true } } } } },
+        orderBy: [{ issuedAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
+      }),
+      prisma.invoice.count({ where }),
+    ]);
     const list = invoices.map((i) => ({
       ...i,
       payLink: i.payToken ? `/pay/${i.payToken}` : null,
       payToken: undefined,
     }));
-    return json({ success: true, invoices: list });
+    return json({ success: true, invoices: list, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

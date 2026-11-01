@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 
 const createSchema = z.object({
@@ -18,21 +18,30 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     const salon = await prisma.salon.findUnique({ where: { slug } });
     if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
 
+    const { page, limit, skip, take } = getPagination(_req.url, 10, 100);
     const reviews = await prisma.review.findMany({
       where: { salonId: salon.id },
       include: { customer: { select: { name: true, phone: true } }, staff: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 50,
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      skip,
+      take,
     });
 
-    const agg = await prisma.review.aggregate({
-      where: { salonId: salon.id },
-      _avg: { rating: true },
-      _count: { _all: true },
-    });
+    const [count, agg] = await Promise.all([
+      prisma.review.count({ where: { salonId: salon.id } }),
+      prisma.review.aggregate({
+        where: { salonId: salon.id },
+        _avg: { rating: true },
+        _count: { _all: true },
+      }),
+    ]);
 
     return json({
       success: true,
+      total: count,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(count / limit)),
       reviews: reviews.map((r) => ({
         id: r.id,
         rating: r.rating,

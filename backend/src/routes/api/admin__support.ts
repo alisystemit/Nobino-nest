@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth/guards";
 import { logAudit } from "@/lib/audit";
 import { enqueueInApp, enqueueSms } from "@/lib/notifications/queue";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 /** فهرست شکایت‌ها/درخواست‌های پشتیبانی برای سوپرادمین */
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
@@ -15,6 +15,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
     const url = new URL(req.url);
     const status = url.searchParams.get("status") ?? "";
     const q = url.searchParams.get("q")?.trim() ?? "";
+    const { page, limit, skip, take } = getPagination(req.url, 25, 200);
 
     const where: Record<string, unknown> = {};
     if (status === "OPEN" || status === "IN_PROGRESS" || status === "CLOSED") where.status = status;
@@ -27,20 +28,22 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
       ];
     }
 
-    const [tickets, counts] = await Promise.all([
+    const [tickets, total, counts] = await Promise.all([
       prisma.supportTicket.findMany({
         where,
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-        take: 200,
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
         include: { user: { select: { id: true, phone: true, name: true, role: true } } },
       }),
+      prisma.supportTicket.count({ where }),
       prisma.supportTicket.groupBy({ by: ["status"], _count: { _all: true } }),
     ]);
 
     const summary = { OPEN: 0, IN_PROGRESS: 0, CLOSED: 0 } as Record<string, number>;
     for (const c of counts) summary[c.status] = c._count._all;
 
-    return json({ success: true, tickets, summary });
+    return json({ success: true, tickets, summary, total, page, limit });
   } catch (err) {
     return apiError(err);
   }

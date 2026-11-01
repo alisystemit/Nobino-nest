@@ -4,17 +4,22 @@
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
-export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
+export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     await requireRole(["ADMIN"]);
-    const reviews = await prisma.review.findMany({
-      include: { salon: { select: { name: true, slug: true } }, customer: { select: { name: true, phone: true } }, staff: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
-    return json({ success: true, reviews });
+    const { page, limit, skip, take } = getPagination(req.url, 25, 200);
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        include: { salon: { select: { name: true, slug: true } }, customer: { select: { name: true, phone: true } }, staff: { select: { name: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
+      }),
+      prisma.review.count(),
+    ]);
+    return json({ success: true, reviews, total, page, limit });
   } catch (err) {
     return apiError(err);
   }

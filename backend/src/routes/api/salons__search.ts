@@ -1,6 +1,6 @@
 // خودکار: پورت‌شده از src/app/api/salons/search/route.ts — بدون تغییر منطق
 import { prisma } from "@/lib/prisma";
-import { json } from "@/lib/utils";
+import { json, getPagination } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
 
 /** جستجو و فیلتر سالن‌ها بر اساس منطقه، خدمت و قیمت */
@@ -10,7 +10,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
   const city = url.searchParams.get("city") ?? "";
   const service = url.searchParams.get("service") ?? "";
   const maxPrice = Number(url.searchParams.get("maxPrice") ?? 0);
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 100);
+  const { page, limit, skip, take } = getPagination(url, 50, 100);
 
   const where: Prisma.SalonWhereInput = { isApproved: true, isActive: true };
 
@@ -28,23 +28,27 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
   if (maxPrice > 0) serviceFilter.some = { ...(serviceFilter.some ?? {}), price: { lte: maxPrice } };
   if (service || maxPrice > 0) where.services = serviceFilter;
 
-  const salons = await prisma.salon.findMany({
-    where,
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      city: true,
-      address: true,
-      coverColor: true,
-      bannerUrl: true,
-      logoUrl: true,
-      description: true,
-      _count: { select: { reviews: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+  const [salons, total] = await Promise.all([
+    prisma.salon.findMany({
+      where,
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        city: true,
+        address: true,
+        coverColor: true,
+        bannerUrl: true,
+        logoUrl: true,
+        description: true,
+        _count: { select: { reviews: true } },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      skip,
+      take,
+    }),
+    prisma.salon.count({ where }),
+  ]);
 
   // میانگین امتیازها
   const ids = salons.map((s) => s.id);
@@ -56,6 +60,10 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
 
   return json({
     success: true,
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
     salons: salons.map((s) => ({
       ...s,
       rating: ratingMap.get(s.id)?._avg.rating ?? null,

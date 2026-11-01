@@ -2,29 +2,37 @@
 
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireRole(["ADMIN"]);
     
-    // دریافت تمام پیامک‌ها با جزئیات
-    const notifications = await prisma.notification.findMany({
-      where: { channel: "SMS" },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      select: {
-        id: true,
-        type: true,
-        recipient: true,
-        status: true,
-        attempts: true,
-        lastError: true,
-        sentAt: true,
-        createdAt: true,
-        salonId: true,
-      },
-    });
+    const { page, limit, skip, take } = getPagination(_req.url, 25, 200);
+    const where = { channel: "SMS" as const };
+
+    // دریافت پیامک‌های همین صفحه + آمار کلی از پایگاه داده (نه از صفحات دیده‌شده)
+    const [notifications, total, byStatus] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
+        select: {
+          id: true,
+          type: true,
+          recipient: true,
+          status: true,
+          attempts: true,
+          lastError: true,
+          sentAt: true,
+          createdAt: true,
+          salonId: true,
+        },
+      }),
+      prisma.notification.count({ where }),
+      prisma.notification.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    ]);
 
     // نام سالن (Notification رابطهٔ مستقیم با Salon ندارد؛ نگاشت دستی)
     const salonIds = Array.from(new Set(notifications.map((n) => n.salonId).filter(Boolean))) as string[];
@@ -79,15 +87,17 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
       };
     });
 
-    // آمار کلی
+    // آمار کلی (روی همهٔ رکوردها، مستقل از صفحه)
+    const countBy = (s: string) => byStatus.find((b) => b.status === s)?._count._all ?? 0;
     const stats = {
-      total: reports.length,
-      sent: reports.filter((r) => r.status === "SENT").length,
-      failed: reports.filter((r) => r.status === "FAILED").length,
-      pending: reports.filter((r) => r.status === "PENDING").length,
+      total,
+      sent: countBy("SENT"),
+      failed: countBy("FAILED"),
+      dropped: countBy("DROPPED"),
+      pending: countBy("PENDING"),
     };
 
-    return json({ success: true, reports, stats });
+    return json({ success: true, reports, stats, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

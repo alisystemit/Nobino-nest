@@ -5,17 +5,30 @@ import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { cancelSubscription } from "@/lib/subscriptions";
 import { z } from "zod";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
-export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
+export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     await requireRole(["ADMIN"]);
-    const subscriptions = await prisma.subscription.findMany({
-      include: { salon: { select: { name: true, slug: true, phone: true } }, package: { select: { name: true, plan: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
-    return json({ success: true, subscriptions });
+    const { page, limit, skip, take } = getPagination(req.url, 25, 200);
+    const statusFilter = new URL(req.url).searchParams.get("status") ?? "";
+    const where = statusFilter === "ACTIVE" || statusFilter === "SUSPENDED" || statusFilter === "CANCELLED" || statusFilter === "EXPIRED"
+      ? { status: statusFilter }
+      : {};
+    const [subscriptions, total, statusCounts] = await Promise.all([
+      prisma.subscription.findMany({
+        where,
+        include: { salon: { select: { name: true, slug: true, phone: true } }, package: { select: { name: true, plan: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
+      }),
+      prisma.subscription.count({ where }),
+      prisma.subscription.groupBy({ by: ["status"], _count: { _all: true } }),
+    ]);
+    const counts = { ACTIVE: 0, SUSPENDED: 0, CANCELLED: 0, EXPIRED: 0 } as Record<string, number>;
+    for (const c of statusCounts) counts[c.status] = c._count._all;
+    return json({ success: true, subscriptions, total, page, limit, counts });
   } catch (err) {
     return apiError(err);
   }

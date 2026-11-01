@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { assertLimit } from "@/lib/plans/limits";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 const schema = z.object({
   phone: z.string().regex(/^0?9\d{9}$/),
@@ -44,6 +44,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
     await requireSalonManage(id);
     const url = new URL(_req.url);
     const q = url.searchParams.get("q")?.trim();
+    const { page, limit, skip, take } = getPagination(_req.url, 25, 200);
 
     // ساخت پرونده برای شماره‌هایی که فقط در نوبت‌ها وجود دارند
     const [existing, appointmentPhones] = await Promise.all([
@@ -70,23 +71,34 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
       });
     }
 
-    const [customers, statusStats, completed] = await Promise.all([
+    const customerWhere = q
+      ? { salonId: id, OR: [{ phone: { contains: q } }, { name: { contains: q } }, { firstName: { contains: q } }, { lastName: { contains: q } }] }
+      : { salonId: id };
+
+    const [customers, total] = await Promise.all([
       prisma.salonCustomer.findMany({
-        where: q ? { salonId: id, OR: [{ phone: { contains: q } }, { name: { contains: q } }, { firstName: { contains: q } }, { lastName: { contains: q } }] } : { salonId: id },
+        where: customerWhere,
         include: {
-          notes: { orderBy: { createdAt: "desc" }, take: 20 },
+          notes: { orderBy: [{ createdAt: "desc" }, { id: "asc" }], take: 20 },
           _count: { select: { media: true, notes: true } },
         },
-        orderBy: { updatedAt: "desc" },
-        take: 500,
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        skip,
+        take,
       }),
+      prisma.salonCustomer.count({ where: customerWhere }),
+    ]);
+
+    // آمار نوبت‌ها فقط برای شماره‌های همین صفحه (کوئری روی کل نوبت‌های سالن حذف شد)
+    const pagePhones = Array.from(new Set(customers.map((c) => c.phone)));
+    const [statusStats, completed] = await Promise.all([
       prisma.appointment.groupBy({
         by: ["customerPhone", "status"],
-        where: { salonId: id },
+        where: { salonId: id, customerPhone: { in: pagePhones } },
         _count: { _all: true },
       }),
       prisma.appointment.findMany({
-        where: { salonId: id, status: "COMPLETED" },
+        where: { salonId: id, status: "COMPLETED", customerPhone: { in: pagePhones } },
         select: { customerPhone: true, startAt: true, service: { select: { price: true } } },
       }),
     ]);
@@ -129,7 +141,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
       };
     });
 
-    return json({ success: true, customers: enriched });
+    return json({ success: true, customers: enriched, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

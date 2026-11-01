@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 import { createAppointmentSafe } from "@/lib/bookings/create";
 import { combinedBooking } from "@/lib/bookings/service";
 import { localMidnightUTC } from "@/lib/timezone";
@@ -64,19 +64,31 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
       };
     }
 
-    const appointments = await prisma.appointment.findMany({
-      where,
-      include: {
-        service: { select: { id: true, name: true, price: true } },
-        salon: { select: { id: true, name: true, slug: true, timezone: true } },
-        employee: { select: { id: true, name: true } },
-      },
-      orderBy: { startAt: "asc" },
-      take: from || to ? 2000 : 200,
-    });
+    // صفحه‌بندی: بازهٔ تقویمی (from/to) لیست کامل پنجره را می‌خواهد؛ فهرست ساده صفحه‌صفحه می‌شود
+    const { page, limit, skip, take } = getPagination(req.url, from || to ? 2000 : 25, 2000);
+
+    const [rows, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where,
+        include: {
+          service: { select: { id: true, name: true, price: true } },
+          salon: { select: { id: true, name: true, slug: true, timezone: true } },
+          employee: { select: { id: true, name: true } },
+        },
+        orderBy: from || to ? [{ startAt: "asc" as const }, { id: "asc" as const }] : [{ startAt: "desc" as const }, { id: "asc" as const }],
+        skip,
+        take,
+      }),
+      prisma.appointment.count({ where }),
+    ]);
+    const appointments = rows;
 
     return json({
       success: true,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
       appointments: appointments.map((a) => ({
         id: a.id,
         customerName: a.customerName,

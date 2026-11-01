@@ -5,13 +5,28 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
-export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
+export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     await requireRole(["ADMIN"]);
-    const discounts = await prisma.discount.findMany({ orderBy: { createdAt: "desc" } });
-    return json({ success: true, discounts });
+    const { page, limit, skip, take } = getPagination(req.url, 25, 200);
+    const [discounts, total, activeCount, usedAgg] = await Promise.all([
+      prisma.discount.findMany({ orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip, take }),
+      prisma.discount.count(),
+      prisma.discount.count({
+        where: { isActive: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      }),
+      prisma.discount.aggregate({ _sum: { usedCount: true } }),
+    ]);
+    return json({
+      success: true,
+      discounts,
+      total,
+      page,
+      limit,
+      counts: { total, active: activeCount, used: usedAgg._sum.usedCount ?? 0 },
+    });
   } catch (err) {
     return apiError(err);
   }

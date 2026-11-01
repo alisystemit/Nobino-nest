@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 const createSchema = z.object({
   balance: z.number().int().min(1000),
@@ -40,8 +40,13 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireAuth();
-    const cards = await prisma.giftCard.findMany({ where: { ownerId: user.id }, orderBy: { createdAt: "desc" } });
-    return json({ success: true, cards });
+    const { page, limit, skip, take } = getPagination(_req.url, 20, 100);
+    const where = { ownerId: user.id };
+    const [cards, total] = await Promise.all([
+      prisma.giftCard.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip, take }),
+      prisma.giftCard.count({ where }),
+    ]);
+    return json({ success: true, cards, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

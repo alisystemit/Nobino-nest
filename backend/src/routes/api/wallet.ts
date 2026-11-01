@@ -4,19 +4,24 @@
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/guards";
 import { getWalletSummary } from "@/lib/financial/summary";
-import { json, apiError, toJalali } from "@/lib/utils";
+import { json, apiError, toJalali, getPagination } from "@/lib/utils";
 
-export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
+export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireAuth();
-    const wallet = await getWalletSummary(user.id);
+    const { page, limit } = getPagination(req.url, 25, 100);
+    const wallet = await getWalletSummary(user.id, page, limit);
     return json({
       success: true,
+      page,
+      limit,
       wallet: wallet
         ? {
             id: wallet.id,
             balance: wallet.balance,
             currency: wallet.currency,
+            transactionsTotal: wallet.transactionsTotal,
+            summary: wallet.summary,
             transactions: wallet.transactions.map((t) => ({
               id: t.id,
               kind: t.kind,
@@ -27,7 +32,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
               createdAt: toJalali(t.createdAt),
             })),
           }
-        : { balance: 0, transactions: [] },
+        : { balance: 0, transactions: [], transactionsTotal: 0, summary: { credit: 0, debit: 0 } },
     });
   } catch (err) {
     return apiError(err);

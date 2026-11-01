@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, getPagination } from "@/lib/utils";
 
 const createSchema = z.object({
   subject: z.string().trim().min(3, "موضوع باید حداقل ۳ حرف باشد").max(120),
@@ -54,12 +54,13 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireAuth();
-    const tickets = await prisma.supportTicket.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    return json({ success: true, tickets });
+    const { page, limit, skip, take } = getPagination(_req.url, 20, 100);
+    const where = { userId: user.id };
+    const [tickets, total] = await Promise.all([
+      prisma.supportTicket.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip, take }),
+      prisma.supportTicket.count({ where }),
+    ]);
+    return json({ success: true, tickets, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err) {
     return apiError(err);
   }

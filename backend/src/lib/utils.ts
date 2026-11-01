@@ -11,6 +11,18 @@ export function cn(...inputs: (string | undefined | null | false)[]) {
 }
 
 /**
+ * پارسر صفحه‌بندی سمت سرور.
+ * پارامترهای `page` و `limit` را از URL می‌خواند و مقادیر امن برمی‌گرداند.
+ * خروجی مستقیماً برای `skip`/`take` در Prisma قابل استفاده است.
+ */
+export function getPagination(url: string | URL, defaultLimit = 25, maxLimit = 200) {
+  const u = typeof url === "string" ? new URL(url) : url;
+  const page = Math.max(1, parseInt(u.searchParams.get("page") || "1", 10) || 1);
+  const limit = Math.min(maxLimit, Math.max(1, parseInt(u.searchParams.get("limit") || String(defaultLimit), 10) || defaultLimit));
+  return { page, limit, skip: (page - 1) * limit, take: limit };
+}
+
+/**
  * خطای HTTP با کد وضعیت.
  * در لایهٔ منطق تجاری پرتاب می‌شود و `apiError` آن را به پاسخ JSON نگاشت می‌کند.
  */
