@@ -1,0 +1,35 @@
+# چیزهایی که نباید داخل ایمیج داکر بروند (build context)
+node_modules
+**/node_modules
+.git
+.gitignore
+.pgdata
+.dev-logs
+.dev.pids
+*.log
+**/dist
+frontend/dist
+backend/dist
+tsconfig.tsbuildinfo
+**/*.tsbuildinfo
+
+# متغیرهای محیطی میزبان (با --env-file یا env_file در compose تزریق می‌شوند)
+.env
+.env.*
+!.env.example
+.env.production.example
+
+# داده‌های آپلودی میزبان — در کانتینر با volume پر می‌شوند
+public/uploads/*
+public/voice/*
+!public/uploads/.gitkeep
+!public/voice/.gitkeep
+
+# فایل‌های توسعه/تست محلی
+coverage
+test-banner.mjs
+setup-preview.html
+salon-preview.html
+create-salon-preview.html
+*.png
+!frontend/public/**/*.png

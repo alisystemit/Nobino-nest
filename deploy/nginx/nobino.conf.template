@@ -1,0 +1,119 @@
+# =====================================================================
+# Nobino — vhost اِج‌انجی‌اِکس (نسخهٔ NestJS + SPA)
+# توسط deploy/install.sh تولید می‌شود؛ جای‌نگهدارها:
+#   __DOMAIN__  دامنهٔ ریشه (nobino.ir)
+#   __PORT__    پورت داخلی NestJS (3100)
+#   __SPA_DIST__  مسیر frontend/dist
+#   __UPLOADS__   مسیر public/uploads
+#   __VOICE__     مسیر public/voice
+# =====================================================================
+
+#  (بلوک upstream از deploy/nginx/nobino.upstream.conf.part اول فایل اضافه می‌شود)
+#
+# ── HTTP (دامنهٔ ریشه + همهٔ ساب‌دامین‌های سالن‌ها) ──────────────────
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__ *.__DOMAIN__;
+
+    root __SPA_DIST__;
+    index index.html;
+
+    access_log /var/log/nginx/nobino.access.log;
+    error_log  /var/log/nginx/nobino.error.log warn;
+
+    # آپلود گالری/صوت و صدای ضبط‌شده
+    client_max_body_size 40m;
+
+    charset utf-8;
+    server_tokens off;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml application/json application/javascript
+               application/xml image/svg+xml font/ttf font/otf;
+
+    # ── API و کران‌ها → بک‌اند NestJS ──
+    location /api/ {
+        proxy_pass http://nobino_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        "";
+        proxy_read_timeout 120s;
+        proxy_connect_timeout 10s;
+    }
+
+    # ── فایل‌های آپلودی: اول دیسک، بعد بک‌اند ──
+    location /uploads/ {
+        alias __UPLOADS__/;
+        try_files $uri @nobino_backend;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+    location /voice/ {
+        alias __VOICE__/;
+        try_files $uri @nobino_backend;
+        expires 7d;
+    }
+    location @nobino_backend {
+        proxy_pass http://nobino_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    }
+
+    # ── استاتیک هَش‌شدهٔ Vite: کش یک‌ساله ──
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri @nobino_backend;
+    }
+    location /fonts/ {
+        expires 30d;
+        try_files $uri @nobino_backend;
+    }
+
+    # سرویس‌ورکر PWA هرگز نباید کش شود (وگرنه آپدیت PWA نمی‌رسد)
+    location = /sw.js {
+        add_header Cache-Control "no-store, max-age=0";
+        types { application/javascript js; }
+        try_files $uri @nobino_backend;
+    }
+    location = /manifest.webmanifest {
+        add_header Content-Type "application/manifest+json";
+        add_header Cache-Control "public, max-age=300";
+        try_files $uri @nobino_backend;
+    }
+    # چالش HTTP برای صدور گواهی (اگر روزی certbot --nginx استفاده کنید)
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/letsencrypt;
+        default_type "text/plain";
+        allow all;
+    }
+
+    # ── اسپا: فایل → پوشهٔ prerender (…/index.html) → shell ──
+    location / {
+        try_files $uri $uri/index.html $uri.html /index.html;
+        add_header Cache-Control "no-cache";
+    }
+
+    # sitemap/robots prerender شده‌اند؛ اگر نبودند از بک‌اند بپرس
+    location ~* \.(xml|txt)$ {
+        try_files $uri @nobino_backend;
+        expires 1h;
+    }
+
+    # فایل‌های مخفی و sources mapها سرو نمی‌شوند
+    location ~ /\. { deny all; }
+    location ~ \.map$ { deny all; }
+}
+
+# برای HTTPS با ساب‌دامین‌های سالن‌ها (گواهی wildcard لازم است):
+#   sudo certbot certonly --manual --preferred-challenges dns -d __DOMAIN__ -d '*.__DOMAIN__'
+#   sudo bash deploy/install.sh --domain __DOMAIN__ --tls
+# (بلوک ۴۴۳ از deploy/nginx/nobino.tls.conf.snippet افزوده می‌شود.)

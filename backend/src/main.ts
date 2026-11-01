@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { HttpErrorFilter } from "@/common/filters/http-error.filter";
+import { registerOpsMiddleware } from "@/common/ops-middleware";
 import { requestStore } from "@/compat/request-context";
 import { AppModule } from "@/app.module";
 
@@ -57,10 +58,16 @@ async function bootstrap() {
 
   app.useGlobalFilters(new HttpErrorFilter());
 
+  // پروداکشن/PaaS: `/api/health` + سرو frontend/dist در همین پورت (اگر build باشد).
+  // در dev که Vite روی ۵۱۷۵ هست، فایل index.html در frontend/dist نیست و این
+  // میدل‌ور خودش خاموش می‌ماند. با SPA_DISABLED=1 یا SERVE_FRONTEND=0 غیرفعال می‌شود.
+  registerOpsMiddleware(app);
+
   const port = Number(process.env.PORT ?? 3100);
-  await app.listen(port, "0.0.0.0");
+  const host = process.env.HOST ?? "0.0.0.0";
+  await app.listen(port, host);
   // eslint-disable-next-line no-console
-  console.log(`Nobino API (NestJS) در حال اجرا روی پورت ${port}`);
+  console.log(`Nobino API (NestJS) در حال اجرا روی ${host}:${port}`);
 }
 
 bootstrap();

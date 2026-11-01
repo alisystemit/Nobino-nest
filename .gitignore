@@ -9,3 +9,10 @@ backend/public/uploads/
 
 # دیتابیس محلی (embedded postgres)
 .pgdata/
+
+# استقرار (deploy) — فایل‌های تولیدی/رمزدار
+.env.production
+.env.production.local
+deploy/ecosystem.config.cjs
+logs/
+.pm2/

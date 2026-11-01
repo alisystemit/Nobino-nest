@@ -8,17 +8,24 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "seed": "node prisma/seed.mjs",
+    "seed:stress": "node scripts/seed-stress.mjs",
     "build:backend": "npm --prefix backend run build",
     "start:backend": "npm --prefix backend start",
     "build:frontend": "npm --prefix frontend run build",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev": "node scripts/dev-start.mjs",
     "stop": "node scripts/dev-stop.mjs",
+    "build": "node scripts/build-release.mjs --skip-install --no-smoke",
+    "build:release": "node scripts/build-release.mjs",
+    "start": "node scripts/paas-start.mjs",
     "verify": "npm run db:generate && npm run build:backend && npm run build:frontend"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",
     "seed": "node prisma/seed.mjs"
+  },
+  "engines": {
+    "node": ">=20.19"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3"

@@ -1,0 +1,44 @@
+/**
+ * قالب سرویس PM2 نوبینو (نسخهٔ NestJS).
+ * install.sh این فایل را با جایگزینی __APP_DIR__ و __PORT__ به
+ * deploy/ecosystem.config.cjs تبدیل می‌کند؛ پس این فایل را ویرایش کنید نه خروجی را.
+ *
+ * اجرا:   pm2 start deploy/ecosystem.config.cjs
+ * وضعیت:  pm2 status
+ * لاگ:    pm2 logs nobino-api
+ * restart بدون قطعی: pm2 reload nobino-api
+ */
+module.exports = {
+  apps: [
+    {
+      name: "nobino-api",
+      // cwd مهم است: مسیر آپلودها و فایل‌های استاتیک نسبت به آن حل می‌شود
+      // (public/uploads و frontend/dist).
+      cwd: "__APP_DIR__",
+      script: "backend/dist/main.js",
+      // تک‌پروسه: کران‌های @nestjs/schedule در هر instance اجرا می‌شوند، پس
+      // cluster/instances > 1 باعث تکرار پیامک‌ها می‌شود. برای مقیاس افقی،
+      // کران را به یک سرویس جدا (AUTOMATION_BASE_URL + cron خارجی) منتقل کنید.
+      exec_mode: "fork",
+      instances: 1,
+      autorestart: true,
+      max_memory_restart: "700M",
+      watch: false,
+      time: true,
+      env: {
+        NODE_ENV: "production",
+        PORT: "__PORT__",
+        HOST: "0.0.0.0",
+        // SPA (frontend/dist) هم از همین پورت سرو می‌شود؛ اگر nginx مستقیم
+        // سرو می‌کند، ضرری ندارد (nginx اول فایل را از دیسک می‌دهد).
+        SERVE_FRONTEND: "1",
+      },
+      error_file: "logs/error.log",
+      out_file: "logs/out.log",
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      kill_timeout: 8000,
+      wait_ready: false,
+    },
+  ],
+};

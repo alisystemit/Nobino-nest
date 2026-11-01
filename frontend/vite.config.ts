@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 const API_TARGET = process.env.VITE_API_PROXY ?? "http://localhost:3100";
 
 export default defineConfig({
+  // متغیرهای VITE_* از .env ریشهٔ مخزن خوانده می‌شوند (یک فایل env برای هر دو سمت).
+  // اگر `frontend/.env` بسازید، Vite آن را هم در نظر می‌گیرد؛ مقدار process.env
+  // در زمان build اولویت دارد.
+  envDir: fileURLToPath(new URL("..", import.meta.url)),
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
