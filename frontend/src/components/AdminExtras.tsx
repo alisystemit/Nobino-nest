@@ -15,10 +15,42 @@ type Salon = { id: string; name: string; slug: string; owner: { phone: string } 
 type SalonDetail = {
   id: string;
   name: string;
-  _count: { appointments: number; staff: number; services: number; branches: number; reviews: number; orders: number };
+  slug: string;
+  phone?: string | null;
+  city?: string | null;
+  address?: string | null;
+  description?: string | null;
+  isApproved: boolean;
+  isActive: boolean;
+  createdAt: string;
+  customDomain?: string | null;
+  publicUrl?: string;
+  owner?: { name?: string | null; phone?: string | null; email?: string | null; role?: string } | null;
+  _count: {
+    appointments: number;
+    staff: number;
+    services: number;
+    branches: number;
+    reviews: number;
+    orders: number;
+    customers: number;
+    galleryItems: number;
+    invoices: number;
+    campaigns: number;
+    waitlist: number;
+    favorites: number;
+  };
   paidRevenue?: number;
-  subscription?: { plan: string; endsAt: string } | null;
-  recentAppointments?: { id: string; customerName: string; startAt: string; status: string }[];
+  outstandingAmount?: number;
+  outstandingCount?: number;
+  appointmentsByStatus?: Record<string, number>;
+  subscription?: { plan: string; name?: string; price?: number; endsAt: string; period?: string } | null;
+  recentAppointments?: { id: string; customerName: string; customerPhone?: string; startAt: string; status: string; service?: { name: string } | null; employee?: { name: string } | null }[];
+  recentCustomers?: { firstName?: string | null; lastName?: string | null; name?: string | null; phone: string; visits: number; spend: number; lastVisitAt?: string | null }[];
+  services?: { id: string; name: string; price: number; durationMin: number; isActive: boolean }[];
+  staffList?: { id: string; name: string; title?: string | null; isActive: boolean }[];
+  activeCampaigns?: { id: string; name: string; channel: string; status: string }[];
+  latestInvoice?: { id: string; number: string; amount: number; status: string; createdAt: string } | null;
 };
 type Metrics = {
   mrrLabel: string;
@@ -76,6 +108,8 @@ type NotifItem = {
   recipient: string;
   lastError?: string | null;
   createdAt: string;
+  sentAt?: string | null;
+  salonName?: string | null;
 };
 type NotifData = { summary: Record<string, number>; notifications: NotifItem[] };
 
@@ -187,37 +221,180 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
       {loading && <p className="py-4 text-center text-sm text-neutral-400">در حال دریافت جزئیات...</p>}
       {detail && (
         <div className="rounded-2xl border border-pink-200 bg-pink-50/60 p-4 dark:border-pink-800 dark:bg-pink-950/20">
-          <div className="flex items-center justify-between">
-            <h4 className="font-extrabold text-neutral-900 dark:text-neutral-100">{detail.name}</h4>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">{detail.name}</h4>
+              <div className="mt-0.5 text-xs text-neutral-500" dir="ltr">/{detail.slug}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${detail.isApproved ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>
+                  {detail.isApproved ? "تأیید‌شده" : "در انتظار تأیید"}
+                </span>
+                <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${detail.isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400"}`}>
+                  {detail.isActive ? "فعال" : "غیرفعال"}
+                </span>
+                {detail.publicUrl && (
+                  <a href={detail.publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-bold text-pink-600 shadow-sm hover:underline dark:bg-neutral-800">
+                    🌐 صفحه عمومی ↗
+                  </a>
+                )}
+              </div>
+            </div>
             <button onClick={() => setDetail(null)} className="rounded-lg bg-white px-3 py-1 text-xs font-bold text-neutral-600 shadow-sm dark:bg-neutral-800 dark:text-neutral-300">بستن ✕</button>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+
+          {/* مالک و تماس */}
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {detail.owner?.name && (
+              <div className="rounded-xl bg-white px-3 py-2 text-xs shadow-sm dark:bg-neutral-800">
+                <span className="text-neutral-400">مالک:</span> <b className="text-neutral-800 dark:text-neutral-100">{detail.owner.name}</b>
+                {detail.owner.phone && <span className="mr-2 text-neutral-500" dir="ltr">{detail.owner.phone}</span>}
+              </div>
+            )}
+            {detail.city || detail.address ? (
+              <div className="rounded-xl bg-white px-3 py-2 text-xs shadow-sm dark:bg-neutral-800">
+                📍 <span className="text-neutral-700 dark:text-neutral-200">{detail.address ?? ""} {detail.city ?? ""}</span>
+              </div>
+            ) : null}
+            {detail.phone && (
+              <div className="rounded-xl bg-white px-3 py-2 text-xs shadow-sm dark:bg-neutral-800">
+                📞 <span dir="ltr">{detail.phone}</span>
+              </div>
+            )}
+            <div className="rounded-xl bg-white px-3 py-2 text-xs shadow-sm dark:bg-neutral-800">
+              تاریخ ایجاد: <span className="font-bold text-neutral-700 dark:text-neutral-200">{new Date(detail.createdAt).toLocaleDateString("fa-IR")}</span>
+            </div>
+          </div>
+
+          {/* آمار جامع */}
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
             {[
               ["نوبت‌ها", String(detail._count.appointments)],
+              ["مشتریان", String(detail._count.customers ?? 0)],
               ["کارکنان", String(detail._count.staff)],
               ["خدمات", String(detail._count.services)],
               ["شعبه‌ها", String(detail._count.branches)],
+              ["گالری", String(detail._count.galleryItems ?? 0)],
               ["نظرات", String(detail._count.reviews)],
               ["سفارش‌ها", String(detail._count.orders)],
-              ["درآمد پرداخت‌شده", (detail.paidRevenue ?? 0).toLocaleString("fa-IR")],
-              ["وضعیت", detail.subscription ? detail.subscription.plan : "بدون اشتراک"],
+              ["فاکتور", String(detail._count.invoices ?? 0)],
+              ["کمپین", String(detail._count.campaigns ?? 0)],
+              ["صف انتظار", String(detail._count.waitlist ?? 0)],
+              ["علاقه‌مندی", String(detail._count.favorites ?? 0)],
             ].map(([l, v]) => (
-              <div key={l} className="rounded-xl bg-white px-3 py-2 text-center shadow-sm dark:bg-neutral-800">
+              <div key={l} className="rounded-xl bg-white px-2.5 py-2 text-center shadow-sm dark:bg-neutral-800">
                 <div className="text-sm font-black text-neutral-900 dark:text-neutral-100">{v}</div>
-                <div className="text-[11px] text-neutral-500 dark:text-neutral-400">{l}</div>
+                <div className="text-[10px] text-neutral-500 dark:text-neutral-400">{l}</div>
               </div>
             ))}
+            <div className="rounded-xl bg-emerald-50 px-2.5 py-2 text-center shadow-sm dark:bg-emerald-950/30">
+              <div className="text-sm font-black text-emerald-700 dark:text-emerald-300">{(detail.paidRevenue ?? 0).toLocaleString("fa-IR")}</div>
+              <div className="text-[10px] text-emerald-600 dark:text-emerald-400">درآمد پرداخت‌شده</div>
+            </div>
+            <div className="rounded-xl bg-amber-50 px-2.5 py-2 text-center shadow-sm dark:bg-amber-950/30">
+              <div className="text-sm font-black text-amber-700 dark:text-amber-300">{(detail.outstandingAmount ?? 0).toLocaleString("fa-IR")}</div>
+              <div className="text-[10px] text-amber-600 dark:text-amber-400">معوق ({detail.outstandingCount ?? 0})</div>
+            </div>
           </div>
-          {detail.subscription && (
-            <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs text-neutral-600 shadow-sm dark:bg-neutral-800 dark:text-neutral-300">
-              اشتراک: <b>{detail.subscription.plan}</b> — تا {new Date(detail.subscription.endsAt).toLocaleDateString("fa-IR")}
+
+          {/* وضعیت نوبت‌ها */}
+          {detail.appointmentsByStatus && Object.keys(detail.appointmentsByStatus).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {Object.entries(detail.appointmentsByStatus).map(([k, v]) => (
+                <span key={k} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-neutral-700 shadow-sm dark:bg-neutral-800 dark:text-neutral-200">
+                  {k}: {v}
+                </span>
+              ))}
             </div>
           )}
+
+          {/* اشتراک */}
+          {detail.subscription && (
+            <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs shadow-sm dark:bg-neutral-800">
+              اشتراک: <b className="text-neutral-800 dark:text-neutral-100">{detail.subscription.name ?? detail.subscription.plan}</b>
+              {(detail.subscription.price ?? 0) > 0 && <> — {(detail.subscription.price!).toLocaleString("fa-IR")} تومان</>}
+              {" "}تا {new Date(detail.subscription.endsAt).toLocaleDateString("fa-IR")}
+              {detail.subscription.period ? ` (${detail.subscription.period})` : ""}
+            </div>
+          )}
+
+          {/* کارکنان و خدمات */}
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-neutral-800">
+              <div className="text-xs font-bold text-neutral-600 dark:text-neutral-300">کارکنان ({detail._count.staff})</div>
+              <div className="mt-1.5 space-y-1">
+                {(detail.staffList ?? []).slice(0, 6).map((st) => (
+                  <div key={st.id} className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-700 dark:text-neutral-200">{st.name}</span>
+                    <span className="text-neutral-400">{st.title ?? "—"}</span>
+                  </div>
+                ))}
+                {(detail.staffList ?? []).length === 0 && <p className="text-xs text-neutral-400">کارمندی ثبت نشده است.</p>}
+              </div>
+            </div>
+            <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-neutral-800">
+              <div className="text-xs font-bold text-neutral-600 dark:text-neutral-300">خدمات ({detail._count.services})</div>
+              <div className="mt-1.5 space-y-1">
+                {(detail.services ?? []).slice(0, 6).map((sv) => (
+                  <div key={sv.id} className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-700 dark:text-neutral-200">{sv.name}</span>
+                    <span className="text-neutral-400">{sv.price.toLocaleString("fa-IR")} ت</span>
+                  </div>
+                ))}
+                {(detail.services ?? []).length === 0 && <p className="text-xs text-neutral-400">خدمتی ثبت نشده است.</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* کمپین فعال و آخرین فاکتور */}
+          {(detail.activeCampaigns?.length ?? 0) > 0 || detail.latestInvoice ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {(detail.activeCampaigns?.length ?? 0) > 0 && (
+                <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-neutral-800">
+                  <div className="text-xs font-bold text-neutral-600 dark:text-neutral-300">کمپین‌های فعال</div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {detail.activeCampaigns!.map((c) => (
+                      <span key={c.id} className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                        {c.name} ({c.status})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {detail.latestInvoice && (
+                <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-neutral-800">
+                  <div className="text-xs font-bold text-neutral-600 dark:text-neutral-300">آخرین فاکتور</div>
+                  <div className="mt-1 text-xs text-neutral-700 dark:text-neutral-200">
+                    {detail.latestInvoice.number} — {detail.latestInvoice.amount.toLocaleString("fa-IR")} ت
+                    <span className="text-neutral-400"> ({detail.latestInvoice.status})</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* مشتریان اخیر */}
+          {(detail.recentCustomers?.length ?? 0) > 0 && (
+            <div className="mt-3 rounded-xl bg-white p-3 shadow-sm dark:bg-neutral-800">
+              <div className="text-xs font-bold text-neutral-600 dark:text-neutral-300">مشتریان اخیر</div>
+              <div className="mt-1.5 space-y-1">
+                {detail.recentCustomers!.slice(0, 5).map((cu, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-700 dark:text-neutral-200">
+                      {[cu.firstName, cu.lastName].filter(Boolean).join(" ") || cu.name || "مشتری"} <span className="text-neutral-400" dir="ltr">{cu.phone}</span>
+                    </span>
+                    <span className="text-neutral-400">{cu.visits} بازدید · {cu.spend.toLocaleString("fa-IR")} ت</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* نوبت‌های اخیر */}
           <div className="mt-3 space-y-1">
             <div className="text-xs font-bold text-neutral-600 dark:text-neutral-300">آخرین نوبت‌ها</div>
-            {(detail.recentAppointments ?? []).slice(0, 5).map((a) => (
-              <div key={a.id} className="flex justify-between rounded-lg bg-white px-3 py-1.5 text-xs shadow-sm dark:bg-neutral-800">
-                <span className="text-neutral-800 dark:text-neutral-100">{a.customerName}</span>
+            {(detail.recentAppointments ?? []).slice(0, 6).map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5 text-xs shadow-sm dark:bg-neutral-800">
+                <span className="text-neutral-800 dark:text-neutral-100">{a.customerName}{a.service ? ` — ${a.service.name}` : ""}</span>
                 <span className="text-neutral-500 dark:text-neutral-400">{new Date(a.startAt).toLocaleString("fa-IR")} — {a.status}</span>
               </div>
             ))}
@@ -1395,6 +1572,22 @@ function NotificationReport({ ctx }: { ctx: Ctx }) {
   const [channelFilter, setChannelFilter] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const TYPE_LABEL: Record<string, string> = {
+    OTP: "کد ورود",
+    APPOINTMENT_CONFIRM: "تأیید نوبت",
+    REMINDER: "یادآوری نوبت",
+    CANCEL: "لغو نوبت",
+    SUBSCRIPTION: "اشتراک",
+    WAITLIST: "صف انتظار",
+  };
+  const CHANNEL_LABEL: Record<string, string> = { SMS: "پیامک", EMAIL: "ایمیل", IN_APP: "درون‌برنامه‌ای" };
+  const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+    PENDING: { label: "در صف", cls: "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
+    SENT: { label: "ارسال‌شده", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" },
+    FAILED: { label: "ناموفق", cls: "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400" },
+    DROPPED: { label: "حذف‌شده", cls: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400" },
+  };
+
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams();
@@ -1473,26 +1666,37 @@ function NotificationReport({ ctx }: { ctx: Ctx }) {
 
       <div className="mt-4 space-y-2">
         {data.notifications.length === 0 && <p className="py-8 text-center text-sm text-neutral-400 dark:text-neutral-500">اعلانی یافت نشد.</p>}
-        {data.notifications.map((n) => (
-          <div key={n.id} className={`${listRow} flex flex-wrap items-center justify-between gap-2`}>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-bold text-neutral-800 dark:text-neutral-100">{n.type}</span>
-                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{n.channel}</span>
-                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{n.status}</span>
-                {n.attempts > 0 && <span className="text-[11px] text-neutral-400">تلاش: {n.attempts}</span>}
+        {data.notifications.map((n) => {
+          const st = STATUS_LABEL[n.status] ?? { label: n.status, cls: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400" };
+          return (
+            <div key={n.id} className={`${listRow} flex flex-wrap items-center justify-between gap-2`}>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-neutral-800 dark:text-neutral-100">{TYPE_LABEL[n.type] ?? n.type}</span>
+                  <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">{CHANNEL_LABEL[n.channel] ?? n.channel}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${st.cls}`}>{st.label}</span>
+                  {n.attempts > 0 && <span className="text-[11px] text-neutral-400">تلاش: {(n.attempts).toLocaleString("fa-IR")}</span>}
+                </div>
+                <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400" dir="ltr">{n.recipient}</div>
+                {n.salonName && (
+                  <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                    سالن: <span className="font-bold text-neutral-700 dark:text-neutral-200">{n.salonName}</span>
+                  </div>
+                )}
+                {n.lastError && <div className="mt-1 text-xs text-red-500">{String(n.lastError).slice(0, 160)}</div>}
+                <div className="mt-1 flex flex-wrap gap-x-4 text-[11px] text-neutral-400 dark:text-neutral-500">
+                  <span>ثبت/تلاش: {new Date(n.createdAt).toLocaleString("fa-IR")}</span>
+                  {n.sentAt && <span>ارسال شد: {new Date(n.sentAt).toLocaleString("fa-IR")}</span>}
+                </div>
               </div>
-              <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400" dir="ltr">{n.recipient}</div>
-              {n.lastError && <div className="mt-1 text-xs text-red-500">{String(n.lastError).slice(0, 160)}</div>}
-              <div className="text-[11px] text-neutral-400 dark:text-neutral-500">{new Date(n.createdAt).toLocaleString("fa-IR")}</div>
+              {(n.status === "FAILED" || n.status === "DROPPED") && (
+                <button onClick={() => retry(n.id)} disabled={busy} className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-50 dark:bg-amber-950/40 dark:text-amber-300">
+                  تلاش مجدد
+                </button>
+              )}
             </div>
-            {(n.status === "FAILED" || n.status === "DROPPED") && (
-              <button onClick={() => retry(n.id)} disabled={busy} className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:opacity-50 dark:bg-amber-950/40 dark:text-amber-300">
-                تلاش مجدد
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "@/next";
+import Link from "@/router-shim";
 import { CalendarPlus, Info, Mic, PhoneCall, Users } from "lucide-react";
 import { PanelCard } from "@/components/ui/Stats";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";

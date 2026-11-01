@@ -13,10 +13,22 @@ import { HTTPS_HINT } from "@/lib/browser/capabilities";
  * همیشه هست، و اگر شرایط نصب فراهم نباشد به‌جای «نصب» راهنمای فارسیِ همان دستگاه
  * (آی‌اواس/اندروید/دسکتاپ) و دلیل فنی را نشان می‌دهد تا کاربر نداند دکمه مرده است.
  */
-export default function PwaInstallButton({ className = "" }: { className?: string }) {
+export default function PwaInstallButton({ className = "", launchPath }: { className?: string; launchPath?: string }) {
   const { support, platform, installed, lastOutcome, install } = usePwaInstall();
   const [openGuide, setOpenGuide] = useState(false);
   const installable = support === "installable";
+
+  async function handleInstall() {
+    const outcome = await install();
+    if (outcome === "accepted" && launchPath) {
+      // تا اپِ نصب‌شده (و نه وب معمولی) صفحهٔ همان سالن را باز کند
+      try {
+        localStorage.setItem("nobino.launchPath", launchPath);
+      } catch {
+        /* بی‌صدا */
+      }
+    }
+  }
 
   /** همان ابعاد و رنگ دکمهٔ «تأیید و ثبت نوبت» — تا نصب اپ چیزی نباشد که چشم کاربر دنبالش بگردد */
   const BTN =
@@ -35,7 +47,7 @@ export default function PwaInstallButton({ className = "" }: { className?: strin
     <div className={`relative ${className}`}>
       <button
         type="button"
-        onClick={() => (installable ? void install() : setOpenGuide((v) => !v))}
+        onClick={() => (installable ? void handleInstall() : setOpenGuide((v) => !v))}
         className={`${BTN} bg-gradient-to-l ${
           installable ? "from-pink-600 to-purple-600" : "from-purple-600 to-indigo-600"
         }`}

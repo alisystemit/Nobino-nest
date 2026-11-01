@@ -1,5 +1,5 @@
 /** سالن من — معادل src/app/dashboard/salon/page.tsx (دیتا از /api/pages/dashboard-salon) */
-import { Navigate, Link, useSearchParams } from "@/next";
+import { Navigate, Link, useSearchParams } from "@/router-shim";
 import { toPersianDigits } from "@/lib/utils";
 import { UNLIMITED_FROM } from "@/lib/plans/limit-defs";
 import { displayUrl } from "@/lib/site";
@@ -242,8 +242,12 @@ export default function DashboardSalon() {
                 logoUrl: s.logoUrl,
                 bannerUrl: s.bannerUrl,
                 timezone: s.timezone,
+                instagram: s.instagram,
                 latitude: s.latitude,
                 longitude: s.longitude,
+                mapUrl: s.mapUrl,
+                baladUrl: s.baladUrl,
+                neshanUrl: s.neshanUrl,
                 customDomain: s.customDomain,
                 minNoticeMinutes: s.minNoticeMinutes,
                 maxAdvanceDays: s.maxAdvanceDays,

@@ -1,5 +1,5 @@
 /** پنل سوپرادمین — معادل src/app/admin/page.tsx (دیتا از /api/pages/admin) */
-import { Navigate, Link, useSearchParams } from "@/next";
+import { Navigate, Link, useSearchParams } from "@/router-shim";
 import { BadgeCheck, Banknote, Store, Users } from "lucide-react";
 import { formatToman, toPersianDigits } from "@/lib/utils";
 import AdminShell from "@/components/AdminShell";

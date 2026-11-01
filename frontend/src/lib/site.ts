@@ -1,7 +1,7 @@
 /**
  * آدرس عمومی سایت در نسخهٔ SPA.
  * در build مقدار VITE_SITE_URL (یا VITE_APP_URL) جای‌گذاری می‌شود؛ اگر تنظیم
- * نشده باشد مبنا آدرس خودِ مرورگر است (با نسخهٔ Next روی دامنهٔ واقعی هم‌خوان).
+ * نشده باشد مبنا آدرس خودِ مرورگر است.
  */
 const RAW_BASE: string =
   (import.meta.env.VITE_SITE_URL as string | undefined)?.trim() ||

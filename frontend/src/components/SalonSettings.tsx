@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Link } from "@/router-shim";
 import SalonIcon from "@/components/icons/SalonIcon";
 import TimeField from "@/components/ui/TimeField";
 
@@ -17,8 +18,12 @@ type Salon = {
   logoUrl?: string | null;
   bannerUrl?: string | null;
   timezone?: string;
+  instagram?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  mapUrl?: string | null;
+  baladUrl?: string | null;
+  neshanUrl?: string | null;
   customDomain?: string | null;
   minNoticeMinutes?: number;
   maxAdvanceDays?: number;
@@ -39,8 +44,12 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
     description: salon.description ?? "",
     coverColor: salon.coverColor,
     timezone: salon.timezone ?? "Asia/Tehran",
+    instagram: salon.instagram ?? "",
     latitude: salon.latitude ?? "",
     longitude: salon.longitude ?? "",
+    mapUrl: salon.mapUrl ?? "",
+    baladUrl: salon.baladUrl ?? "",
+    neshanUrl: salon.neshanUrl ?? "",
     customDomain: salon.customDomain ?? "",
     minNoticeMinutes: salon.minNoticeMinutes ?? 60,
     maxAdvanceDays: salon.maxAdvanceDays ?? 30,
@@ -146,8 +155,12 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           description: form.description,
           coverColor: form.coverColor,
           timezone: form.timezone,
+          instagram: form.instagram || null,
           latitude: form.latitude === "" ? null : Number(form.latitude),
           longitude: form.longitude === "" ? null : Number(form.longitude),
+          mapUrl: form.mapUrl.trim() || null,
+          baladUrl: form.baladUrl.trim() || null,
+          neshanUrl: form.neshanUrl.trim() || null,
           customDomain: form.customDomain || null,
           minNoticeMinutes: Number(form.minNoticeMinutes),
           maxAdvanceDays: Number(form.maxAdvanceDays),
@@ -187,7 +200,6 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           <div>
             <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
               {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt="لوگوی سالن" className="h-full w-full object-cover" />
               ) : (
                 <span className="flex h-8 w-8 items-center justify-center"><SalonIcon className="h-8 w-8 text-neutral-300" /></span>
@@ -211,7 +223,6 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           <div>
             <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
               {bannerUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={bannerUrl} alt="بنر سالن" className="h-full w-full object-cover" />
               ) : (
                 <span className="text-xs text-neutral-400">بدون بنر</span>
@@ -242,7 +253,6 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {gallery.map((g) => (
               <div key={g.id} className="group relative aspect-square overflow-hidden rounded-xl bg-neutral-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={g.imageUrl} alt={g.title ?? "نمونه‌کار"} className="h-full w-full object-cover" />
                 <button
                   type="button"
@@ -311,15 +321,64 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
         <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">منطقه زمانی</label>
         <input className={input} value={form.timezone} onChange={set("timezone")} />
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">عرض جغرافیایی</label>
-          <input className={input} dir="ltr" value={form.latitude} onChange={set("latitude")} />
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">صفحه اینستاگرام</label>
+        <input className={input} dir="ltr" placeholder="instagram.com/mysalon" value={form.instagram} onChange={set("instagram")} />
+        <p className="mt-1 text-[11px] text-neutral-400">این لینک در صفحه عمومی سالن نمایش داده می‌شود.</p>
+      </div>
+      <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <h3 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">موقعیت و نقشه</h3>
+        <p className="mt-1 text-[11px] leading-5 text-neutral-400">
+          مختصات (lat/lng) نشانگر سالن را روی نقشه تعیین می‌کنند؛ با لینک زیر موقعیت دقیق را از گوگل‌مپ برداشته و اینجا بگذارید. اگر لینک مستقیم نقشه (گوگل/بلد/نشان) دارید، آن را هم وارد کنید.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">عرض جغرافیایی (lat)</label>
+            <input className={input} dir="ltr" value={form.latitude} onChange={set("latitude")} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">طول جغرافیایی (lng)</label>
+            <input className={input} dir="ltr" value={form.longitude} onChange={set("longitude")} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">لینک گوگل‌مپ</label>
+            <input className={input} dir="ltr" placeholder="https://maps.google.com/..." value={form.mapUrl} onChange={set("mapUrl")} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">بلد</label>
+              <input className={input} dir="ltr" placeholder="https://balad.ir/..." value={form.baladUrl} onChange={set("baladUrl")} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">نشان</label>
+              <input className={input} dir="ltr" placeholder="https://neshan.org/..." value={form.neshanUrl} onChange={set("neshanUrl")} />
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">طول جغرافیایی</label>
-          <input className={input} dir="ltr" value={form.longitude} onChange={set("longitude")} />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <a
+            href={`https://maps.google.com/?q=${encodeURIComponent(`${form.address} ${form.city}`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-10 items-center rounded-xl bg-neutral-900 px-4 text-xs font-bold text-white transition hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900"
+          >
+            📍 یافتن موقعیت روی نقشه
+          </a>
+          <Link href="/help#owner" className="inline-flex h-10 items-center rounded-xl border border-neutral-200 px-4 text-xs font-bold text-neutral-600 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300">
+            ❓ راهنمای تنظیم موقعیت
+          </Link>
         </div>
+        {form.address && (
+          <div className="mt-3 overflow-hidden rounded-xl border border-neutral-200">
+            <iframe
+              title="پیش‌نمایش موقعیت سالن"
+              className="h-52 w-full"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(`${form.address} ${form.city}`)}&z=15&output=embed`}
+            />
+          </div>
+        )}
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">دامنه اختصاصی (برای پلن سازمانی)</label>

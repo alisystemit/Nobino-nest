@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "@/next";
-import { Link } from "@/next";
+import { useRouter } from "@/router-shim";
+import { Link } from "@/router-shim";
 import SalonIcon from "@/components/icons/SalonIcon";
 
 const RESEND_SECONDS = 60;

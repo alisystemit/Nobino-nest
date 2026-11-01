@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "@/next";
-import { usePathname, useSearchParams } from "@/next";
+import Link from "@/router-shim";
+import { usePathname, useSearchParams } from "@/router-shim";
 import { useState } from "react";
 import { ChevronsLeft, ChevronsRight, Home, Menu } from "lucide-react";
 import { ThemeToggle } from "@/lib/theme";
 import { LangSwitch } from "@/lib/i18n";
 import NotificationBell from "@/components/NotificationBell";
+import LogoutButton from "@/components/LogoutButton";
 
 const NAV = [
   { href: "/admin", label: "داشبورد", icon: "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm2 4v2h4V7H6Zm6 0v2h6V7h-6Zm-6 4v2h4v-2H6Zm6 0v2h6v-2h-6Zm-6 4v2h4v-2H6Zm6 0v2h6v-2h-6Z" },
@@ -133,6 +134,9 @@ export default function AdminShell({ title, children }: { title: string; childre
           <div className="flex items-center gap-2">
             <NotificationBell />
             <ThemeToggle />
+            <span className="hidden rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-500 sm:block dark:border-neutral-700 dark:text-neutral-300">
+              <LogoutButton />
+            </span>
             <Link href="/" className="hidden items-center gap-1.5 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 sm:flex dark:bg-neutral-800 dark:text-neutral-300">
               🏠 خروج به سایت
             </Link>

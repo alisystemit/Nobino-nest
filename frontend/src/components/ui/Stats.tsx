@@ -1,4 +1,4 @@
-import Link from "@/next";
+import Link from "@/router-shim";
 import type { ReactNode } from "react";
 
 /**

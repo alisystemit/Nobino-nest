@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link } from "@/next";
-import { useRouter } from "@/next";
+import { Link } from "@/router-shim";
+import { useRouter } from "@/router-shim";
 
 // مشتریان به پکیج‌ها دسترسی ندارند
 async function isCustomer(): Promise<boolean> {

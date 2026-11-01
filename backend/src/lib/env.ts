@@ -8,8 +8,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16).default("dev-secret-change-me"),
   JWT_EXPIRES_IN: z.string().default("7d"),
-  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
-  NEXT_PUBLIC_ROOT_DOMAIN: z.string().default("localhost"),
+  APP_URL: z.string().url().default("http://localhost:5173"),
+  SITE_URL: z.string().url().optional(),
+  ROOT_DOMAIN: z.string().default("localhost"),
 
   SMS_PROVIDER: z.enum(["kavenegar", "smsdotir", "mock"]).default("mock"),
   KAVENEGAR_API_KEY: z.string().default(""),

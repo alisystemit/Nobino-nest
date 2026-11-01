@@ -2,7 +2,7 @@
  * صفحهٔ عمومی سالن — معادل src/app/s/[slug]/page.tsx.
  * دیتا (شامل JSON-LD و متادیتا) از /api/pages/salon?slug= می‌آید.
  */
-import { useParamsTyped, Link } from "@/next";
+import { useParamsTyped, Link } from "@/router-shim";
 import SalonBooking from "@/components/SalonBooking";
 import AssistantChat from "@/components/AssistantChat";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -78,6 +78,16 @@ export default function SalonPage() {
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/85 sm:gap-x-4 sm:text-sm">
                 <span className="inline-flex items-center gap-1.5">📍 {salon.city} {salon.address}</span>
                 <span className="inline-flex items-center gap-1.5" dir="ltr">📞 {toPersianDigits(salon.phone)}</span>
+                {salon.instagram && (
+                  <a
+                    href={salon.instagram.startsWith("http") ? salon.instagram : `https://${salon.instagram}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 underline-offset-2 transition hover:underline"
+                  >
+                    📷 اینستاگرام
+                  </a>
+                )}
                 {reviewCount > 0 && (
                   <span className="inline-flex items-center gap-1.5 text-amber-200">
                     ★ <b>{toPersianDigits(averageRating)}</b> از ۵ — {toPersianDigits(reviewCount)} نظر
@@ -104,13 +114,23 @@ export default function SalonPage() {
             <section>
               <h2 className="text-xl font-extrabold text-neutral-900">موقعیت روی نقشه</h2>
               <div className="mt-4 overflow-hidden rounded-2xl border border-neutral-200">
-                <iframe
-                  title="موقعیت سالن"
-                  className="h-64 w-full"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(`${salon.address} ${salon.city ?? ""}`)}&z=15&output=embed`}
-                />
+                {salon.mapUrl || salon.baladUrl || salon.neshanUrl ? (
+                  <iframe
+                    title="موقعیت سالن"
+                    className="h-64 w-full"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={salon.mapUrl || salon.baladUrl || salon.neshanUrl}
+                  />
+                ) : (
+                  <iframe
+                    title="موقعیت سالن"
+                    className="h-64 w-full"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(`${salon.address} ${salon.city ?? ""}`)}&z=15&output=embed`}
+                  />
+                )}
               </div>
             </section>
           )}

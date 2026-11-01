@@ -1,7 +1,7 @@
 /**
  * زمینه درخواست (Request Context) مبتنی بر AsyncLocalStorage.
  *
- * کد منطق پروژه (src/lib) در Next با `cookies()` و `headers()` کار می‌کرد.
+ * کد منطق پروژه (src/lib) با `cookies()` و `headers()` کار می‌کرد.
  * اینجا همان API باقی می‌ماند و این لایه، درخواست جاری را از AsyncLocalStorage
  * می‌خواند؛ به همین دلیل منطق بدون تغییر API مهاجرت کرده است.
  */
@@ -25,9 +25,9 @@ export type CookieChange = {
 };
 
 export type WebRequestContext = {
-  /** همان Web Request استاندارد که route‌ها در Next می‌گرفتند */
+  /** همان Web Request استاندارد که route‌ها دریافت می‌کردند */
   request: Request;
-  /** پارامترهای مسیر (هم‌شکل ctx.params در Next 16 — await روی شیء ساده بی‌ضرر است) */
+  /** پارامترهای مسیر (هم‌شکل ctx.params — await روی شیء ساده بی‌ضرر است) */
   params: Record<string, string>;
   /** پاسخ Node برای نوشتن Set-Cookie */
   nodeRes: ServerResponse;

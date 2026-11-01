@@ -1,7 +1,7 @@
 /**
- * جایگزین `next/headers` برای محیط NestJS.
- * Subset از API Next که در این پروژه استفاده می‌شد:
- *   - cookies(): get / set / delete (async، هم‌سuing Next 16)
+ * جایگزین ماژول کوکی/هدرهای سرور برای محیط NestJS.
+ * بخشی از API که در این پروژه استفاده می‌شد:
+ *   - cookies(): get / set / delete (async، هم‌سuing)
  *   - headers(): get(...)
  */
 import { currentContext, type CookieChange } from "@/compat/request-context";

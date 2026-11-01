@@ -37,12 +37,24 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
           nextAttemptAt: true,
           sentAt: true,
           createdAt: true,
+          salonId: true,
         },
       }),
       prisma.notification.groupBy({ by: ["status"], _count: { _all: true } }),
       prisma.notification.groupBy({ by: ["channel"], _count: { _all: true } }),
       prisma.notification.count({ where: { channel: "SMS", status: "SENT" } }),
     ]);
+
+    // نام سالن برای هر اعلان (Notification رابطهٔ مستقیم با Salon ندارد؛ نگاشت دستی)
+    const salonIds = Array.from(new Set(notifications.map((n) => n.salonId).filter(Boolean))) as string[];
+    const salons = salonIds.length
+      ? await prisma.salon.findMany({ where: { id: { in: salonIds } }, select: { id: true, name: true } })
+      : [];
+    const salonNameMap = new Map(salons.map((s) => [s.id, s.name]));
+    const enriched = notifications.map((n) => ({
+      ...n,
+      salonName: n.salonId ? (salonNameMap.get(n.salonId) ?? null) : null,
+    }));
 
     const statusSummary = { PENDING: 0, SENT: 0, FAILED: 0, DROPPED: 0 } as Record<string, number>;
     for (const g of statusGroups) statusSummary[g.status] = g._count._all;
@@ -53,7 +65,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
 
     return json({
       success: true,
-      notifications,
+      notifications: enriched,
       summary: {
         ...statusSummary,
         channels: channelSummary,

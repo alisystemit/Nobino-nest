@@ -61,7 +61,6 @@ export default function PwaInstall() {
   return (
     <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-80">
       <div className="flex items-center gap-3 rounded-2xl border border-pink-200 bg-white/95 p-3 shadow-2xl shadow-pink-500/20 backdrop-blur dark:border-pink-900/50 dark:bg-neutral-900/95">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icons/icon-192.png" alt="نوبینو" className="h-10 w-10 rounded-xl" />
         <div className="flex-1">
           <p className="text-xs font-black text-neutral-900 dark:text-neutral-100">اپلیکیشن نوبینو را نصب کنید</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "@/next";
+import Link from "@/router-shim";
 import { useI18n } from "@/lib/i18n";
 import SalonIcon from "@/components/icons/SalonIcon";
 

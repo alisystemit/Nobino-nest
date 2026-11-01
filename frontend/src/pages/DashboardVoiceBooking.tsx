@@ -1,5 +1,5 @@
 /** رزرو صوتی — معادل src/app/dashboard/voice-booking/page.tsx */
-import { Navigate, Link } from "@/next";
+import { Navigate, Link } from "@/router-shim";
 import { ArrowRight, CalendarDays, Sparkles } from "lucide-react";
 import AdminVoiceBooking from "@/components/AdminVoiceBooking";
 import { useAuth } from "@/auth";

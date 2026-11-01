@@ -3,10 +3,13 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import SalonIcon from "@/components/icons/SalonIcon";
+import { absoluteUrl } from "@/lib/site";
 
 /**
  * تصویر با نمایش جایگزین در صورت خطای بارگذاری (لینک شکسته/حذف‌شده).
  * به‌جای آیکون شکستهٔ مرورگر، یک پس‌زمینهٔ گرادیانی و آیکون مربوط (SVG) نشان می‌دهد.
+ * مسیرهای نسبی (مثل /uploads/...) با آدرس مطلق SITE_URL ساخته می‌شوند تا در حالت
+ * ساب‌دامین (که میزبان خارجی است) هم فایل به‌درستی بارگذاری شود.
  */
 export default function SafeImage({
   src,
@@ -23,6 +26,9 @@ export default function SafeImage({
 }) {
   const [failed, setFailed] = useState(false);
 
+  // مسیرهای نسبی را به آدرس مطلق سایت تبدیل می‌کنیم (سازگار با ساب‌دامین)
+  const resolvedSrc = src && /^https?:\/\//i.test(src) ? src : absoluteUrl(src ?? "");
+
   if (!src || failed) {
     return (
       <span
@@ -36,7 +42,6 @@ export default function SafeImage({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} loading="lazy" className={className} onError={() => setFailed(true)} />
+    <img src={resolvedSrc} alt={alt} loading="lazy" className={className} onError={() => setFailed(true)} />
   );
 }

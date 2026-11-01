@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "@/next";
-import { usePathname, useRouter } from "@/next";
+import Link from "@/router-shim";
+import { usePathname, useRouter } from "@/router-shim";
 import { CalendarPlus, ChevronLeft, ChevronRight, RefreshCw, Search, X } from "lucide-react";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import RescheduleModal from "@/components/RescheduleModal";

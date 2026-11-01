@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "@/next";
+import Link from "@/router-shim";
 import { Check, Clock, MoreVertical, Phone, Star } from "lucide-react";
 import {
   CHANNEL_META,

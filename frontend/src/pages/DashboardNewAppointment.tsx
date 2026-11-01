@@ -1,5 +1,5 @@
 /** رزرو دستی — معادل src/app/dashboard/new-appointment/page.tsx */
-import { Navigate, Link } from "@/next";
+import { Navigate, Link } from "@/router-shim";
 import { Mic } from "lucide-react";
 import DashboardShell from "@/components/DashboardShell";
 import ManualBooking from "@/components/ManualBooking";

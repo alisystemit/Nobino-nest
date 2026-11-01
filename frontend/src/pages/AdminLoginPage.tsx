@@ -1,5 +1,5 @@
 /** ورود سوپرادمین — معادل src/app/admin/login/page.tsx */
-import { Navigate } from "@/next";
+import { Navigate } from "@/router-shim";
 import AdminLoginForm from "@/components/AdminLoginForm";
 import { useAuth } from "@/auth";
 import { useMeta } from "@/lib/use-meta";

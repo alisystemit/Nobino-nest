@@ -1,9 +1,9 @@
 /**
- * صفحهٔ نخست — معادل src/app/page.tsx نسخهٔ Next.
+ * صفحهٔ نخست نوبینو.
  * دیتای زنده (سالن‌ها، آمار، پکیج‌ها) از لودر /api/pages/home می‌آید؛
  * بخش‌های استاتیک عیناً همان JSX اصلی هستند.
  */
-import { Link } from "@/next";
+import { Link } from "@/router-shim";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import HomeHero from "@/components/HomeHero";
 import SafeImage from "@/components/SafeImage";

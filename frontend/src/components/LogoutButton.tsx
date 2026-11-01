@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "@/next";
+import { useRouter } from "@/router-shim";
 
 /** دکمه خروج از حساب: نشست سرور را حذف و کوکی را پاک می‌کند. */
 export default function LogoutButton() {

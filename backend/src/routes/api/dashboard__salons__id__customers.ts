@@ -1,4 +1,4 @@
-// خودکار: پورت‌شده از src/app/api/dashboard/salons/[id]/customers/route.ts — بدون تغییر منطق
+// CRM مشتریان سالن — هر سالن پروندهٔ مستقل دارد (حتی برای شمارهٔ مشترک)
 import { z } from "zod";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +8,8 @@ import { json, apiError } from "@/lib/utils";
 const schema = z.object({
   phone: z.string().regex(/^0?9\d{9}$/),
   name: z.string().optional(),
+  firstName: z.string().max(80).optional(),
+  lastName: z.string().max(80).optional(),
   note: z.string().max(2000).optional(),
   tags: z.array(z.string()).optional(),
 });
@@ -15,6 +17,8 @@ const schema = z.object({
 const patchSchema = z.object({
   phone: z.string().regex(/^0?9\d{9}$/),
   name: z.string().optional(),
+  firstName: z.string().max(80).optional(),
+  lastName: z.string().max(80).optional(),
   note: z.string().max(2000).optional(),
   tags: z.array(z.string()).optional(),
 });
@@ -23,7 +27,17 @@ function normalizePhone(phone: string) {
   return phone.startsWith("0") ? phone : `0${phone}`;
 }
 
-/** CRM: لیست مشتریان سالن با سوابق مراجعه، دفعات بازدید، هزینه‌کرد و یادداشت‌ها */
+function splitName(name: string | null | undefined): { firstName: string | null; lastName: string | null } {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: null, lastName: null };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") || null };
+}
+
+/**
+ * CRM: لیست مشتریان سالن با سوابق مراجعه، دفعات بازدید، هزینه‌کرد و یادداشت‌ها.
+ * مشتریانی که فقط از طریق نوبت شناخته می‌شوند هم به‌صورت خودکار پرونده می‌گیرند تا
+ * امکان ثبت یادداشت/عکس برای همهٔ مراجعان وجود داشته باشد.
+ */
 export async function GET(_req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -31,10 +45,38 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
     const url = new URL(_req.url);
     const q = url.searchParams.get("q")?.trim();
 
+    // ساخت پرونده برای شماره‌هایی که فقط در نوبت‌ها وجود دارند
+    const [existing, appointmentPhones] = await Promise.all([
+      prisma.salonCustomer.findMany({ where: { salonId: id }, select: { phone: true } }),
+      prisma.appointment.groupBy({ by: ["customerPhone"], where: { salonId: id } }),
+    ]);
+    const known = new Set(existing.map((c) => c.phone));
+    const missingPhones = appointmentPhones.map((a) => a.customerPhone).filter((p) => p && !known.has(p));
+    if (missingPhones.length > 0) {
+      const recent = await prisma.appointment.findMany({
+        where: { salonId: id, customerPhone: { in: missingPhones } },
+        orderBy: { startAt: "desc" },
+        select: { customerPhone: true, customerName: true },
+      });
+      const nameByPhone = new Map<string, string>();
+      for (const a of recent) if (!nameByPhone.has(a.customerPhone)) nameByPhone.set(a.customerPhone, a.customerName);
+      await prisma.salonCustomer.createMany({
+        data: missingPhones.map((phone) => {
+          const name = nameByPhone.get(phone) ?? null;
+          const { firstName, lastName } = splitName(name);
+          return { salonId: id, phone, name, firstName, lastName };
+        }),
+        skipDuplicates: true,
+      });
+    }
+
     const [customers, statusStats, completed] = await Promise.all([
       prisma.salonCustomer.findMany({
-        where: q ? { salonId: id, OR: [{ phone: { contains: q } }, { name: { contains: q } }] } : { salonId: id },
-        include: { notes: { orderBy: { createdAt: "desc" }, take: 20 } },
+        where: q ? { salonId: id, OR: [{ phone: { contains: q } }, { name: { contains: q } }, { firstName: { contains: q } }, { lastName: { contains: q } }] } : { salonId: id },
+        include: {
+          notes: { orderBy: { createdAt: "desc" }, take: 20 },
+          _count: { select: { media: true, notes: true } },
+        },
         orderBy: { updatedAt: "desc" },
         take: 500,
       }),
@@ -71,14 +113,19 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
       const stats = byStatus.get(c.phone) ?? {};
       const visits = totals.get(c.phone) ?? c.visits;
       const spendValue = spend.get(c.phone) ?? 0;
+      const fallbackName = splitName(c.name);
       return {
         ...c,
+        firstName: c.firstName ?? fallbackName.firstName,
+        lastName: c.lastName ?? fallbackName.lastName,
         visits,
         completed: stats.COMPLETED ?? 0,
         cancelled: stats.CANCELLED ?? 0,
         noShow: stats.NO_SHOW ?? 0,
         spend: spendValue,
         lastVisit: lastVisit.get(c.phone)?.toISOString() ?? c.lastVisitAt?.toISOString() ?? null,
+        mediaCount: c._count.media,
+        notesCount: c._count.notes,
       };
     });
 
@@ -99,10 +146,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } |
     const existing = await prisma.salonCustomer.findUnique({ where: { salonId_phone: { salonId: id, phone } } });
     if (!existing) return json({ success: false, error: "customer not found" }, { status: 404 });
 
+    const fullName = body.firstName || body.lastName ? [body.firstName, body.lastName].filter(Boolean).join(" ") : body.name;
+
     const updated = await prisma.salonCustomer.update({
       where: { id: existing.id },
       data: {
-        name: body.name ?? existing.name,
+        name: fullName ?? existing.name,
+        firstName: body.firstName ?? existing.firstName,
+        lastName: body.lastName ?? existing.lastName,
         note: body.note ?? existing.note,
         tags: body.tags ?? existing.tags,
       },
@@ -121,6 +172,7 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
     await requireSalonManage(id);
     const body = schema.parse(await req.json());
     const phone = normalizePhone(body.phone);
+    const fullName = body.firstName || body.lastName ? [body.firstName, body.lastName].filter(Boolean).join(" ") : body.name;
 
     const existing = await prisma.salonCustomer.findUnique({ where: { salonId_phone: { salonId: id, phone } } });
     // سقف «تعداد مشتری» پلن فقط موقع ساخت پروندهٔ جدید بررسی می‌شود (ویرایش آزاد است)
@@ -132,13 +184,21 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
     const customer = existing
       ? await prisma.salonCustomer.update({
           where: { id: existing.id },
-          data: { name: body.name ?? existing.name, tags: body.tags ?? existing.tags, note: body.note ?? existing.note },
+          data: {
+            name: fullName ?? existing.name,
+            firstName: body.firstName ?? existing.firstName,
+            lastName: body.lastName ?? existing.lastName,
+            tags: body.tags ?? existing.tags,
+            note: body.note ?? existing.note,
+          },
         })
       : await prisma.salonCustomer.create({
           data: {
             salonId: id,
             phone,
-            name: body.name,
+            name: fullName,
+            firstName: body.firstName,
+            lastName: body.lastName,
             note: body.note,
             tags: body.tags ?? [],
           },

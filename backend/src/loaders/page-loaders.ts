@@ -1,5 +1,5 @@
 /**
- * دیتای صفحات (page-data) — معادل دقیق کاری که Server Componentها در نسخهٔ Next
+ * دیتای صفحات (page-data) — بارگذاری داده‌های سمت سرور برای هر صفحه، معادلِ
  * قبل از رندر انجام می‌دادند. هر لودر یک شیء JSON-serializable برمی‌گرداند و
  * توسط PagesController زیر مسیر /api/pages/<name> سرو می‌شود.
  *
@@ -87,7 +87,7 @@ async function loadHome() {
 
 /* ------------------------------------------------------------- salon seo */
 
-/** متادیتا + JSON-LD صفحهٔ عمومی سالن (معادل generateMetadata و jsonLd نسخهٔ Next) */
+/** متادیتا + JSON-LD صفحهٔ عمومی سالن (برای SEO) */
 async function buildSalonSeo(slug: string) {
   const salon = await prisma.salon.findUnique({ where: { slug } });
   if (!salon) return null;

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "@/next";
-import { usePathname, useRouter } from "@/next";
+import Link from "@/router-shim";
+import { usePathname, useRouter } from "@/router-shim";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
@@ -75,7 +75,6 @@ type Me = { name?: string | null; phone?: string; avatarUrl?: string | null };
 function UserAvatar({ me, className }: { me: Me | null; className?: string }) {
   if (me?.avatarUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
       <img src={me.avatarUrl} alt="آواتار" className={`h-10 w-10 shrink-0 rounded-full object-cover ${className ?? ""}`} />
     );
   }

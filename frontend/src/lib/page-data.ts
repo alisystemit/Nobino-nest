@@ -1,5 +1,5 @@
 /**
- * داده‌برگ صفحات — معادل دیتای که نسخه Next در Server Component می‌ساخت.
+ * داده‌برگ صفحات — جایگزین بارگذاری داده‌های سمت سرور برای هر صفحه.
  * هندلرها در backend/src/loaders/* قرار دارند و زیر /api/pages/* سرو می‌شوند.
  */
 import { useCallback, useEffect, useRef, useState } from "react";

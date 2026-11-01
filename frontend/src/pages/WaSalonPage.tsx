@@ -1,5 +1,5 @@
 /** صفحهٔ وب‌اپ پیام‌رسان — معادل src/app/wa/salon/[slug]/page.tsx */
-import { useParamsTyped } from "@/next";
+import { useParamsTyped } from "@/router-shim";
 import SalonBooking from "@/components/SalonBooking";
 import WebAppScript from "@/components/WebAppScript";
 import SalonIcon from "@/components/icons/SalonIcon";

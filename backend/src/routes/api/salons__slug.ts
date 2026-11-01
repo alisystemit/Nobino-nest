@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { json } from "@/lib/utils";
 
 
-// در Next 16 پارامترهای مسیر async هستند
+// پارامترهای مسیر async هستند
 export async function GET(_req: Request, { params }: { params: { slug: string } | Promise<{ slug: string }> }) {
   const { slug } = await params;
 

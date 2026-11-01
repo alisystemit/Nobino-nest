@@ -1,5 +1,5 @@
 /**
- * زمینه نشست کاربر — معادل getCurrentUser() سمت سرور Next.
+ * زمینه نشست کاربر — معادل گرفتن کاربر از سرور.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "@/next";
+import Link from "@/router-shim";
 import {
   AlertCircle,
   CalendarCheck2,

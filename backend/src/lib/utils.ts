@@ -29,27 +29,27 @@ export function json(data: unknown, init?: ResponseInit) {
 }
 
 /**
- * خطاهای کنترلی Next (مثل لغو prerender هنگام دسترسی به cookies()/headers()).
+ * خطاهای کنترلی redirect/not-found.
  * این خطاها نشانهٔ «این مسیر داینامیک است» هستند و نباید به پاسخ JSON تبدیل
- * شوند؛ باید به Next برگردانده شوند تا رندر به زمان درخواست موکول شود.
- * بلعیدن آن‌ها باعث شکست `next build` در حالت Cache Components می‌شود.
+ * شوند؛ باید دوباره پرتاب شوند تا رندر به زمان درخواست موکول شود.
+ * بلعیدن آن‌ها باعث شکست رندر می‌شود.
  */
-export function isNextControlledError(error: unknown): boolean {
+export function isControlledError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const digest = (error as { digest?: unknown }).digest;
   if (typeof digest !== "string") return false;
   return (
     digest === "HANGING_PROMISE_REJECTION" ||
     digest === "DYNAMIC_CODE_USAGE" ||
-    digest === "NEXT_REDIRECT" ||
-    digest === "NEXT_NOT_FOUND" ||
+    digest === "C_ERR_REDIRECT" ||
+    digest === "C_ERR_NOT_FOUND" ||
     digest === "CLIENT_HOOK_DYNAMIC"
   );
 }
 
 export function apiError(error: unknown) {
-  // خطاهای کنترلی Next را دوباره پرتاب می‌کنیم (تبدیلشان به Response غلط است)
-  if (isNextControlledError(error)) throw error;
+  // خطاهای کنترلی redirect/not-found را دوباره پرتاب می‌کنیم (تبدیلشان به Response غلط است)
+  if (isControlledError(error)) throw error;
   // خطاهای اعتبارسنجی Zod را به 400 نگاشت می‌کنیم
   let status = (error as { status?: number })?.status ?? 500;
   let message = error instanceof Error ? error.message : "خطای ناشناخته";

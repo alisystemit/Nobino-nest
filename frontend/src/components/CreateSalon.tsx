@@ -1,11 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "@/next";
+import { useRouter } from "@/router-shim";
 
 export default function CreateSalon() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", slug: "", phone: "", city: "", address: "", description: "" });
+  const [form, setForm] = useState({
+    name: "",
+    slug: "",
+    phone: "",
+    city: "",
+    address: "",
+    description: "",
+    instagram: "",
+    mapUrl: "",
+    latitude: "",
+    longitude: "",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -16,10 +27,16 @@ export default function CreateSalon() {
     setLoading(true);
     setError("");
     try {
+      const payload = {
+        ...form,
+        latitude: form.latitude === "" ? null : Number(form.latitude),
+        longitude: form.longitude === "" ? null : Number(form.longitude),
+        mapUrl: form.mapUrl.trim() || undefined,
+      };
       const res = await fetch("/api/salons", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "خطا");
@@ -43,6 +60,12 @@ export default function CreateSalon() {
       </div>
       <input className={input} placeholder="شهر" value={form.city} onChange={set("city")} />
       <input className={input} placeholder="آدرس" value={form.address} onChange={set("address")} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <input className={input} dir="ltr" placeholder="عرض جغرافیایی (lat)" value={form.latitude} onChange={set("latitude")} />
+        <input className={input} dir="ltr" placeholder="طول جغرافیایی (lng)" value={form.longitude} onChange={set("longitude")} />
+        <input className={input} dir="ltr" placeholder="لینک نقشه (اختیاری)" value={form.mapUrl} onChange={set("mapUrl")} />
+      </div>
+      <input className={input} dir="ltr" placeholder="صفحه اینستاگرام (اختیاری)" value={form.instagram} onChange={set("instagram")} />
       <textarea className={`${input} min-h-[80px]`} placeholder="توضیحات درباره سالن" value={form.description} onChange={set("description")} />
       {error && <p className="rounded-xl bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">{error}</p>}
       <button

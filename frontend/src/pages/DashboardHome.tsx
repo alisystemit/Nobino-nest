@@ -1,5 +1,5 @@
 /** داشبورد — معادل src/app/dashboard/page.tsx (دیتای کاربر از useAuth) */
-import { Link } from "@/next";
+import { Link } from "@/router-shim";
 import { useAuth } from "@/auth";
 import { toPersianDigits } from "@/lib/utils";
 import DashboardShell from "@/components/DashboardShell";

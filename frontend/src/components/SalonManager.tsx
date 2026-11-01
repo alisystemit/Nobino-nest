@@ -32,7 +32,35 @@ type CashEntry = { id: string; branch?: { name: string } | null; cashAmount: num
 type CashTotals = { cash: number; card: number; online: number; expense: number; net: number };
 type WaitlistEntry = { id: string; customerName: string; customerPhone: string; note?: string | null; status: string };
 type Holiday = { id: string; date: string; isClosed: boolean; openTime?: string | null; closeTime?: string | null; reason?: string | null; branch?: { name: string } | null };
-type Customer = { phone: string; name?: string | null; note?: string | null; visits: number; completed: number; cancelled: number; noShow: number; spend: number; lastVisit?: string | null };
+type Customer = {
+  id: string;
+  phone: string;
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  note?: string | null;
+  visits: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
+  spend: number;
+  lastVisit?: string | null;
+  mediaCount?: number;
+  notesCount?: number;
+};
+
+type CustomerNote = { id: string; note: string; createdAt: string };
+type CustomerMedia = { id: string; type: "photo" | "voice"; url: string; name?: string | null; mimeType?: string | null; size?: number; createdAt: string };
+type CustomerAppt = {
+  id: string;
+  startAt: string;
+  status: string;
+  channel: string;
+  customerName: string | null;
+  service?: { name: string; price: number } | null;
+  employee?: { name: string } | null;
+  branch?: { name: string } | null;
+};
 type Invoice = { id: string; number: string; issuedAt: string; period: string; amount: number; status: string; kind?: string; customerName?: string | null; customerPhone?: string | null; description?: string | null; payLink?: string | null };
 type Campaign = { id: string; name: string; channel: string; segment: string; status: string; sentCount: number };
 type ApptItem = { id: string; startAt: string; customerName: string; employee?: string | null; service?: string | null; status: string };
@@ -224,7 +252,6 @@ function StaffForm({ ctx }: { ctx: Ctx }) {
       <div className="relative">
         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-pink-100 to-purple-100 text-lg font-black text-pink-600">
           {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt="آواتار" className="h-full w-full object-cover" />
           ) : (
             (name || "؟").slice(0, 1)
@@ -945,15 +972,20 @@ function HolidaysView({ ctx }: { ctx: Ctx }) {
 function CustomersView({ ctx }: { ctx: Ctx }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [q, setQ] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [editName, setEditName] = useState("");
-
-  const load = useCallback(async () => {
-    const r = await fetch(`${ctx.base}/customers`);
-    const d = await r.json();
-    if (d.success) setCustomers(d.customers as Customer[]);
-  }, [ctx.base]);
+  const [selected, setSelected] = useState<Customer | null>(null);
+  const [detail, setDetail] = useState<{
+    customer: { id: string; phone: string; name?: string | null; firstName?: string | null; lastName?: string | null; note?: string | null };
+    appointments: CustomerAppt[];
+    stats: { visits: number; completed: number; cancelled: number; noShow: number; spend: number; lastVisit: string | null };
+    notes: CustomerNote[];
+    media: CustomerMedia[];
+    noteLimit: number;
+    mediaLimit: number;
+  } | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -968,61 +1000,265 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
     };
   }, [ctx.base]);
 
-  async function save(phone: string) {
-    const r = await ctx.api(`${ctx.base}/customers`, "PATCH", { phone, name: editName || undefined, note: note || undefined }, "ذخیره شد ✅");
-    if (r) {
-      setEditing(null);
-      load();
+  const displayName = (c: { firstName?: string | null; lastName?: string | null; name?: string | null }) =>
+    [c.firstName, c.lastName].filter(Boolean).join(" ") || c.name || "مشتری";
+
+  const filtered = customers.filter((c) =>
+    !q ||
+    (c.name ?? "").includes(q) ||
+    (c.firstName ?? "").includes(q) ||
+    (c.lastName ?? "").includes(q) ||
+    c.phone.includes(q)
+  );
+
+  async function openProfile(c: Customer) {
+    setSelected(c);
+    setLoadingDetail(true);
+    setDetail(null);
+    try {
+      const r = await fetch(`${ctx.base}/customers/${c.id}`);
+      const d = await r.json();
+      if (d.success) setDetail(d);
+      else ctx.setMsg({ ok: false, text: d.error || "خطا" });
+    } catch {
+      ctx.setMsg({ ok: false, text: "خطا در بارگذاری پرونده" });
+    } finally {
+      setLoadingDetail(false);
     }
   }
 
-  const filtered = customers.filter((c) => !q || (c.name ?? "").includes(q) || c.phone.includes(q));
+  async function addNote() {
+    const t = noteText.trim();
+    if (!t || !selected) return;
+    setSavingNote(true);
+    const r = await ctx.api(`${ctx.base}/customers/${selected.id}/notes`, "POST", { note: t }, "یادداشت اضافه شد ✅");
+    if (r) {
+      setNoteText("");
+      openProfile(selected);
+    }
+    setSavingNote(false);
+  }
+
+  async function deleteNote(noteId: string) {
+    if (!selected) return;
+    const r = await ctx.api(`${ctx.base}/customers/${selected.id}/notes/${noteId}`, "DELETE", undefined, "یادداشت حذف شد ✅");
+    if (r) openProfile(selected);
+  }
+
+  async function uploadMedia(file: File) {
+    if (!selected) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${ctx.base}/customers/${selected.id}/media`, { method: "POST", body: fd });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error || "خطا");
+      openProfile(selected);
+    } catch (e) {
+      ctx.setMsg({ ok: false, text: e instanceof Error ? e.message : "خطا" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function deleteMedia(mediaId: string) {
+    if (!selected) return;
+    const r = await ctx.api(`${ctx.base}/customers/${selected.id}/media?mediaId=${encodeURIComponent(mediaId)}`, "DELETE", undefined, "فایل حذف شد ✅");
+    if (r) openProfile(selected);
+  }
+
+  const fmtDateTime = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString("fa-IR", { day: "numeric", month: "long", year: "numeric" })} — ${d.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })}`;
+  };
 
   return (
     <div>
-      <input className={inputCls} placeholder="جستجو بر اساس نام یا شماره" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className={inputCls} placeholder="جستجو بر اساس نام یا شماره تلفن" value={q} onChange={(e) => setQ(e.target.value)} />
+
+      {/* ── لیست مشتریان ─ */}
       <div className="mt-4 space-y-2">
         {filtered.length === 0 && <p className="py-6 text-center text-sm text-neutral-400">مشتری‌ای یافت نشد.</p>}
-        {filtered.map((c) => (
-          <div key={c.phone} className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="font-bold text-neutral-800 dark:text-neutral-100">
-                  {c.name ?? "مشتری"}{" "}
-                  <span className="text-xs font-normal text-neutral-400" dir="ltr">{c.phone}</span>
+        {filtered.map((c) => {
+          const active = selected?.id === c.id;
+          return (
+            <div
+              key={c.id}
+              className={`rounded-2xl border px-4 py-3 shadow-sm transition ${
+                active ? "border-pink-400 bg-pink-50/40 dark:border-pink-500/60 dark:bg-pink-950/20" : "border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="font-bold text-neutral-800 dark:text-neutral-100">
+                    {displayName(c)}{" "}
+                    <span className="text-xs font-normal text-neutral-400" dir="ltr">{c.phone}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                    {toPersianDigits(c.visits)} نوبت · {toPersianDigits(c.completed)} مراجعه · {toPersianDigits(c.cancelled)} لغو · {toPersianDigits(c.noShow)} عدم حضور
+                  </div>
+                  <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                    هزینه‌کرد: {Number(c.spend || 0).toLocaleString("fa-IR")} تومان
+                    {c.lastVisit ? ` · آخرین مراجعه: ${new Date(c.lastVisit).toLocaleDateString("fa-IR")}` : ""}
+                  </div>
+                  {(c.notesCount ?? 0) > 0 && <span className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">📝 {toPersianDigits(c.notesCount!)} یادداشت</span>}
                 </div>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {c.visits} نوبت — {c.completed} مراجعه — {c.cancelled} لغو — {c.noShow} عدم حضور
-                </div>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                  هزینه‌کرد: {Number(c.spend).toLocaleString("fa-IR")} تومان
-                  {c.lastVisit ? ` — آخرین مراجعه: ${new Date(c.lastVisit).toLocaleDateString("fa-IR")}` : ""}
-                </div>
-                {c.note && <div className="mt-1 rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">📝 {c.note}</div>}
-              </div>
-              <button
-                onClick={() => {
-                  setEditing(editing === c.phone ? null : c.phone);
-                  setNote(c.note ?? "");
-                  setEditName(c.name ?? "");
-                }}
-                className="h-10 shrink-0 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-              >
-                {editing === c.phone ? "بستن" : "یادداشت / نام"}
-              </button>
-            </div>
-            {editing === c.phone && (
-              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
-                <input className={inputCls} placeholder="نام نمایشی" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                <input className={inputCls} placeholder="یادداشت مجاز (مثلاً حساسیت، رنگ موردعلاقه...)" value={note} onChange={(e) => setNote(e.target.value)} />
-                <button onClick={() => save(c.phone)} className={primaryBtn}>
-                  ذخیره
+                <button
+                  onClick={() => (active ? setSelected(null) : openProfile(c))}
+                  className="h-10 shrink-0 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                >
+                  {active ? "بستن" : "مشاهده پرونده"}
                 </button>
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
+
+      {/* ── پروفایل مشتری ─ */}
+      {selected && (
+        <div className="mt-5 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">{displayName(selected)}</h4>
+              <div className="text-sm text-neutral-500" dir="ltr">{toPersianDigits(selected.phone)}</div>
+            </div>
+            <button onClick={() => setSelected(null)} className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700">
+              بستن پرونده
+            </button>
+          </div>
+
+          {loadingDetail && <p className="py-6 text-center text-neutral-400">در حال بارگذاری پرونده...</p>}
+
+          {detail && !loadingDetail && (
+            <>
+              {/* آمار */}
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {[
+                  ["نوبت‌ها", detail.stats.visits],
+                  ["انجام‌شده", detail.stats.completed],
+                  ["لغو", detail.stats.cancelled],
+                  ["عدم حضور", detail.stats.noShow],
+                  ["هزینه‌کرد", `${Number(detail.stats.spend || 0).toLocaleString("fa-IR")}`],
+                ].map(([l, v]) => (
+                  <div key={l} className="rounded-xl bg-neutral-50 px-3 py-2 text-center dark:bg-neutral-800">
+                    <div className="text-base font-black text-neutral-900 dark:text-neutral-100">{toPersianDigits(String(v))}</div>
+                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400">{l}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* رزروهای قبلی */}
+              <div className="mt-6">
+                <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">رزروهای قبلی</h5>
+                {detail.appointments.length === 0 ? (
+                  <p className="mt-2 text-sm text-neutral-400">رزروی ثبت نشده است.</p>
+                ) : (
+                  <div className="mt-2 max-h-72 space-y-2 overflow-y-auto">
+                    {detail.appointments.map((a) => {
+                      const st = APPT_STATUS[a.status] ?? { label: a.status, cls: "bg-neutral-100 text-neutral-500" };
+                      return (
+                        <div key={a.id} className="rounded-xl border border-neutral-100 px-3 py-2.5 text-sm dark:border-neutral-800">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-neutral-700 dark:text-neutral-200">{fmtDateTime(a.startAt)}</span>
+                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${st.cls}`}>{st.label}</span>
+                          </div>
+                          <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                            {a.service?.name ?? "بدون خدمت"}
+                            {a.service?.price != null ? ` — ${Number(a.service.price).toLocaleString("fa-IR")} تومان` : ""}
+                            {a.employee?.name ? ` · ${a.employee.name}` : ""}
+                            {a.branch?.name ? ` · ${a.branch.name}` : ""}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* یادداشت‌ها (حداکثر ۵) */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">یادداشت‌ها</h5>
+                  <span className="text-[11px] text-neutral-400">{toPersianDigits(detail.notes.length)} / {toPersianDigits(detail.noteLimit)}</span>
+                </div>
+                <div className="mt-2 space-y-2">
+                  {detail.notes.length === 0 && <p className="text-xs text-neutral-400">یادداشتی ثبت نشده است.</p>}
+                  {detail.notes.map((n) => (
+                    <div key={n.id} className="flex items-start justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
+                      <div>
+                        <p className="text-xs leading-5 text-amber-900 dark:text-amber-200">{n.note}</p>
+                        <span className="text-[10px] text-amber-700/70 dark:text-amber-300/60">{fmtDateTime(n.createdAt)}</span>
+                      </div>
+                      <button onClick={() => deleteNote(n.id)} className="shrink-0 text-[10px] font-bold text-red-500 hover:text-red-700">
+                        حذف
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {detail.notes.length < detail.noteLimit && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      className={inputCls}
+                      placeholder="یادداشت جدید (مثلاً حساسیت، رنگ موردعلاقه...)"
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      maxLength={2000}
+                    />
+                    <button onClick={addNote} disabled={savingNote || !noteText.trim()} className={`${darkBtn} shrink-0 disabled:opacity-50`}>
+                      {savingNote ? "..." : "افزودن"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* عکس‌ها و صداها (حداکثر ۱۰) */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">عکس‌ها و صداها</h5>
+                  <span className="text-[11px] text-neutral-400">{toPersianDigits(detail.media.length)} / {toPersianDigits(detail.mediaLimit)}</span>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {detail.media.map((m) => (
+                    <div key={m.id} className="group relative overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
+                      {m.type === "photo" ? (
+                        <img src={m.url} alt={m.name ?? "عکس مشتری"} className="h-24 w-full object-cover" />
+                      ) : (
+                        <div className="flex h-24 flex-col items-center justify-center gap-1 bg-neutral-100 px-2 dark:bg-neutral-800">
+                          <span className="text-xl">🎙️</span>
+                          <audio controls src={m.url} className="w-full" />
+                        </div>
+                      )}
+                      <button
+                        onClick={() => deleteMedia(m.id)}
+                        className="absolute left-1 top-1 flex h-6 items-center justify-center rounded-md bg-black/65 px-1.5 text-[9px] font-bold text-white transition sm:opacity-0 sm:group-hover:opacity-100"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {detail.media.length < detail.mediaLimit && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <label className="flex h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
+                      {uploading ? "در حال بارگذاری..." : "📷 عکس"}
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="hidden" disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
+                    </label>
+                    <label className="flex h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
+                      {uploading ? "در حال بارگذاری..." : "🎙️ صدا"}
+                      <input type="file" accept="audio/*" className="hidden" disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
+                    </label>
+                    <span className="self-center text-[11px] text-neutral-400">این فایل‌ها فقط در همین سالن دیده می‌شوند.</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1590,7 +1826,6 @@ function StaffRow({ ctx, item }: { ctx: Ctx; item: StaffItem }) {
         <div className="flex items-center gap-3">
           <label className="group relative block h-12 w-12 cursor-pointer overflow-hidden rounded-full bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-950/40 dark:to-purple-950/40" title="تغییر تصویر">
             {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarUrl} alt={item.name} className="h-full w-full object-cover" />
             ) : (
               <span className="flex h-full w-full items-center justify-center text-lg font-black text-pink-600">{item.name.slice(0, 1)}</span>

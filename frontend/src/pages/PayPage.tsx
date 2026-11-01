@@ -1,5 +1,5 @@
 /** صفحهٔ پرداخت فاکتور — معادل src/app/pay/[token]/page.tsx */
-import { useParamsTyped, Link } from "@/next";
+import { useParamsTyped, Link } from "@/router-shim";
 import { toPersianDigits, formatToman } from "@/lib/utils";
 import { usePageData } from "@/lib/page-data";
 import { useMeta } from "@/lib/use-meta";

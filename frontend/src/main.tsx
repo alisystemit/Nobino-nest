@@ -4,7 +4,7 @@ import "@fontsource/vazirmatn/index.css";
 import "./globals.css";
 import { App } from "./App";
 
-// رجیستری سرویس‌ورکر PWA — همان رفتار نسخه Next (components/PwaInstall)
+// رجیستری سرویس‌ورکر PWA (همان رفتار components/PwaInstall)
 const root = document.getElementById("root");
 if (!root) throw new Error("root missing");
 

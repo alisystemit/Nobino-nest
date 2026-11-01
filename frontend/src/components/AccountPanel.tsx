@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "@/next";
-import { useRouter } from "@/next";
+import Link from "@/router-shim";
+import { useRouter } from "@/router-shim";
 import { LogOut } from "lucide-react";
 import RescheduleModal from "@/components/RescheduleModal";
 import { toJalali, toPersianDigits } from "@/lib/utils";
@@ -647,7 +647,6 @@ function ProfileForm({ me, onSave }: { me: Me; onSave: (form: { name: string; em
       <div className="flex items-center gap-4">
         <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-pink-100 to-purple-100 text-2xl font-black text-pink-600">
           {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={avatar} alt="آواتار" className="h-full w-full object-cover" />
           ) : (
             (me.name ?? "؟").slice(0, 1)

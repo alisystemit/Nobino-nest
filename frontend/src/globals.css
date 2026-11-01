@@ -185,7 +185,7 @@ input, textarea, select, table, th, td, kbd,
     radial-gradient(circle at 50% 90%, rgba(0,0,0,0.15), transparent 50%);
 }
 
-/* فونت وزیرمتن (جایگزین next/font) — از @fontsource در main.tsx بارگذاری می‌شود */
+/* فونت وزیرمتن — از @fontsource در main.tsx بارگذاری می‌شود */
 :root {
   --font-vazir: "Vazirmatn";
 }

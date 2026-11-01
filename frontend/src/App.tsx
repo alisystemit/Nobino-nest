@@ -1,7 +1,7 @@
 /**
- * بد اپلیکیشن SPA — معادل layout.tsx نسخه Next + جدول مسیرها.
+ * بدنه اپلیکیشن SPA — چیدمان سراسری + جدول مسیرها.
  */
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider, useAuth } from "@/auth";
 import { I18nProvider } from "@/lib/i18n";
@@ -53,6 +53,27 @@ function ScrollToTop() {
   return null;
 }
 
+/**
+ * اگر کاربر از برگهٔ یک سالن، اپ را نصب کرده باشد، اولین باز کردن اپِ نصب‌شده
+ * (حالت standalone) مستقیم همان صفحهٔ سالن را باز می‌کند. در وبِ عادی هیچ کاری نمی‌کند.
+ */
+function LaunchRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    try {
+      if (!window.matchMedia("(display-mode: standalone)").matches) return;
+      const path = localStorage.getItem("nobino.launchPath");
+      if (path && path.startsWith("/")) {
+        localStorage.removeItem("nobino.launchPath");
+        navigate(path);
+      }
+    } catch {
+      /* بی‌صدا */
+    }
+  }, [navigate]);
+  return null;
+}
+
 export function App() {
   return (
     <BrowserRouter>
@@ -60,6 +81,7 @@ export function App() {
         <I18nProvider>
           <ThemeProvider>
             <ScrollToTop />
+            <LaunchRedirect />
             <div className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
               <GlobalHeader />
               <Routes>

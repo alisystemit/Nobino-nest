@@ -1,6 +1,6 @@
 /**
- * سازگار با Next — shim کوچک APIهای next/link و next/navigation روی react-router.
- * به کد مهاجرت‌یافته اجازه می‌دهد بدون تغییر جزئی کار کند.
+ * Shim سازگاری با react-router — APIهای مسیریابی به سبک App Router را روی
+ * react-router پیاده می‌کند تا کد مهاجرت‌یافته بدون تغییر کار کند.
  */
 import { createElement, useContext } from "react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
@@ -43,7 +43,7 @@ export function usePathname(): string {
   return location.pathname;
 }
 
-/** معادل Next: شیء URLSearchParams برمی‌گرداند (نه تاپل react-router) */
+/** مشابه App Router: شیء URLSearchParams برمی‌گرداند (نه تاپل react-router) */
 export function useSearchParams(): URLSearchParams {
   const location = useLocation();
   return new URLSearchParams(location.search);
@@ -53,10 +53,10 @@ export function useParamsTyped<T extends Record<string, string>>(): T {
   return useParams() as T;
 }
 
-/** خطای کنترلی rewriter مشابه Next — در SPA با Navigate جایگزین می‌شود */
+/** خطای کنترلی rewriter — در SPA با Navigate جایگزین می‌شود */
 export class RedirectError extends Error {
   constructor(public readonly url: string) {
-    super("NEXT_REDIRECT");
+    super("C_ERR_REDIRECT");
     this.name = "RedirectError";
   }
 }
@@ -67,7 +67,7 @@ export function redirect(url: string): never {
 
 export class NotFoundError extends Error {
   constructor() {
-    super("NEXT_NOT_FOUND");
+    super("C_ERR_NOT_FOUND");
     this.name = "NotFoundError";
   }
 }
@@ -83,5 +83,5 @@ export function NavigateLike({ url }: { url: string }) {
 export { RouterLink, useNavigate, useLocation };
 export { Navigate };
 
-/** معادل پیش‌فرض next/link برای کامپوننت‌های مهاجرت‌شده */
+/** پیش‌فرض Link برای کامپوننت‌های مهاجرت‌شده */
 export default Link;

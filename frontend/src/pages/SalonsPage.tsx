@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link } from "@/next";
+import { Link } from "@/router-shim";
 import SalonIcon from "@/components/icons/SalonIcon";
+import PwaInstallButton from "@/components/PwaInstallButton";
 
 type Salon = {
   id: string;
@@ -92,32 +93,36 @@ export default function SalonsDirectoryPage() {
       <div className="mt-6 grid gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
         {!loading &&
           salons.map((s) => (
-            <Link
+            <div
               key={s.id}
-              href={`/s/${s.slug}`}
-              className="group overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+              className="group flex flex-col overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
             >
-              <div className="flex h-28 items-center justify-center sm:h-32" style={{ background: `linear-gradient(135deg, ${s.coverColor}, #7c3aed)` }}>
-                <SalonIcon className="h-14 w-14 text-white/90 sm:h-16 sm:w-16" />
-              </div>
-              <div className="p-4 sm:p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">{s.name}</h3>
-                  {s.rating != null && (
-                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                      ★ {s.rating.toFixed(1)} ({s.reviewCount})
-                    </span>
+              <Link href={`/s/${s.slug}`} className="flex flex-1 flex-col">
+                <div className="flex h-28 items-center justify-center sm:h-32" style={{ background: `linear-gradient(135deg, ${s.coverColor}, #7c3aed)` }}>
+                  <SalonIcon className="h-14 w-14 text-white/90 sm:h-16 sm:w-16" />
+                </div>
+                <div className="p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">{s.name}</h3>
+                    {s.rating != null && (
+                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        ★ {s.rating.toFixed(1)} ({s.reviewCount})
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-neutral-400">
+                    <span aria-hidden>📍</span>
+                    {joinLocation(s.city, s.address)}
+                  </p>
+                  {s.description && (
+                    <p className="mt-2 line-clamp-2 text-sm text-neutral-400 dark:text-neutral-500">{s.description}</p>
                   )}
                 </div>
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-neutral-400">
-                  <span aria-hidden>📍</span>
-                  {joinLocation(s.city, s.address)}
-                </p>
-                {s.description && (
-                  <p className="mt-2 line-clamp-2 text-sm text-neutral-400 dark:text-neutral-500">{s.description}</p>
-                )}
+              </Link>
+              <div className="border-t border-neutral-100 p-3 dark:border-neutral-800">
+                <PwaInstallButton launchPath={`/s/${s.slug}`} className="w-full" />
               </div>
-            </Link>
+            </div>
           ))}
       </div>
 

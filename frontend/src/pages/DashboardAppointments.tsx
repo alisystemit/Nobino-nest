@@ -1,5 +1,5 @@
 /** نوبت‌ها — معادل src/app/dashboard/appointments/page.tsx (دیتا از /api/pages/agenda) */
-import { Navigate, useSearchParams } from "@/next";
+import { Navigate, useSearchParams } from "@/router-shim";
 import DashboardShell from "@/components/DashboardShell";
 import AppointmentsAgenda from "@/components/appointments/AppointmentsAgenda";
 import { useAuth } from "@/auth";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link } from "@/next";
+import { Link } from "@/router-shim";
 import DashboardShell from "@/components/DashboardShell";
 import { StatCard, PanelCard, Badge } from "@/components/ui/Stats";
 import { TrendingUp, Wallet, Handshake, ExternalLink } from "lucide-react";

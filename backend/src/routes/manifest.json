@@ -462,6 +462,32 @@
     ]
   },
   {
+    "path": "dashboard/salons/[id]/customers/[customerId]",
+    "url": "/api/dashboard/salons/:id/customers/:customerId",
+    "module": "@/routes/api/dashboard__salons__id__customers__customerId",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/customers/[customerId]/media",
+    "url": "/api/dashboard/salons/:id/customers/:customerId/media",
+    "module": "@/routes/api/dashboard__salons__id__customers__customerId__media",
+    "methods": [
+      "GET",
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/customers/[customerId]/notes/[noteId]",
+    "url": "/api/dashboard/salons/:id/customers/:customerId/notes/:noteId",
+    "module": "@/routes/api/dashboard__salons__id__customers__customerId__notes__noteId",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
     "path": "dashboard/salons/[id]/customers/[customerId]/notes",
     "url": "/api/dashboard/salons/:id/customers/:customerId/notes",
     "module": "@/routes/api/dashboard__salons__id__customers__customerId__notes",
@@ -770,6 +796,14 @@
     "path": "public/announcement",
     "url": "/api/public/announcement",
     "module": "@/routes/api/public__announcement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "pwa/manifest/[slug]",
+    "url": "/api/pwa/manifest/:slug",
+    "module": "@/routes/api/pwa__manifest__slug",
     "methods": [
       "GET"
     ]

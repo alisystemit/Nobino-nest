@@ -1,5 +1,5 @@
 /** صفحهٔ نتیجهٔ پرداخت — معادل src/app/payment/result/page.tsx (پارامترها از query) */
-import { Link, useSearchParams } from "@/next";
+import { Link, useSearchParams } from "@/router-shim";
 import { toPersianDigits } from "@/lib/utils";
 
 export default function PaymentResultPage() {

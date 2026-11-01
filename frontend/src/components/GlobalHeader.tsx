@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "@/next";
-import { usePathname } from "@/next";
+import Link from "@/router-shim";
+import { usePathname } from "@/router-shim";
 import { useEffect, useState } from "react";
 import { LangSwitch, useI18n } from "@/lib/i18n";
 import { ThemeToggle } from "@/lib/theme";
@@ -46,10 +46,12 @@ export default function GlobalHeader() {
     ...(isCustomer ? [] : [{ href: "/packages", label: t("nav.packages") }]),
     { href: "/help", label: t("nav.help") },
   ];
-  // کاربر واردشده به‌جای «ورود» دکمه «داشبورد» می‌بیند
-  const cta = user
-    ? { href: "/dashboard", label: t("nav.dashboard") }
-    : { href: "/login", label: t("nav.login") };
+  // کاربر واردشده به‌جای «ورود» دکمه «داشبورد» می‌بیند؛ سوپرادمین مستقیم به پنل خودش می‌رود
+  const cta = !user
+    ? { href: "/login", label: t("nav.login") }
+    : user.role === "ADMIN"
+      ? { href: "/admin", label: "داشبورد سوپرادمین" }
+      : { href: "/dashboard", label: t("nav.dashboard") };
 
   return (
     <header

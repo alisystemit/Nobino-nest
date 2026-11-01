@@ -64,8 +64,8 @@ export function buildWebContext(req: ExpressRequest, res: ExpressResponse): WebR
 }
 
 /**
- * اجرای هندلر مهاجرت‌یافته از Next.
- * هندلرها امضای Next را دارند: `(request: Request, ctx: { params }) => Promise<Response>`
+ * اجرای هندلر مهاجرت‌یافته.
+ * هندلرها امضای مسیر را دارند: `(request: Request, ctx: { params }) => Promise<Response>`
  */
 export async function runRoute(
   req: ExpressRequest,
