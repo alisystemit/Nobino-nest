@@ -310,7 +310,7 @@ const miniappsSection = (): CatalogSection => ({
   title: "مینی‌اپ پیام‌رسان‌ها",
   emoji: "🧩",
   description:
-    "نسخهٔ مینی‌اپِ صفحهٔ «سالن‌ها» و «مدیریت سالن» برای داخل بله، تلگرام و وایتا. آدرس /mini روی سایت همیشه ساخته می‌شود؛ اینجا مشخص می‌کنید کدام پیام‌رسان فعال باشد و لینک رسمی نصبش از پنل پیام‌رسان چه باشد. تنظیمات هر سالن (مثل صفحهٔ عمومی) در همان سالن می‌ماند و این‌جا فقط سطح پلتفرم است.",
+    "نسخهٔ مینی‌اپِ صفحهٔ «سالن‌ها» و «مدیریت سالن» برای داخل بله، تلگرام، ایتا و وایتا. آدرس /mini روی سایت همیشه ساخته می‌شود؛ اینجا مشخص می‌کنید کدام پیام‌رسان فعال باشد و لینک رسمی نصبش از پنل پیام‌رسان چه باشد. تنظیمات هر سالن (مثل صفحهٔ عمومی) در همان سالن می‌ماند و این‌جا فقط سطح پلتفرم است.",
   cards: [
     {
       id: "miniapps-base",
@@ -325,6 +325,42 @@ const miniappsSection = (): CatalogSection => ({
         },
         boolField("miniapps.manage_tab", "تب «مدیریت سالن» برای آرایشگران فعال باشد", {
           hint: "با خاموش کردن، مشتری‌ها فقط سالن‌ها و نوبت‌های خودشان را می‌بینند.",
+        }),
+        {
+          key: "miniapps.featured",
+          label: "سالن‌های ویژه (صفحهٔ اول مینی‌اپ)",
+          type: "string",
+          placeholder: "mah,bahar",
+          hint: "اسلاگ‌ها را با کاما جدا کنید؛ دقیقاً به همین ترتیب در بالای مینی‌اپ نمایش داده می‌شوند. خالی = این بخش نمایش داده نمی‌شود.",
+        },
+      ],
+    },
+    {
+      id: "miniapps-brand",
+      title: "ظاهر و برندینگ مینی‌اپ",
+      description: "این مقادیر فقط صفحهٔ /mini را می‌سازند؛ سایت اصلی و پنل سالن دست‌نخورده می‌مانند.",
+      fields: [
+        { key: "miniapps.title", label: "نام نمایشی مینی‌اپ", type: "string", placeholder: "نوبینو", hint: "خالی = «نوبینو»." },
+        { key: "miniapps.subtitle", label: "زیرعنوان (شعار کوتاه)", type: "string", placeholder: "نوبتگیری آسان از پیام‌رسان" },
+        { key: "miniapps.accent", label: "رنگ اصلی", type: "string", placeholder: "#e11d63", hint: "کد hex سه یا شش رقمی. رنگ دکمه‌ها، هایلایت‌ها و نوار پایین." },
+        { key: "miniapps.hero_text", label: "متن خوش‌آمد (اختیاری)", type: "string", placeholder: "سلام! سالن موردنظرت رو انتخاب کن 👈", hint: "خالی = پیام پیش‌فرض نمایش داده می‌شود." },
+        { key: "miniapps.support_phone", label: "شماره پشتیبانی (نمایش در تب «من»)", type: "string", placeholder: "021-12000000" },
+        boolField("miniapps.show_prices", "قیمت خدمات نمایش داده شود", {
+          hint: "خاموش = مینی‌اپ قیمت‌ها را نشان نمی‌دهد (مناسب سالن‌هایی که نرخ روز اعلام می‌کنند).",
+        }),
+      ],
+    },
+    {
+      id: "miniapps-features",
+      title: "ویژگی‌ها و امنیت ورود",
+      fields: [
+        boolField("miniapps.allow_booking", "امکان رزرو نوبت از مینی‌اپ"),
+        boolField("miniapps.allow_reviews", "نمایش نظر مشتریان در صفحهٔ سالن"),
+        boolField("miniapps.require_login", "رزرو نوبت فقط با ورود (OTP) انجام شود", {
+          hint: "خاموش = مهمان هم می‌تواند نوبت بگیرد (نام و شماره تلفن کافی است).",
+        }),
+        boolField("miniapps.silent_login", "ورود بی‌حس با تأیید امضای پیام‌ران (initData)", {
+          hint: "روشن = اگر توکن ربات تنظیم شده باشد، کاربر پیام‌رسان بدون وارد کردن شماره وارد می‌شود. برای تلگرام و بله.",
         }),
       ],
     },
@@ -350,6 +386,18 @@ const miniappsSection = (): CatalogSection => ({
         { key: "miniapps.bale.app", label: "پارامتر startapp", type: "string", placeholder: "nobino", hint: "مقداری که هنگام ثبت مینی‌اپ در بله تعیین کرده‌اید." },
         { key: "miniapps.bale.link", label: "لینک نهایی (اختیاری)", type: "string", placeholder: "https://ble.ir/nobino_bot?startapp=nobino", hint: "اگر پر شود، همین لینک نمایش داده می‌شود." },
         { key: "miniapps.bale.token", label: "توکن ربات (اختیاری)", type: "secret", hint: "اختیاری؛ برای راستی‌آزمایی initData بله." },
+      ],
+    },
+    {
+      id: "miniapps-eitaa",
+      title: "ایتا (Eitaa)",
+      description: "ایتا الگوی رسمی «مینی‌اپ» مثل تلگرام ندارد؛ لینک ربات از ایتا کپی و در فیلد پایین وارد شود.",
+      fields: [
+        boolField("miniapps.eitaa.enabled", "مینی‌اپ ایتا فعال باشد"),
+        { key: "miniapps.eitaa.bot", label: "نام کاربری ربات (بدون @)", type: "string", placeholder: "nobino_bot" },
+        { key: "miniapps.eitaa.app", label: "نام اپ/مسیر (اختیاری)", type: "string", placeholder: "nobino" },
+        { key: "miniapps.eitaa.link", label: "لینک نهایی ایتا", type: "string", placeholder: "https://eitaa.com/nobino_bot", hint: "اگر خالی باشد، از نام کاربری ربات ساخته می‌شود." },
+        { key: "miniapps.eitaa.token", label: "توکن (اختیاری)", type: "secret", hint: "در حال حاضر برای راستی‌آزمایی امضا استفاده نمی‌شود." },
       ],
     },
     {

@@ -743,6 +743,38 @@
     ]
   },
   {
+    "path": "mini/session",
+    "url": "/api/mini/session",
+    "module": "@/routes/api/mini__session",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "mini/link",
+    "url": "/api/mini/link",
+    "module": "@/routes/api/mini__link",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "mini/staff",
+    "url": "/api/mini/staff",
+    "module": "@/routes/api/mini__staff",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "mini/featured",
+    "url": "/api/mini/featured",
+    "module": "@/routes/api/mini__featured",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
     "path": "notifications",
     "url": "/api/notifications",
     "module": "@/routes/api/notifications",
@@ -882,6 +914,14 @@
     "module": "@/routes/api/salons__slug__waitlist__id",
     "methods": [
       "PATCH"
+    ]
+  },
+  {
+    "path": "salons/[slug]/banner.svg",
+    "url": "/api/salons/:slug/banner.svg",
+    "module": "@/routes/api/salons__slug__banner",
+    "methods": [
+      "GET"
     ]
   },
   {

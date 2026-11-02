@@ -1,4 +1,4 @@
-/** خودکار — تولیدشده توسط scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
+/** خودکار — تولیدشده توسط backend/scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
 import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { runRoute } from "@/common/run-route";

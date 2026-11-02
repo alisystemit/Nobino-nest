@@ -1,4 +1,4 @@
-/** خودکار — تولیدشده توسط scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
+/** خودکار — تولیدشده توسط backend/scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
 import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { runRoute } from "@/common/run-route";
@@ -6,7 +6,7 @@ import * as R40 from "@/routes/api/commission";
 import * as R84 from "@/routes/api/giftcards__redeem";
 import * as R85 from "@/routes/api/giftcards";
 import * as R86 from "@/routes/api/loyalty__redeem";
-import * as R108 from "@/routes/api/wallet";
+import * as R113 from "@/routes/api/wallet";
 
 @Controller()
 export class FinanceController {
@@ -38,11 +38,11 @@ export class FinanceController {
 
   @Get("/api/wallet")
   async getWalletRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R108.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R113.GET(r as never, c as never));
   }
 
   @Post("/api/wallet")
   async postWalletRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R108.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R113.POST(r as never, c as never));
   }
 }

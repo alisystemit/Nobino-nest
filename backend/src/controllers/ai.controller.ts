@@ -1,11 +1,11 @@
-/** خودکار — تولیدشده توسط scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
+/** خودکار — تولیدشده توسط backend/scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
 import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { runRoute } from "@/common/run-route";
 import * as R20 from "@/routes/api/ai__analyze";
 import * as R21 from "@/routes/api/ai__chat";
 import * as R22 from "@/routes/api/ai__generate-content";
-import * as R107 from "@/routes/api/voice__transcribe";
+import * as R112 from "@/routes/api/voice__transcribe";
 
 @Controller()
 export class AiController {
@@ -27,6 +27,6 @@ export class AiController {
 
   @Post("/api/voice/transcribe")
   async postVoiceTranscribeRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R107.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R112.POST(r as never, c as never));
   }
 }
