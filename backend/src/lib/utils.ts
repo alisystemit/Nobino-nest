@@ -1,14 +1,7 @@
 /**
- * ابزارهای کمکی مشترک
+ * ابزارهای کمکی مشترک سمت سرور.
+ * (ترکیب کلاس‌های Tailwind کارِ کلاینت است — `frontend/src/lib/utils.ts` را ببینید.)
  */
-
-import { clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-/** ترکیب کلاس‌های tailwind */
-export function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
 
 /**
  * پارسر صفحه‌بندی سمت سرور.
