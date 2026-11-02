@@ -107,6 +107,7 @@ model Otp {
   attempts  Int       @default(0) // ╪¬╪╣╪»╪º╪» ╪¬┘ä╪º╪┤ΓÇî┘ç╪º█î ┘å╪º┘à┘ê┘ü┘é ╪¿╪▒╪º█î ╪º█î┘å ┌⌐╪»
   expiresAt DateTime
   usedAt    DateTime?
+  verified  Boolean   @default(false) // کد با موفقیت تأیید و لاگین شد (ملاش شمارش اسپم)
   createdAt DateTime  @default(now())
 
   @@index([phone, purpose])

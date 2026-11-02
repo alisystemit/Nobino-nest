@@ -2,10 +2,30 @@ import { createHash, randomInt } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getSmsProvider } from "@/lib/sms/provider";
 import { getEmailSender } from "@/lib/email/provider";
+import { httpError } from "@/lib/utils";
 
 const OTP_TTL_MS = 5 * 60 * 1000; // ۵ دقیقه
 // در پروداکشن سخت‌گیرانه (ضد اسپم)؛ در توسعه بالاتر تا تست‌های E2E مکرر قفل نشوند
 const MAX_ATTEMPTS = process.env.NODE_ENV === "production" ? 5 : 50;
+
+/**
+ * گارد ضداسپم شمارهٔ مجازی: حداکثر ۳ پیامک بدون لاگین موفق؛ بعد از آن
+ * شماره تا ۵ ساعت قفل می‌شود. با هر تأیید موفق، شمارش از صفر شروع می‌شود.
+ * مقادیر با env قابل تنظیم‌اند (برای تست: OTP_MAX_SENDS / OTP_LOCK_MINUTES).
+ */
+const MAX_SENDS_PER_NUMBER = Number(process.env.OTP_MAX_SENDS ?? 3);
+const OTP_LOCK_MS = Number(process.env.OTP_LOCK_MINUTES ?? 5 * 60) * 60 * 1000;
+
+/** باقی‌ماندهٔ قفل به فارسی — «۴ ساعت و ۱۲ دقیقه» */
+function remainingFa(ms: number): string {
+  const totalMin = Math.max(1, Math.ceil(ms / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  const fa = (n: number) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+  if (h && m) return `${fa(h)} ساعت و ${fa(m)} دقیقه`;
+  if (h) return `${fa(h)} ساعت`;
+  return `${fa(m)} دقیقه`;
+}
 
 /** تولید کد ۴ رقمی با مولد امن (نه Math.random) */
 function generateCode(): string {
@@ -53,12 +73,29 @@ export async function requestEmailOtp(email: string) {
 export async function requestOtp(phone: string) {
   const code = generateCode(); // ۴ رقم
 
-  // محدودیت تعداد درخواست (ضد اسپم ساده)
-  const recentCount = await prisma.otp.count({
-    where: { phone, createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) } },
+  // ── گارد ضداسپم: ۳ پیامک بدون لاگین موفق → قفل ۵ ساعتهٔ شماره ──────
+  // ملاک «لاگین موفق»، آخرین کدِ verifiedِ همین شماره است؛ همهٔ کدهای
+  // ارسال‌شده بعد از آن (یا همه در صورت نبود لاگین موفق) شمارش می‌شوند.
+  const lastSuccess = await prisma.otp.findFirst({
+    where: { phone, purpose: "LOGIN", verified: true },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
   });
-  if (recentCount >= MAX_ATTEMPTS) {
-    throw new Error("تعداد درخواست‌های کد بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.");
+  const streak = await prisma.otp.findMany({
+    where: { phone, purpose: "LOGIN", createdAt: { gt: lastSuccess?.createdAt ?? new Date(0) } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, createdAt: true },
+  });
+  if (streak.length >= MAX_SENDS_PER_NUMBER) {
+    const lockUntil = streak[0].createdAt.getTime() + OTP_LOCK_MS;
+    if (Date.now() < lockUntil) {
+      throw httpError(
+        `شما ${streak.length} بار کد درخواست کردید و وارد نشدید. تا ${remainingFa(lockUntil - Date.now())} دیگر با این شماره نمی‌توانید کد بگیرید.`,
+        429
+      );
+    }
+    // قفل گذشته است؛ پروندهٔ کدهای کهنه پاک می‌شود تا این شماره ۳ فرصت تازه داشته باشد
+    await prisma.otp.deleteMany({ where: { id: { in: streak.map((s) => s.id) } } });
   }
 
   await invalidatePrevious(phone, "LOGIN");
@@ -100,7 +137,8 @@ export async function verifyOtp(phone: string, code: string, purpose = "LOGIN") 
     throw new Error("کد واردشده صحیح نیست.");
   }
 
-  await prisma.otp.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+  // لاگین موفق — همین رکورد شمارش اسپم را ریست می‌کند
+  await prisma.otp.update({ where: { id: record.id }, data: { usedAt: new Date(), verified: true } });
 
   // پیدا کردن یا ساخت کاربر
   let user =
