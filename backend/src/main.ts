@@ -11,6 +11,7 @@ import { HttpErrorFilter } from "@/common/filters/http-error.filter";
 import { registerOpsMiddleware } from "@/common/ops-middleware";
 import { requestStore } from "@/compat/request-context";
 import { AppModule } from "@/app.module";
+import { productionEnvErrors } from "@/lib/env";
 
 function parseCookies(header?: string): Map<string, string> {
   const map = new Map<string, string>();
@@ -23,6 +24,13 @@ function parseCookies(header?: string): Map<string, string> {
 }
 
 async function bootstrap() {
+  // محافظ محیط production: با JWT پیش‌فرض یا callback لوکال اپ را بالا نیاور
+  const envErrors = productionEnvErrors();
+  if (process.env.NODE_ENV === "production" && envErrors.length) {
+    console.error("⛔ تنظیمات محیط production ناقص است:\n - " + envErrors.join("\n - "));
+    process.exit(1);
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     // هندلرها خودشان بدنه خام را به Request استاندارد تبدیل می‌کنند
     bodyParser: false,

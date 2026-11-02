@@ -6,14 +6,11 @@
  * ۲) روی دامنهٔ اصلی — اگر میزبان زیرِ ROOT_DOMAIN باشد حالت ساب‌دامین
  * ۳) مسیر /s/<slug> به‌عنوان بازگشتی مطمئن
  */
+import { siteOriginSafe } from "@/lib/site-origin";
 
-/** آدرس پایهٔ سایت (از SITE_URL یا APP_URL) */
+/** آدرس پایهٔ سایت (SITE_URL → APP_URL → ROOT_DOMAIN؛ منطق مشترک در site-origin) */
 function siteUrl(): string {
-  const raw =
-    process.env.SITE_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    "http://localhost:5173";
-  return raw.replace(/\/+$/, "");
+  return siteOriginSafe();
 }
 
 function rootDomain(): string {
