@@ -375,6 +375,7 @@
 .mini-root.dark .mini-tabs-inner { background: rgba(25, 25, 32, 0.9); }
 .mini-tab {
   flex: 1;
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--m-muted);
@@ -390,6 +391,7 @@
   transition: 0.15s ease;
 }
 .mini-tab svg { width: 21px; height: 21px; }
+.mini-tab span { max-width: 100%; line-height: 1.25; overflow-wrap: anywhere; }
 .mini-tab.is-on {
   background: rgba(var(--m-rgb), 0.13);
   color: rgb(var(--m-rgb));
@@ -1002,3 +1004,115 @@ button.mini-item:active { transform: scale(0.985); }
 .mini-cust-rec .mini-btn { flex: 0 0 auto; }
 .mini-cust-rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2626; flex: 0 0 10px !important; animation: mini-rec-pulse 1.1s ease-in-out infinite; }
 @keyframes mini-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* ── رزرو با هوش مصنوعی و دستی (تب پنجم) ──────────────────────────── */
+.mini-vb-mic { display: grid; justify-items: center; gap: 4px; padding: 18px 10px 6px; }
+.mini-vb-orb {
+  width: 112px;
+  height: 112px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, rgb(var(--m-rgb)), rgba(var(--m-rgb), 0.66));
+  box-shadow: 0 18px 34px -18px rgba(var(--m-rgb), 0.95);
+  transition: 0.16s ease;
+}
+.mini-vb-orb:active { transform: scale(0.96); }
+.mini-vb-orb:disabled { opacity: 0.6; cursor: default; }
+.mini-vb-orb.is-rec {
+  background: linear-gradient(145deg, #e11d48, #b91c1c);
+  box-shadow: 0 18px 34px -18px rgba(185, 28, 28, 0.95);
+  animation: mini-vb-ring 1.6s ease-out infinite;
+}
+@keyframes mini-vb-ring {
+  0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.45), 0 18px 34px -18px rgba(185, 28, 28, 0.95); }
+  100% { box-shadow: 0 0 0 24px rgba(225, 29, 72, 0), 0 18px 34px -18px rgba(185, 28, 28, 0.95); }
+}
+.mini-vb-status { margin: 8px 0 0; font-size: 14px; font-weight: 900; color: var(--m-text); text-align: center; }
+.mini-vb-sub { margin: 2px 0 0; font-size: 11.5px; color: var(--m-muted); line-height: 1.8; text-align: center; max-width: 320px; }
+.mini-vb-sample {
+  margin: 14px 0 0;
+  padding: 11px 12px;
+  border: 1px dashed var(--m-line);
+  border-radius: 16px;
+  background: rgba(var(--m-rgb), 0.05);
+}
+.mini-vb-sample b { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: rgb(var(--m-rgb)); }
+.mini-vb-sample p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.9; color: var(--m-text); }
+.mini-vb-sample span { display: block; margin-top: 5px; font-size: 11px; color: var(--m-muted); line-height: 1.8; }
+.mini-vb-alt { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
+.mini-vb-type { display: grid; gap: 10px; margin-top: 12px; }
+.mini-vb-steps { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; counter-reset: vb; }
+.mini-vb-step { display: flex; align-items: flex-start; gap: 10px; }
+.mini-vb-dot {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--m-muted);
+  background: rgba(18, 18, 24, 0.05);
+  border: 1px solid var(--m-line);
+}
+.mini-vb-dot.is-active { color: rgb(var(--m-rgb)); background: rgba(var(--m-rgb), 0.12); border-color: rgba(var(--m-rgb), 0.3); }
+.mini-vb-dot.is-done { color: #15803d; background: rgba(34, 197, 94, 0.16); border-color: rgba(34, 197, 94, 0.3); }
+.mini-root.dark .mini-vb-dot.is-done { color: #86efac; }
+.mini-vb-step-body { flex: 1; min-width: 0; }
+.mini-vb-step-body b { display: block; font-size: 12.5px; color: var(--m-text); }
+.mini-vb-step-body b.is-idle { color: var(--m-muted); font-weight: 700; }
+.mini-vb-step-body span { display: block; margin-top: 2px; font-size: 11px; color: var(--m-muted); line-height: 1.8; }
+.mini-vb-step-body em {
+  display: block;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(18, 18, 24, 0.04);
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--m-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mini-root.dark .mini-vb-step-body em { background: rgba(255, 255, 255, 0.06); }
+.mini-vb-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.mini-vb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 800;
+}
+.mini-root.dark .mini-vb-chip { color: #86efac; }
+.mini-note.is-warn { background: rgba(234, 179, 8, 0.13); color: #92610a; font-weight: 700; }
+.mini-root.dark .mini-note.is-warn { color: #fcd34d; }
+.mini-vb-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-bottom: 12px; }
+.mini-vb-ask > span { font-size: 11.5px; color: var(--m-muted); font-weight: 800; }
+.mini-vb-needs, .mini-vb-manual { margin-top: 16px; }
+.mini-vb-services { margin-bottom: 4px; }
+.mini-vb-services > b { display: block; font-size: 12.5px; font-weight: 900; margin-bottom: 8px; }
+.mini-vb-done {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 20px;
+  background: rgba(34, 197, 94, 0.08);
+}
+.mini-vb-done-title { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 900; color: #15803d; margin-bottom: 10px; }
+.mini-root.dark .mini-vb-done-title { color: #86efac; }
+.mini-vb-quote { margin-top: 10px; padding: 9px 11px; border-radius: 14px; background: rgba(18, 18, 24, 0.04); }
+.mini-root.dark .mini-vb-quote { background: rgba(255, 255, 255, 0.06); }
+.mini-vb-quote b { font-size: 11px; color: var(--m-muted); }
+.mini-vb-quote p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.9; color: var(--m-text); white-space: pre-wrap; word-break: break-word; }
+
+.hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }

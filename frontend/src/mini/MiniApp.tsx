@@ -8,6 +8,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 import MiniHome from "./pages/MiniHome";
 import MiniSalon from "./pages/MiniSalon";
 import MiniBookings from "./pages/MiniBookings";
+import MiniVoiceBooking from "./pages/MiniVoiceBooking";
 import MiniManage from "./pages/MiniManage";
 import MiniMe from "./pages/MiniMe";
 import MiniNotifications from "./pages/MiniNotifications";
@@ -24,9 +25,10 @@ function TabBar() {
   const { config, me } = useMini();
 
   const canManage = Boolean(me && (me.role === "SALON_OWNER" || me.role === "ADMIN" || me.role === "AGENT"));
-  const tabs: { to: string; label: string; icon: IconName }[] = [
+  const tabs: { to: string; label: string; icon: IconName; title?: string }[] = [
     { to: "/mini", label: "خانه", icon: "home" },
     { to: "/mini/appointments", label: "نوبت‌های من", icon: "calendar" },
+    ...(config.features.booking ? [{ to: "/mini/voice-booking", label: "رزرو هوشمند", icon: "mic" as IconName, title: "رزرو با هوش مصنوعی و دستی" }] : []),
     ...(config.features.manageTab && canManage ? [{ to: "/mini/manage", label: "مدیریت", icon: "store" as IconName }] : []),
     { to: "/mini/me", label: me ? "حساب من" : "ورود", icon: "user" as IconName },
   ];
@@ -37,7 +39,15 @@ function TabBar() {
     <nav className="mini-tabs" aria-label="بخش‌های مینی‌اپ">
       <div className="mini-tabs-inner">
         {tabs.map((t) => (
-          <button key={t.to} type="button" className={`mini-tab${active(t.to) ? " is-on" : ""}`} onClick={() => navigate(t.to)} aria-current={active(t.to) ? "page" : undefined}>
+          <button
+            key={t.to}
+            type="button"
+            className={`mini-tab${active(t.to) ? " is-on" : ""}`}
+            onClick={() => navigate(t.to)}
+            aria-current={active(t.to) ? "page" : undefined}
+            title={t.title}
+            aria-label={t.title}
+          >
             <Icon name={t.icon} size={21} />
             <span>{t.label}</span>
           </button>
@@ -115,6 +125,7 @@ function Shell() {
           <Route path="/" element={<MiniHome />} />
           <Route path="/s/:slug" element={<MiniSalon />} />
           <Route path="/appointments" element={<MiniBookings />} />
+          <Route path="/voice-booking" element={<MiniVoiceBooking />} />
           <Route path="/notifications" element={<MiniNotifications />} />
           <Route path="/support" element={<MiniSupport />} />
           <Route path="/favorites" element={<MiniFavorites />} />
