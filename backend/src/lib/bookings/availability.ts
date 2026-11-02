@@ -52,17 +52,44 @@ export async function getSalonWindow(
   return { open: oh * 60 + om, close: ch * 60 + cm };
 }
 
+/**
+ * قالب‌های مختلفِ «برنامهٔ کاری آرایشگر» که در دیتابیس پیدا می‌شود:
+ *  ۱) آرایهٔ استاندارد — همان چیزی که پنل سالن ذخیره می‌کند:
+ *     [{ day, open, close, isClosed }, …]
+ *  ۲) قالب قدیمی/دِمو که اسکریپت‌های seed نوشته‌اند:
+ *     { days: [0,1,…], open: "09:00", close: "21:00" }
+ * خروجی null یعنی آرایشگر برنامهٔ شخصیِ قابل‌فهمی ندارد → پنجرهٔ سالن استفاده می‌شود.
+ * هیچ حالتی نباید استثنا بدهد؛ ستون schedule از نوع Json است و هر شکلی می‌تواند داشته باشد.
+ */
+function staffDayEntry(raw: unknown, day: number): { open?: string; close?: string; isClosed?: boolean } | null {
+  if (Array.isArray(raw)) {
+    const hit = raw.find((x) => Number((x as { day?: unknown })?.day) === day) as
+      | { open?: string; close?: string; isClosed?: boolean }
+      | undefined;
+    return hit ?? null;
+  }
+  if (raw && typeof raw === "object") {
+    const legacy = raw as { days?: unknown; open?: string; close?: string };
+    const workingDays = Array.isArray(legacy.days) ? legacy.days.map(Number) : [];
+    if (workingDays.length === 0) return null;
+    return workingDays.includes(day)
+      ? { open: legacy.open, close: legacy.close, isClosed: false }
+      : { isClosed: true };
+  }
+  return null;
+}
+
 /** پنجره کاری آرایشگر (اگر برنامه شخصی داشته باشد، وگرنه پنجره سالن) */
 export async function getStaffWindow(salonId: string, staffId: string, dayISO: string, branchId?: string) {
   const salonWindow = await getSalonWindow(salonId, dayISO, branchId);
-  const staff = await prisma.staff.findUnique({ where: { id: staffId } });
-  const schedule = (staff?.schedule as { day: number; open: string; close: string; isClosed?: boolean }[] | null) ?? null;
+  const staff = await prisma.staff.findUnique({ where: { id: staffId }, select: { schedule: true } });
   const day = storedDayOfWeek(new Date(dayISO + "T00:00:00Z"));
-  const entry = schedule?.find((s) => s.day === day);
-  if (!schedule || !entry) return salonWindow;
+  const entry = staffDayEntry(staff?.schedule, day);
+  if (!entry) return salonWindow;
   if (entry.isClosed) return { open: 0, close: 0 };
-  const [oh, om] = entry.open.split(":").map(Number);
-  const [ch, cm] = entry.close.split(":").map(Number);
+  const [oh, om] = String(entry.open ?? "").split(":").map(Number);
+  const [ch, cm] = String(entry.close ?? "").split(":").map(Number);
+  if (![oh, om, ch, cm].every(Number.isFinite) || ch <= oh) return salonWindow;
   return { open: oh * 60 + om, close: ch * 60 + cm };
 }
 
