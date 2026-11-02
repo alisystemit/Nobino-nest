@@ -9,6 +9,8 @@ export interface PaymentOrder {
   description: string;
   callbackUrl: string; // آدرس بازگشت پس از پرداخت
   invoiceId?: string; // اگر پرداخت برای فاکتور خدماتی است
+  appointmentId?: string; // اگر پرداخت بیعانهٔ نوبت است
+  redirectPath?: string; // مسیر داخلی بازگشت پس از پرداخت موفق (مثلاً /mini)
   customer?: { phone?: string; name?: string };
   metadata?: Record<string, unknown>;
 }

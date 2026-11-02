@@ -6,7 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
 import { json, apiError, getPagination } from "@/lib/utils";
-import { createAppointmentSafe } from "@/lib/bookings/create";
+import { createAppointmentSafe, depositForSalon } from "@/lib/bookings/create";
 import { combinedBooking } from "@/lib/bookings/service";
 import { localMidnightUTC } from "@/lib/timezone";
 import { enqueueInApp, enqueueSms, processPendingNotifications } from "@/lib/notifications/queue";
@@ -163,10 +163,12 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     const primaryServiceId = selectedServices[0]?.id;
     let duration = body.durationMin ?? 60;
     let buffer: number | undefined;
+    let totalPrice = 0;
     let combinedNote = body.note;
     if (selectedServices.length > 0) {
       const totals = combinedBooking(selectedServices);
       duration = totals.durationMin;
+      totalPrice = totals.price;
       buffer = totals.bufferMin > 0 ? totals.bufferMin : salon.bufferMinutes;
       if (selectedServices.length > 1) {
         combinedNote = [body.note, selectedServices.map((s) => s.name).join("، ")]
@@ -209,6 +211,10 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     const user = await requireAuth().catch(() => null);
 
+    // بیعانه فقط برای رزروِ مشتری (با حساب یا مهمان) محاسبه می‌شود؛
+    // وقتی سالن‌دار از پنل خودش رزرو می‌کند، بیعانه در محل دریافت می‌شود.
+    const depositAmount = user === null || user.role === "CUSTOMER" ? depositForSalon(salon, totalPrice) : null;
+
     // ثبت نوبت با محافظت از رزرو هم‌زمان (تراکنش + قفل)
     const appointment = await createAppointmentSafe({
       salonId: salon.id,
@@ -224,17 +230,21 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       voiceCallId: body.voiceCallId,
       note: combinedNote,
       customerId: user?.id ?? undefined,
+      depositAmount,
     });
 
     // ارسال پیامک تأیید از طریق صف (با حذف تکراری و تلاش مجدد)
     const time = new Intl.DateTimeFormat("fa-IR", { timeStyle: "short", timeZone: salon.timezone }).format(appointment.startAt);
-    const confirmMsg = await renderSmsTemplate("sms.template.confirm", {
+    let confirmMsg = await renderSmsTemplate("sms.template.confirm", {
       salon: salon.name,
       customer: body.customerName,
       time,
       date: appointment.startAt.toLocaleDateString("fa-IR", { timeZone: salon.timezone }),
       code: appointment.id.slice(0, 8),
     });
+    if (depositAmount && depositAmount > 0) {
+      confirmMsg += ` بیعانه نوبت ${depositAmount} تومان است و باید پیش از زمان نوبت پرداخت شود.`;
+    }
     await enqueueSms({
       type: "APPOINTMENT_CONFIRM",
       recipient: body.customerPhone,

@@ -167,6 +167,11 @@ model Salon {
   cancelDeadlineHours Int @default(24)
   bufferMinutes       Int @default(10)
 
+  // بیعانه (پیش‌پرداخت نوبت) — از پنل سالن‌دار تنظیم می‌شود
+  depositEnabled      Boolean @default(false)
+  depositMode         String  @default("FIXED") // FIXED | PERCENT
+  depositValue        Int     @default(0) // تومان برای FIXED، درصد برای PERCENT
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -389,6 +394,7 @@ model Appointment {
   voiceCallId       String?           @unique
   voiceCall         VoiceCall?        @relation(fields: [voiceCallId], references: [id])
   review            Review?
+  payments          Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -590,6 +596,8 @@ model Payment {
   order       Order?        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   invoiceId   String?
   invoice     Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   gateway     String // zarinpal | mellat | ...
   amount      Int
   status      PaymentStatus @default(PENDING)
@@ -603,6 +611,7 @@ model Payment {
 
   @@index([orderId])
   @@index([invoiceId])
+  @@index([appointmentId])
   @@index([gateway])
 }
 

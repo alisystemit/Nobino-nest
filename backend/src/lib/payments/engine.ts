@@ -140,6 +140,72 @@ export async function createPaymentForInvoice(params: {
 }
 
 /**
+ * ایجاد درخواست پرداخت بیعانهٔ نوبت (پیش‌پرداخت رزرو مشتری).
+ * مبلغ از تنظیمات سالن در زمان ثبت نوبت روی خود نوبت ذخیره شده است.
+ */
+export async function createDepositPayment(params: {
+  appointmentId: string;
+  gateway?: string;
+}): Promise<{ payment: { id: string; gateway: string; authority?: string | null; redirectUrl?: string }; gateway: string }> {
+  const gwId = params.gateway ?? (await defaultGatewayId());
+  const gateway = getGateway(gwId);
+
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: params.appointmentId },
+    include: { salon: { select: { name: true } } },
+  });
+  if (!appointment) throw new Error("نوبت یافت نشد");
+  if (appointment.depositPaid) throw new Error("بیعانهٔ این نوبت قبلاً پرداخت شده است");
+  const amount = appointment.depositAmount ?? 0;
+  if (amount <= 0) throw new Error("برای این نوبت بیعانه تعریف نشده است");
+
+  const callbackUrl = `${env.PAYMENT_CALLBACK_BASE}/${gwId}?appointment=${appointment.id}&redirect=/mini`;
+
+  // لغو پرداخت‌های قبلی pending برای این نوبت
+  await prisma.payment.updateMany({
+    where: { appointmentId: appointment.id, status: "PENDING" },
+    data: { status: "CANCELLED" },
+  });
+
+  const payment = await prisma.payment.create({
+    data: {
+      appointmentId: appointment.id,
+      gateway: gwId,
+      amount,
+      status: "PENDING",
+      callbackUrl,
+    },
+  });
+
+  const paymentOrder: PaymentOrder = {
+    id: appointment.id,
+    appointmentId: appointment.id,
+    amount,
+    description: `بیعانهٔ نوبت ${appointment.salon?.name ?? ""}`,
+    callbackUrl,
+    redirectPath: "/mini",
+    customer: { phone: appointment.customerPhone, name: appointment.customerName },
+  };
+
+  const result = await gateway.requestPayment(paymentOrder);
+
+  await prisma.payment.update({
+    where: { id: payment.id },
+    data: { authority: result.authority ?? null, payload: { request: result.raw } as never },
+  });
+
+  if (!result.success) {
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: "FAILED" } });
+    throw new Error(result.message ?? "خطا در ایجاد درخواست پرداخت");
+  }
+
+  return {
+    payment: { id: payment.id, gateway: gwId, authority: result.authority, redirectUrl: result.redirectUrl },
+    gateway: gwId,
+  };
+}
+
+/**
  * پردازش بازگشت (Callback) از درگاه.
  * پس از Verify موفق، وضعیت Order و Payment به PAID تغییر می‌کند.
  */
@@ -147,9 +213,13 @@ export async function handlePaymentCallback(params: {
   gatewayId: string;
   orderId?: string;
   invoiceId?: string;
+  appointmentId?: string;
   authority?: string;
   searchParams: Record<string, string>;
 }): Promise<{ success: boolean; companyId?: string; message?: string }> {
+  if (params.appointmentId) {
+    return handleDepositCallback(getGateway(params.gatewayId), params.appointmentId, params.authority, params.searchParams);
+  }
   if (params.invoiceId) {
     return handleInvoiceCallback(getGateway(params.gatewayId), params.invoiceId, params.authority, params.searchParams);
   }
@@ -250,16 +320,92 @@ export async function handlePaymentCallback(params: {
 }
 
 /** برای درگاه‌های sandbox، این مسیر پرداخت تست را شبیه‌سازی می‌کند */
-export async function simulateSandboxPay(params: { orderId: string; authority?: string }) {
-  if (!params.orderId) return { success: false, message: "شناسه پرداخت نامعتبر" };
-  const order = await prisma.order.findUnique({ where: { id: params.orderId } });
-  if (!order) {
-    // پرداخت فاکتور خدماتی (شناسه، شناسه فاکتور است)
-    const invoice = await prisma.invoice.findUnique({ where: { id: params.orderId } });
-    if (!invoice) return { success: false, message: "سفارش یافت نشد" };
-    return { success: true, note: "پرداخت تست شبیه‌سازی‌شده", invoiceId: params.orderId };
+export async function simulateSandboxPay(params: { orderId?: string; appointmentId?: string; authority?: string }) {
+  const orderId = params.orderId ?? "";
+  const appointmentId = params.appointmentId ?? "";
+  if (!orderId && !appointmentId) return { success: false, message: "شناسه پرداخت نامعتبر" };
+  if (orderId) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      // پرداخت فاکتور خدماتی (شناسه، شناسه فاکتور است)
+      const invoice = await prisma.invoice.findUnique({ where: { id: orderId } });
+      if (!invoice) return { success: false, message: "سفارش یافت نشد" };
+      return { success: true, note: "پرداخت تست شبیه‌سازی‌شده", invoiceId: orderId };
+    }
+    return { success: true, note: "پرداخت تست شبیه‌سازی‌شده", orderId };
   }
-  return { success: true, note: "پرداخت تست شبیه‌سازی‌شده", orderId: params.orderId };
+  // پرداخت بیعانهٔ نوبت
+  const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+  if (!appointment) return { success: false, message: "نوبت یافت نشد" };
+  return { success: true, note: "پرداخت تست شبیه‌سازی‌شده", appointmentId };
+}
+
+/** پردازش بازگشت درگاه برای بیعانهٔ نوبت */
+async function handleDepositCallback(
+  gateway: PaymentGateway,
+  appointmentId: string,
+  authority?: string,
+  searchParams: Record<string, string> = {}
+): Promise<{ success: boolean; companyId?: string; message?: string }> {
+  const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+  if (!appointment) return { success: false, message: "نوبت یافت نشد" };
+  // محافظ idempotency: بازگشت تکراری درگاه نباید دوباره اعمال شود
+  if (appointment.depositPaid) return { success: true, companyId: "ALREADY_PAID" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { appointmentId, gateway: gateway.id, status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const amount = appointment.depositAmount ?? payment?.amount ?? 0;
+  const paymentOrder: PaymentOrder = {
+    id: appointment.id,
+    appointmentId: appointment.id,
+    amount,
+    description: "بیعانهٔ نوبت",
+    callbackUrl: payment?.callbackUrl ?? "",
+  };
+
+  const result = await gateway.verifyPayment({
+    order: paymentOrder,
+    authority: authority ?? payment?.authority ?? undefined,
+    params: searchParams,
+  });
+
+  if (result.success) {
+    await prisma.$transaction([
+      prisma.appointment.update({
+        where: { id: appointment.id },
+        data: { depositPaid: true },
+      }),
+      payment
+        ? prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: "PAID", refId: result.refId, cardPan: result.cardPan, payload: { verified: result.raw } as never },
+          })
+        : prisma.payment.create({
+            data: {
+              appointmentId: appointment.id,
+              gateway: gateway.id,
+              amount,
+              status: "PAID",
+              authority: authority ?? null,
+              refId: result.refId,
+              cardPan: result.cardPan,
+              payload: { verified: result.raw } as never,
+            },
+          }),
+    ]);
+    return { success: true, companyId: result.refId };
+  }
+
+  if (payment) {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: "FAILED", payload: { verifyFailed: result.raw } as never },
+    });
+  }
+  return { success: false, message: result.message ?? "پرداخت ناموفق" };
 }
 
 /** پردازش بازگشت درگاه برای فاکتورهای خدماتی مشتریان */

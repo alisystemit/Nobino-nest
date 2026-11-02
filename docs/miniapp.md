@@ -156,6 +156,35 @@ endpoint های قبلی سایت است؛ مینی‌اپ مسیر تازه‌�
 حال `timezone`، `whatsapp`، `instagram`، `website`، `mapUrl`، `neshanUrl`، `baladUrl` و در
 هر خدمت `category` و `createdAt` را هم برمی‌گرداند («تازه‌ترین پکیج‌ها» بر پایهٔ
 `createdAt` مرتب می‌شود). `/api/salons/search` دیگر توسط مینی‌اپ صدا زده نمی‌شود.
+برای بیعانه، همان پاسخ `depositEnabled`، `depositMode` (`FIXED`/`PERCENT`) و
+`depositValue` را هم دارد (تومان برای FIXED، درصد برای PERCENT).
+
+### ۳.۱) بیعانهٔ نوبت (پیش‌پرداخت رزرو)
+
+سالن‌دار از پنل (تنظیمات سالن ← «بیعانهٔ نوبت») بیعانه را فعال می‌کند و مبلغ ثابت
+یا درصدی از قیمت خدمت تعیین می‌کند (`PATCH /api/dashboard/salons/:id` با
+`depositEnabled`/`depositMode`/`depositValue`). چرخهٔ پرداخت:
+
+1. **ثبت نوبت:** `POST /api/appointments` برای مشتری (مهمان یا `CUSTOMER`) طبق تنظیم
+   سالن `depositAmount` را روی نوبت می‌نویسد (سقف آن قیمت خدمت است). نوبتی که
+   سالن‌دار از پنل خودش ثبت کند بیعانه نمی‌گیرد — بیعانه در محل دریافت می‌شود.
+2. **شروع پرداخت:** `POST /api/payments/create` با بدنهٔ `{appointmentId}` (بدون پکیج؛
+   نیازمند ورود و فقط صاحب نوبت با `customerId` یا همان `customerPhone`).
+   پاسخ `redirectUrl` درگاه است. پرداخت دوباره رد می‌شود («بیعانه قبلاً پرداخت شده است»).
+3. **درگاه و بازگشت:** در سندباکس کاربر به `/api/payments/mock-pay?...&appointment=<id>`
+   می‌رود و درگاه به `/api/payments/callback/<gateway>?appointment=<id>&...` برمی‌گردد؛
+   `handlePaymentCallback` شاخهٔ `appointmentId` دارد و بعد از verify موفق،
+   `depositPaid=true` روی نوبت و `status=PAID` روی `Payment.appointmentId` می‌نشیند
+   (idempotent — بازگشت تکراری دوباره اعمال نمی‌شود). کاربر به `/mini?status=success` برمی‌گردد.
+4. **نمایش:** کارت «نوبت بعدی» خانه و فهرست نوبت‌ها اگر `depositAmount && !depositPaid`
+   باشد دکمهٔ «پرداخت بیعانه» نشان می‌دهند.
+
+پیاده‌سازی: `backend/src/lib/bookings/create.ts` (`depositForSalon`)،
+`backend/src/lib/payments/engine.ts` (`createDepositPayment`، `handleDepositCallback`)،
+`backend/src/routes/api/payments__create.ts`، `payments__callback__gateway.ts`،
+`payments__mock-pay.ts`، و سمت مینی‌اپ `frontend/src/mini/lib/deposit.ts`
+(`startDepositPayment`) + دکمهٔ پرداخت در `MiniHome`/`MiniBookings`.
+روت جدیدی اضافه نشده است.
 
 ---
 

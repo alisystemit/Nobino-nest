@@ -30,6 +30,10 @@ const patchSchema = z.object({
   maxAdvanceDays: z.number().int().min(1).optional(),
   cancelDeadlineHours: z.number().int().min(0).optional(),
   bufferMinutes: z.number().int().min(0).optional(),
+  // بیعانهٔ نوبت (پیش‌پرداخت رزرو مشتری)
+  depositEnabled: z.boolean().optional(),
+  depositMode: z.enum(["FIXED", "PERCENT"]).optional(),
+  depositValue: z.number().int().min(0).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {

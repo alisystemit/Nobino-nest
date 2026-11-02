@@ -54,6 +54,9 @@ type Salon = {
   maxAdvanceDays?: number;
   cancelDeadlineHours?: number;
   bufferMinutes?: number;
+  depositEnabled?: boolean;
+  depositMode?: string;
+  depositValue?: number;
 };
 
 type Hour = { id: string; dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean };
@@ -83,6 +86,9 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
     maxAdvanceDays: salon.maxAdvanceDays ?? 30,
     cancelDeadlineHours: salon.cancelDeadlineHours ?? 24,
     bufferMinutes: salon.bufferMinutes ?? 10,
+    depositEnabled: salon.depositEnabled ?? false,
+    depositMode: salon.depositMode ?? "FIXED",
+    depositValue: salon.depositValue ?? 0,
   });
   const [hours, setHours] = useState<Hour[]>([]);
   const [logoUrl, setLogoUrl] = useState(salon.logoUrl ?? "");
@@ -220,6 +226,9 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           maxAdvanceDays: Number(form.maxAdvanceDays),
           cancelDeadlineHours: Number(form.cancelDeadlineHours),
           bufferMinutes: Number(form.bufferMinutes),
+          depositEnabled: form.depositEnabled,
+          depositMode: form.depositMode,
+          depositValue: Number(form.depositValue) || 0,
         }),
       });
       const data = await res.json();
@@ -465,6 +474,48 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
             <input type="number" className={input} value={form.bufferMinutes} onChange={set("bufferMinutes")} />
           </div>
         </div>
+      </div>
+
+      {/* بیعانهٔ نوبت */}
+      <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">بیعانهٔ نوبت (پیش‌پرداخت)</h3>
+            <p className="mt-1 text-[11px] text-neutral-400">
+              مشتری پس از رزرو آنلاین، بیعانه را می‌پردازد و وضعیت پرداخت روی نوبت ثبت می‌شود.
+            </p>
+          </div>
+          <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-bold text-neutral-700 dark:text-neutral-200">
+            <input
+              type="checkbox"
+              className="h-5 w-5 shrink-0 accent-pink-600"
+              checked={form.depositEnabled}
+              onChange={(e) => setForm((f) => ({ ...f, depositEnabled: e.target.checked }))}
+            />
+            فعال
+          </label>
+        </div>
+        {form.depositEnabled ? (
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">نوع بیعانه</label>
+              <select
+                className={input}
+                value={form.depositMode}
+                onChange={(e) => setForm((f) => ({ ...f, depositMode: e.target.value }))}
+              >
+                <option value="FIXED">مبلغ ثابت (تومان)</option>
+                <option value="PERCENT">درصدی از قیمت خدمت</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                {form.depositMode === "PERCENT" ? "درصد بیعانه" : "مبلغ بیعانه (تومان)"}
+              </label>
+              <input type="number" min={0} className={input} value={form.depositValue} onChange={set("depositValue")} />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* ساعات کاری */}

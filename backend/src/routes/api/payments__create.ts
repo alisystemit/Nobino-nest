@@ -4,11 +4,13 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
-import { createPaymentForOrder } from "@/lib/payments/engine";
+import { createPaymentForOrder, createDepositPayment } from "@/lib/payments/engine";
 import { json, apiError } from "@/lib/utils";
 
 const schema = z.object({
-  packageId: z.string(),
+  packageId: z.string().optional(),
+  // برای پرداخت بیعانهٔ نوبت، شناسهٔ نوبت به‌جای پکیج می‌آید
+  appointmentId: z.string().optional(),
   salonId: z.string().optional(),
   gateway: z.string().optional(),
   discountCode: z.string().optional(),
@@ -16,11 +18,56 @@ const schema = z.object({
   autoRenew: z.boolean().default(false),
 });
 
+/** پرداخت بیعانهٔ نوبت — فقط صاحب نوبت (با حساب یا همان شمارهٔ تلفن) */
+async function depositFlow(user: { id: string; role: string; phone?: string | null }, appointmentId: string, gateway?: string) {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    include: { salon: { select: { name: true } } },
+  });
+  if (!appointment) return json({ success: false, error: "نوبت یافت نشد" }, { status: 404 });
+
+  const isOwner =
+    appointment.customerId === user.id ||
+    (user.phone != null && appointment.customerPhone === user.phone);
+  if (user.role !== "ADMIN" && !isOwner) {
+    return json({ success: false, error: "این نوبت متعلق به شما نیست" }, { status: 403 });
+  }
+  if (appointment.depositPaid) {
+    return json({ success: false, error: "بیعانهٔ این نوبت قبلاً پرداخت شده است" }, { status: 400 });
+  }
+  if (!appointment.depositAmount || appointment.depositAmount <= 0) {
+    return json({ success: false, error: "برای این نوبت بیعانه تعریف نشده است" }, { status: 400 });
+  }
+
+  const { payment } = await createDepositPayment({ appointmentId: appointment.id, gateway });
+
+  return json(
+    {
+      success: true,
+      appointmentId: appointment.id,
+      paymentId: payment.id,
+      gateway: payment.gateway,
+      redirectUrl: payment.redirectUrl,
+      amount: appointment.depositAmount,
+      salonName: appointment.salon?.name ?? null,
+    },
+    { status: 201 }
+  );
+}
+
 export async function POST(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireAuth();
     const body = schema.parse(await req.json());
 
+    // شاخهٔ بیعانه: با شناسهٔ نوبت، پکیج لازم نیست
+    if (body.appointmentId) {
+      return depositFlow(user, body.appointmentId, body.gateway);
+    }
+
+    if (!body.packageId) {
+      return json({ success: false, error: "شناسهٔ پکیج لازم است" }, { status: 400 });
+    }
     const pkg = await prisma.package.findUnique({ where: { id: body.packageId } });
     if (!pkg || !pkg.isActive) return json({ success: false, error: "پکیج یافت نشد" }, { status: 404 });
 

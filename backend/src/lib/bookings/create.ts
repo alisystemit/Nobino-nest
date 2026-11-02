@@ -20,6 +20,20 @@ export class BookingConflictError extends Error {
   }
 }
 
+/**
+ * محاسبهٔ بیعانهٔ نوبت بر اساس تنظیمات پنل سالن‌دار.
+ * اگر بیعانه غیرفعال باشد یا قیمت خدمت صفر باشد، null برمی‌گردد (بدون بیعانه).
+ * سقف بیعانه خودِ قیمت خدمت است.
+ */
+export function depositForSalon(
+  salon: { depositEnabled: boolean; depositMode: string; depositValue: number },
+  price: number
+): number | null {
+  if (!salon.depositEnabled || salon.depositValue <= 0 || price <= 0) return null;
+  const raw = salon.depositMode === "PERCENT" ? Math.round((price * salon.depositValue) / 100) : salon.depositValue;
+  return Math.max(1, Math.min(price, raw));
+}
+
 export async function createAppointmentSafe(input: {
   salonId: string;
   serviceId?: string;
@@ -35,6 +49,8 @@ export async function createAppointmentSafe(input: {
   note?: string;
   customerId?: string;
   voiceCallId?: string;
+  /** بیعانهٔ محاسبه‌شده از تنظیمات سالن (تومان)؛ فقط برای رزرو مشتریان */
+  depositAmount?: number | null;
 }) {
   return prisma.$transaction(async (tx) => {
     // قفل سالن برای سری‌سازی رزروها
@@ -126,6 +142,7 @@ export async function createAppointmentSafe(input: {
         channel: input.channel,
         note: input.note,
         voiceCallId: input.voiceCallId,
+        depositAmount: input.depositAmount,
         status: "REQUESTED",
       },
     });

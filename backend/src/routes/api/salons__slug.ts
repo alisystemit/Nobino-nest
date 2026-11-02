@@ -41,6 +41,10 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       mapUrl: salon.mapUrl,
       neshanUrl: salon.neshanUrl,
       baladUrl: salon.baladUrl,
+      // تنظیمات بیعانهٔ نوبت — صفحهٔ رزرو بر همین اساس مبلغ پیش‌پرداخت را اعلام می‌کند
+      depositEnabled: salon.depositEnabled,
+      depositMode: salon.depositMode,
+      depositValue: salon.depositValue,
       services: salon.services.map((s) => ({
         id: s.id,
         name: s.name,

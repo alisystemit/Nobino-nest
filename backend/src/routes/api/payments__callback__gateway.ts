@@ -32,9 +32,10 @@ export async function GET(req: Request, { params }: { params: { gateway: string 
   const search = collectParams(req.url);
   const orderId = search.order ?? search.OrderId ?? "";
   const invoiceId = search.invoice ?? search.InvoiceId ?? "";
+  const appointmentId = search.appointment ?? search.AppointmentId ?? "";
   const authority = search.authority ?? search.RefId ?? search.token ?? search.Token ?? "";
 
-  const result = await handlePaymentCallback({ gatewayId: gateway, orderId, invoiceId, authority, searchParams: search });
+  const result = await handlePaymentCallback({ gatewayId: gateway, orderId, invoiceId, appointmentId, authority, searchParams: search });
 
   const base = safeRedirectPath(search.redirect);
   const origin = new URL(req.url).origin;
@@ -66,9 +67,10 @@ export async function POST(req: Request, { params }: { params: { gateway: string
   const search = collectParams(req.url, body);
   const orderId = search.order ?? search.OrderId ?? "";
   const invoiceId = search.invoice ?? search.InvoiceId ?? "";
+  const appointmentId = search.appointment ?? search.AppointmentId ?? "";
   const authority = search.authority ?? search.RefId ?? search.token ?? search.Token ?? "";
 
-  const result = await handlePaymentCallback({ gatewayId: gateway, orderId, invoiceId, authority, searchParams: search });
+  const result = await handlePaymentCallback({ gatewayId: gateway, orderId, invoiceId, appointmentId, authority, searchParams: search });
 
   const base = safeRedirectPath(search.redirect);
   const origin = new URL(req.url).origin;

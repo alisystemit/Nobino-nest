@@ -8,6 +8,7 @@ import LoginSheet from "../components/login-sheet";
 import { AppointmentActions, CancelSheet, RescheduleSheet, ReviewSheet } from "../components/appt-actions";
 import { Button, EmptyState, Icon, SectionTitle, SkeletonList, StatusBadge } from "../components/ui";
 import { faDigits, fullLabel, fromNow, toman } from "../lib/format";
+import { startDepositPayment } from "../lib/deposit";
 import { mapi, useMini } from "../lib/store";
 import type { MiniAppointment } from "../lib/types";
 
@@ -15,7 +16,7 @@ const PAGE_SIZE = 10;
 
 export default function MiniBookings() {
   const navigate = useNavigate();
-  const { me, authReady } = useMini();
+  const { me, authReady, toast } = useMini();
   const isStaff = Boolean(me && me.role !== "CUSTOMER");
   const [items, setItems] = useState<MiniAppointment[]>([]);
   const [page, setPage] = useState(1);
@@ -24,6 +25,19 @@ export default function MiniBookings() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [loginOpen, setLoginOpen] = useState(false);
+  const [payingId, setPayingId] = useState("");
+
+  /** پرداخت بیعانهٔ نوبت → هدایت به درگاه */
+  async function payDeposit(appt: MiniAppointment) {
+    setPayingId(appt.id);
+    const r = await startDepositPayment(appt.id);
+    setPayingId("");
+    if (r.ok && r.redirectUrl) {
+      window.location.href = r.redirectUrl;
+    } else {
+      toast(r.error ?? "شروع پرداخت ممکن نشد", "error");
+    }
+  }
 
   const [moveTarget, setMoveTarget] = useState<MiniAppointment | null>(null);
   const [cancelTarget, setCancelTarget] = useState<MiniAppointment | null>(null);
@@ -122,8 +136,15 @@ export default function MiniBookings() {
                 </div>
                 {a.note ? <div style={{ fontSize: 12 }}>یادداشت: {a.note}</div> : null}
                 {a.depositAmount && !a.depositPaid ? (
-                  <div style={{ fontSize: 12 }}>
-                    <Icon name="wallet" size={13} /> بیعانهٔ {toman(a.depositAmount)} هنوز پرداخت نشده.
+                  <div style={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <span>
+                      <Icon name="wallet" size={13} /> بیعانهٔ {toman(a.depositAmount)} هنوز پرداخت نشده.
+                    </span>
+                    {mine(a) ? (
+                      <Button tiny loading={payingId === a.id} onClick={() => void payDeposit(a)}>
+                        پرداخت بیعانه
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

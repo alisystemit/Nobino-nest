@@ -16,6 +16,7 @@ import { Button, EmptyState, Icon, Row, SectionTitle, SkeletonList, StarIcon } f
 import { duration, faDigits, fullLabel, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
 import { rememberPendingSlug, useFavorites, type FavoriteSalon } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
+import { startDepositPayment } from "../lib/deposit";
 import { mapi, useMini } from "../lib/store";
 import type { MiniAppointment, MiniReview, MiniSalonDetail, MiniStaff } from "../lib/types";
 
@@ -65,6 +66,19 @@ export default function MiniHome() {
   const [moveFor, setMoveFor] = useState<MiniAppointment | null>(null);
   const [cancelFor, setCancelFor] = useState<MiniAppointment | null>(null);
   const [reviewFor, setReviewFor] = useState<MiniAppointment | null>(null);
+  const [payingDeposit, setPayingDeposit] = useState(false);
+
+  /** پرداخت بیعانهٔ نوبت بعدی → هدایت به درگاه */
+  async function payDeposit(appt: MiniAppointment) {
+    setPayingDeposit(true);
+    const r = await startDepositPayment(appt.id);
+    setPayingDeposit(false);
+    if (r.ok && r.redirectUrl) {
+      window.location.href = r.redirectUrl;
+    } else {
+      toast(r.error ?? "شروع پرداخت ممکن نشد", "error");
+    }
+  }
 
   /* ── اطلاعیهٔ سراسری نوبینو (یک بار، بدون نیاز به ورود) ───────────── */
   useEffect(() => {
@@ -385,8 +399,13 @@ export default function MiniHome() {
               <span className="mini-countdown">{countdown(nextAppt.startAt)}</span>
             </div>
             {nextAppt.depositAmount && !nextAppt.depositPaid ? (
-              <div className="mini-next-sub" style={{ marginTop: 8 }}>
-                بیعانهٔ {toman(Number(nextAppt.depositAmount))} هنوز پرداخت نشده است.
+              <div className="mini-next-sub" style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <Icon name="wallet" size={13} /> بیعانهٔ {toman(Number(nextAppt.depositAmount))} پرداخت نشده.
+                </span>
+                <Button tiny loading={payingDeposit} onClick={() => void payDeposit(nextAppt)}>
+                  پرداخت بیعانه
+                </Button>
               </div>
             ) : null}
             <AppointmentActions
