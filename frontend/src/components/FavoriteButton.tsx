@@ -4,32 +4,50 @@ import { useEffect, useState } from "react";
 
 type State = "loading" | "on" | "off" | "guest";
 
-/** دکمه ذخیره/حذف سالن در علاقه‌مندی‌ها */
-export default function FavoriteButton({ salonId }: { salonId: string }) {
+/**
+ * دکمه ذخیره/حذف سالن در علاقه‌مندی‌ها.
+ * `onLogin` اختیاری است: صفحه‌هایی که ورود را در شیت خودشان انجام می‌دهند
+ * (مثل صفحهٔ سالن روی ساب‌دامین، که مسیر /login را نشان نمی‌دهد) آن را
+ * می‌دهند؛ در بقیه همان لینک همیشگی به /login باقی می‌ماند.
+ * `sessionKey` هم اگر عوض شود (ورود/خروج)، وضعیت علاقه‌مندی دوباره خوانده می‌شود.
+ */
+export default function FavoriteButton({
+  salonId,
+  onLogin,
+  sessionKey = "",
+}: {
+  salonId: string;
+  onLogin?: () => void;
+  sessionKey?: string;
+}) {
   const [state, setState] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("");
 
   useEffect(() => {
+    let alive = true;
     (async () => {
       try {
         const res = await fetch("/api/favorites");
         if (res.status === 401) {
-          setState("guest");
+          if (alive) setState("guest");
           return;
         }
         const data = await res.json();
         if (!data.success) {
-          setState("guest");
+          if (alive) setState("guest");
           return;
         }
         const saved = (data.favorites as { salon: { id: string } }[]).some((f) => f.salon.id === salonId);
-        setState(saved ? "on" : "off");
+        if (alive) setState(saved ? "on" : "off");
       } catch {
-        setState("guest");
+        if (alive) setState("guest");
       }
     })();
-  }, [salonId]);
+    return () => {
+      alive = false;
+    };
+  }, [salonId, sessionKey]);
 
   async function toggle() {
     if (state === "guest" || state === "loading" || busy) return;
@@ -52,15 +70,24 @@ export default function FavoriteButton({ salonId }: { salonId: string }) {
   }
 
   if (state === "guest") {
-    return (
-      <a
-        href="/login"
-        aria-label="ورود برای ذخیره سالن"
-        className="inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-xl bg-white/20 text-base font-bold text-white backdrop-blur transition hover:bg-white/30 active:scale-95 sm:w-auto sm:px-4 sm:text-sm"
-        title="ذخیره سالن"
-      >
+    const className =
+      "inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-xl bg-white/20 text-base font-bold text-white backdrop-blur transition hover:bg-white/30 active:scale-95 sm:w-auto sm:px-4 sm:text-sm";
+    const inner = (
+      <>
         <span>🤍</span>
         <span className="hidden sm:inline">ورود برای ذخیره سالن</span>
+      </>
+    );
+    if (onLogin) {
+      return (
+        <button type="button" onClick={onLogin} aria-label="ورود برای ذخیره سالن" className={className} title="ذخیره سالن">
+          {inner}
+        </button>
+      );
+    }
+    return (
+      <a href="/login" aria-label="ورود برای ذخیره سالن" className={className} title="ذخیره سالن">
+        {inner}
       </a>
     );
   }
