@@ -501,6 +501,11 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
               </p>
               <SalonQrCard slug={salon.slug} name={salon.name} customDomain={salon.customDomain} domainStatus={salon.domainStatus} size={170} />
             </div>
+
+            {/* بنر نصب اپ همان سالن — در جریان صفحه (نه شناور) تا روی فرم رزرو نیفتد */}
+            <div className="sm-install">
+              <SalonInstallBanner slug={salon.slug} name={salon.name} logoUrl={salon.logoUrl} />
+            </div>
           </div>
         </div>
 
@@ -596,10 +601,9 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
         </div>
       ) : null}
 
-      {/* ── دستیار هوشمند و بنر نصب ─────────────────────────────────── */}
+      {/* ── دستیار هوشمند (شناور) ────────────────────────────────────── */}
       <div className="sm-float-layer">
         <AssistantChat salonId={salon.id} />
-        <SalonInstallBanner slug={salon.slug} name={salon.name} logoUrl={salon.logoUrl} />
       </div>
 
       {/* ── شیت آرایشگر ─────────────────────────────────────────────── */}

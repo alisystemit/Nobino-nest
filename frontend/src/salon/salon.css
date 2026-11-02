@@ -18,16 +18,33 @@
 /* چیدمان دو ستونه فقط روی دسکتاپ — روی موبایل همان ستون تکیِ مینی‌اپ است */
 .salon-page .sm-layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
+/* ستون‌های روی‌هم‌چیده باید یک ردیفِ «هرچه هست» داشته باشند؛ بدون این تعریف
+   گرید یک تراک ضمنی auto می‌سازد که به عرضِ طبیعیِ نوار روزها (۹۴۸px) رشد
+   می‌کند و کل کارت رزرو از ستون بیرون می‌زند. */
 .salon-page .sm-col-main,
 .salon-page .sm-col-side,
 .salon-page .sm-after {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-content: start;
   min-width: 0;
+}
+/* قلم‌های داخل ستون‌ها هرگز از عرضِ تراک بیشتر نمی‌شوند؛ نوارهای افقی
+   (روزها و آرایشگرها) به‌جای هل دادنِ صفحه، داخل خودشان اسکرول می‌شوند. */
+.salon-page .sm-col-main > *,
+.salon-page .sm-col-side > *,
+.salon-page .sm-after > *,
+.salon-page .sm-book-card,
+.salon-page .sm-book-card .mini-card,
+.salon-page .mini-days,
+.salon-page .mini-avatars {
+  min-width: 0;
+  max-width: 100%;
 }
 .salon-page .sm-after {
   margin-top: 14px;
@@ -310,10 +327,27 @@
 }
 .salon-page .sm-float-layer > div,
 .salon-page .sm-float-layer > section {
-  bottom: calc(148px + env(safe-area-inset-bottom));
+  bottom: calc(150px + env(safe-area-inset-bottom));
 }
+
+/* ── بنر نصب اپ در جریانِ خودِ صفحه ─────────────────────────────────── */
+/* نسخهٔ شناورِ کامپوننت روی این صفحه روی فرم رزرو می‌افتاد؛ اینجا به‌عنوان یک
+   کارت معمولی انتهای ستون اطلاعات نشان داده می‌شود (قوانین خود کامپوننت با
+   انتخابگرهای محلیِ همین صفحه بازنویسی می‌شود، نه در فایل مشترک). */
+.salon-page .sm-install:empty { display: none; }
+.salon-page .sm-install > div {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  width: auto;
+  max-width: 100%;
+}
+
 @media (min-width: 1000px) {
   .salon-page .sm-float-layer > button { bottom: 20px; }
+  .salon-page .sm-float-layer > div,
+  .salon-page .sm-float-layer > section { bottom: 84px; }
 }
 
 /* ── دسکتاپ ────────────────────────────────────────────────────────── */
