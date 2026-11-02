@@ -1,22 +1,31 @@
 /**
  * صفحهٔ اول مینی‌اپ — خانهٔ سالن‌محور.
  *
- * برخلاف نسخهٔ اول، اینجا دیگر فهرست یا جست‌وجوی «همهٔ سالن‌ها» وجود ندارد:
- * کاربر فقط سالن خودش را می‌بیند (زنجیرهٔ تشخیص در ./lib/resolve.ts) و صفحه
- * همان معرفی سالن است — توضیحات، تازه‌ترین پکیج‌ها، آرایشگران، ساعات کاری،
- * راه‌های تماس و دکمهٔ رزرو. رزرو از مسیر /mini/s/<slug> انجام می‌شود.
+ * اینجا نه فهرستی از «همهٔ سالن‌ها» هست و نه سالن نمونه‌ای: خانه فقط یکی از این‌هاست —
+ * سالی که کاربر خودش مدیرش است، آخرین سالی که از آن نوبت گرفته، یا سالن‌هایی که با
+ * اسکن کیو‌آر / لینک در «علاقه‌مندی‌ها»اش ثبت شده (زنجیرهٔ تشخیص در ./lib/resolve.ts).
+ * با یک علاقه‌مندی مستقیم به همان سالن می‌رود؛ با دو تا یا بیشتر، نوار علاقه‌مندی‌ها
+ * خانه را می‌سازد. اگر هم هیچ‌کدام نباشد، صفحهٔ راهنمای اسکن نشان می‌دهد.
  */
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AppointmentActions, CancelSheet, RescheduleSheet, ReviewSheet, countdown } from "../components/appt-actions";
+import { FavoriteRow, FavoritesStrip } from "../components/favorites";
 import LoginSheet from "../components/login-sheet";
 import { Button, EmptyState, Icon, Row, SectionTitle, SkeletonList, StarIcon } from "../components/ui";
 import { duration, faDigits, fullLabel, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
+import { rememberPendingSlug, useFavorites, type FavoriteSalon } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { mapi, useMini } from "../lib/store";
 import type { MiniAppointment, MiniReview, MiniSalonDetail, MiniStaff } from "../lib/types";
 
 const PACKAGES_SHOWN = 6;
+
+/** تبدیل سالنِ صفحه به چیزی که جدول علاقه‌مندی می‌خواهد */
+function favoriteOf(salon: MiniSalonDetail): FavoriteSalon {
+  return { id: salon.id, slug: salon.slug, name: salon.name, city: salon.city, coverColor: salon.coverColor, bannerUrl: salon.bannerUrl };
+}
+
 
 /** شمارهٔ واتساپ ممکن است عدد خام یا لینک کامل باشد */
 function whatsappHref(value: string): string {
@@ -37,7 +46,10 @@ function instagramHref(value: string): string {
 export default function MiniHome() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { config, configReady, authReady, me, messengerName, platformLabel } = useMini();
+  const { config, configReady, authReady, me, messengerName, platformLabel, toast } = useMini();
+  const favorites = useFavorites(me?.id ?? null);
+  /** کلید پایدار فهرست علاقه‌مندی — برای اینکه تشخیص خانه هر رندر دوباره اجرا نشود */
+  const favKey = favorites.slugs.join(",");
 
   const [home, setHome] = useState<HomeSalon | null>(null);
   const [salon, setSalon] = useState<MiniSalonDetail | null>(null);
@@ -47,6 +59,7 @@ export default function MiniHome() {
   const [loadError, setLoadError] = useState("");
   const [expandText, setExpandText] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [removing, setRemoving] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const [nextAppt, setNextAppt] = useState<MiniAppointment | null>(null);
   const [moveFor, setMoveFor] = useState<MiniAppointment | null>(null);
@@ -93,7 +106,11 @@ export default function MiniHome() {
     setLoading(true);
     setLoadError("");
     void (async () => {
-      const resolved = await resolveHomeSalon({ search: location.search, me, defaultSalon: config.defaultSalon });
+      const resolved = await resolveHomeSalon({
+        search: location.search,
+        me,
+        favorites: favKey ? favKey.split(",") : [],
+      });
       if (!alive) return;
       setHome(resolved);
       if (resolved.source === "none") {
@@ -104,7 +121,7 @@ export default function MiniHome() {
     return () => {
       alive = false;
     };
-  }, [configReady, authReady, me, config.defaultSalon, location.search]);
+  }, [configReady, authReady, me, favKey, location.search]);
 
   /* ── ۲) بارگذاری همان سالن (+ آرایشگران و نظرها) ─────────────────── */
   const loadSalon = useCallback(async (slug: string) => {
@@ -144,6 +161,8 @@ export default function MiniHome() {
     [salon]
   );
   const hours = useMemo(() => [...(salon?.hours ?? [])].sort((a, b) => a.dayOfWeek - b.dayOfWeek), [salon]);
+  /** علاقه‌مندی‌های دیگر؛ سالی که همین حالا در خانه باز است در نوار تکرار نشود */
+  const otherFavorites = useMemo(() => favorites.list.filter((f) => f.slug !== salon?.slug), [favorites.list, salon?.slug]);
   const today = todayWeekdayIndex(salon?.timezone || "Asia/Tehran");
   const average = useMemo(() => {
     if (!reviews.length) return null;
@@ -179,6 +198,32 @@ export default function MiniHome() {
     navigate(`/mini/s/${home.slug}${serviceId ? `?service=${encodeURIComponent(serviceId)}` : ""}`);
   };
 
+  /** حذف یک سالن از فهرست خانه */
+  const removeFavorite = async (id: string) => {
+    setRemoving(id);
+    const ok = await favorites.remove(id);
+    setRemoving("");
+    toast(ok ? "از علاقه‌مندی‌ها حذف شد" : "حذف ممکن نشد؛ دوباره تلاش کنید", ok ? "ok" : "error");
+  };
+
+  /* ── اسکن کیو‌آر / بازشدن لینک سالن = ثبت آن در علاقه‌مندی‌ها ──────── */
+  const seenScan = useRef("");
+  useEffect(() => {
+    if (!salon || home?.source !== "link") return;
+    const key = `${me?.id ?? "guest"}:${salon.id}`;
+    if (seenScan.current === key) return;
+    seenScan.current = key;
+    if (!me) {
+      // هنوز وارد نشده: اسلاگ می‌ماند و بعد از ورود اضافه می‌شود
+      rememberPendingSlug(salon.slug);
+      return;
+    }
+    if (favorites.has(salon.id)) return;
+    void favorites.add(favoriteOf(salon)).then((ok) => {
+      toast(ok ? "به علاقه‌مندی‌های شما اضافه شد" : "این سالن ثبت نشد؛ دوباره تلاش کنید", ok ? "ok" : "error");
+    });
+  }, [salon, home, me, favorites, toast]);
+
   /* ── حالت‌های بدون سالن ──────────────────────────────────────────── */
   if (home && home.source === "none") {
     return (
@@ -189,26 +234,63 @@ export default function MiniHome() {
         </div>
         {announcement ? <AnnouncementBanner text={announcement} /> : null}
         <div style={{ height: 14 }} />
-        <EmptyState
-          text={me ? "هنوز سالنی به این حساب وصل نیست" : "برای دیدن سالن خودتان وارد شوید"}
-          hint={
-            me
-              ? "اگر مشتری این سالن هستید و قبلاً نوبت گرفته‌اید، با همان شمارهٔ تلفن وارد شوید."
-              : "ورود با پیام‌رسان یا شمارهٔ موبایل، سالن شما را در صفحهٔ خانه می‌آورد."
-          }
-        />
-        {!me ? (
-          <Button onClick={() => setLoginOpen(true)}>
-            <Icon name="user" size={18} />
-            ورود / ساخت حساب
-          </Button>
-        ) : null}
+
+        {favorites.list.length ? (
+          <>
+            <SectionTitle
+              title="علاقه‌مندی‌های شما"
+              hint={`${faDigits(String(favorites.list.length))} سالن`}
+              action={
+                <button type="button" className="mini-more" onClick={() => navigate("/mini/favorites")}>
+                  افزودن
+                </button>
+              }
+            />
+            <div className="mini-card" style={{ padding: 6 }}>
+              {favorites.list.map((f) => (
+                <FavoriteRow
+                  key={f.id}
+                  salon={f}
+                  busy={removing === f.id}
+                  onOpen={() => navigate(`/mini/s/${f.slug}`)}
+                  onRemove={() => void removeFavorite(f.id)}
+                />
+              ))}
+            </div>
+            <div className="mini-note" style={{ marginTop: 10 }}>
+              با اسکن کیو‌آرِ یک سالنِ دیگر، آن را هم به همین فهرست اضافه کنید.
+            </div>
+          </>
+        ) : (
+          <>
+            <EmptyState
+              text={me ? "هنوز سالنی در علاقه‌مندی‌های شما نیست" : "برای دیدن سالن‌ها وارد شوید"}
+              hint={
+                me
+                  ? "کیو‌آر یا لینک سالن را باز کنید تا به علاقه‌مندی‌های شما اضافه شود. اگر مشتری سالنی هستید و قبلاً نوبت گرفته‌اید، با همان شمارهٔ تلفن وارد شوید."
+                  : "کیو‌آر سالن را اسکن کنید؛ بعد از ورود، همان سالن در علاقه‌مندی‌های شما می‌ماند."
+              }
+            />
+            {!me ? (
+              <Button onClick={() => setLoginOpen(true)}>
+                <Icon name="user" size={18} />
+                ورود / ساخت حساب
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={() => navigate("/mini/favorites")}>
+                <Icon name="plus" size={17} />
+                افزودن سالن به علاقه‌مندی‌ها
+              </Button>
+            )}
+          </>
+        )}
+
         {config.brand.supportPhone ? (
           <div className="mini-card" style={{ marginTop: 14 }}>
             <Row label="پشتیبانی" value={<a className="mini-link" href={`tel:${config.brand.supportPhone}`} dir="ltr">{faDigits(config.brand.supportPhone)}</a>} />
           </div>
         ) : null}
-        <LoginSheet open={loginOpen} onClose={() => setLoginOpen(false)} reason="بعد از ورود، صفحهٔ خانهٔ مینی‌اپ سالن شما را نشان می‌دهد." />
+        <LoginSheet open={loginOpen} onClose={() => setLoginOpen(false)} reason="بعد از ورود، علاقه‌مندی‌ها و نوبت‌های شما در همین صفحه باز می‌شود." />
       </div>
     );
   }
@@ -264,6 +346,19 @@ export default function MiniHome() {
       {/* ── اطلاعیهٔ سراسری ─────────────────────────────────────────── */}
       {announcement ? <AnnouncementBanner text={announcement} /> : null}
 
+      {/* ── سالن‌های دیگرِ علاقه‌مندی (خانه با چند سالن) ─────────────── */}
+      {favorites.list.length >= 2 ? (
+        <SectionTitle
+          title="علاقه‌مندی‌های شما"
+          action={
+            <button type="button" className="mini-more" onClick={() => navigate("/mini/favorites")}>
+              همه
+            </button>
+          }
+        />
+      ) : null}
+      <FavoritesStrip list={otherFavorites} onOpen={(slug) => navigate(`/mini/s/${slug}`)} />
+
       {/* ── نوبت بعدی من ────────────────────────────────────────────── */}
       {nextAppt ? (
         <>
@@ -305,7 +400,10 @@ export default function MiniHome() {
       ) : null}
 
       {/* ── توضیحات ─────────────────────────────────────────────────── */}
-      <SectionTitle title="دربارهٔ سالن" hint={home && home.source !== "default" ? SOURCE_LABEL[home.source] : undefined} />
+      <SectionTitle
+        title="دربارهٔ سالن"
+        hint={home && (home.source === "link" || home.source === "favorites" || home.source === "last_booking") ? SOURCE_LABEL[home.source] : undefined}
+      />
       <div className="mini-card">
         {salon.description ? (
           <>

@@ -1,19 +1,21 @@
 /**
  * تشخیص «سالن صفحهٔ خانه» در مینی‌اپ.
  *
- * مینی‌اپ سالن‌محور است: فهرست یا جست‌وجوی سالن‌ها وجود ندارد و هر کاربر فقط
- * سالن خودش را می‌بیند. زنجیرهٔ تشخیص، از قطعی‌ترین به عمومی‌ترین:
- *   ۱) اسلاگ داخل لینک پیام‌رسان  →  /mini?salon=mah  یا  /mini?slug=mah
+ * مینی‌اپ سالن‌محور است: فهرست یا جست‌وجوی سالن‌ها وجود ندارد و کاربر فقط سالن‌هایی را
+ * می‌بیند که خودش آن‌ها را آورده (اسکن کیو‌آر / لینک) یا از آن‌ها نوبت گرفته.
+ * «سالن نمونه» یا سالن پیش‌فرض سوپرادمین حذف شده است. زنجیرهٔ تشخیص،
+ * از قطعی‌ترین به عمومی‌ترین:
+ *   ۱) اسلاگ داخل لینک/کیو‌آر  →  /mini?salon=mah  یا  /mini?slug=mah
  *   ۲) سالن خود کاربر (اگر سالن‌دار است)  →  /api/dashboard/stats
  *   ۳) آخرین سالنی که کاربر از آن نوبت گرفته  →  /api/appointments?limit=1
- *   ۴) سالن پیش‌فرض که سوپرادمین در پنل گذاشته  →  miniapps.default_salon
- * اگر هیچ‌کدام نبود، `source: "none"` برمی‌گردد و خانهٔ مینی‌اپ کارت پشتیبانی
- * و دکمهٔ ورود را نشان می‌دهد (هیچ سالن دیگری فاش نمی‌شود).
+ *   ۴) اگر دقیقاً یک سالن در علاقه‌مندی‌هایش باشد  →  /api/favorites
+ * اگر هیچ‌کدام نبود `source: "none"` برمی‌گردد و خانه، فهرست علاقه‌مندی‌ها را نشان می‌دهد
+ * (خالی باشد: راهنمای اسکن کیو‌آر و دکمهٔ ورود — هیچ سالن دیگری فاش نمی‌شود).
  */
 import { mapi } from "./store";
 import type { MiniUser } from "./store";
 
-export type HomeSource = "link" | "owner" | "last_booking" | "default" | "none";
+export type HomeSource = "link" | "owner" | "last_booking" | "favorites" | "none";
 
 export type HomeSalon = { slug: string; source: HomeSource };
 
@@ -38,7 +40,8 @@ function isSlug(value: unknown): value is string {
 export async function resolveHomeSalon(opts: {
   search: string;
   me: MiniUser | null;
-  defaultSalon: string;
+  /** اسلاگ سالن‌های علاقه‌مندی کاربر (از /api/favorites) */
+  favorites?: string[];
 }): Promise<HomeSalon> {
   const fromLink = slugFromSearch(opts.search);
   if (fromLink) return { slug: fromLink, source: "link" };
@@ -57,16 +60,17 @@ export async function resolveHomeSalon(opts: {
     if (isSlug(slug)) return { slug: slug.trim().toLowerCase(), source: "last_booking" };
   }
 
-  // ۴) سالن پیش‌فرض پنل
-  if (isSlug(opts.defaultSalon)) return { slug: opts.defaultSalon.trim().toLowerCase(), source: "default" };
+  // ۴) فقط یک سالن در علاقه‌مندی‌ها — همان خانه است؛ با دو تا یا بیشتر، خانه فهرست می‌شود
+  const favs = (opts.favorites ?? []).filter(isSlug).map((s) => s.trim().toLowerCase());
+  if (favs.length === 1) return { slug: favs[0], source: "favorites" };
 
   return { slug: "", source: "none" };
 }
 
 export const SOURCE_LABEL: Record<HomeSource, string> = {
-  link: "از لینک پیام‌رسان",
+  link: "از لینک/کیو‌آر سالن",
   owner: "سالن شما",
   last_booking: "آخرین سالن شما",
-  default: "سالن پیش‌فرض",
+  favorites: "علاقه‌مندی شما",
   none: "",
 };

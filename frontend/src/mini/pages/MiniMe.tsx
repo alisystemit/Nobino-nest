@@ -161,6 +161,7 @@ export default function MiniMe() {
       <div className="mini-quick">
         <QuickLink icon="bell" label="اطلاعیه‌ها" onClick={() => navigate("/mini/notifications")} />
         <QuickLink icon="calendar" label="نوبت‌های من" onClick={() => navigate("/mini/appointments")} />
+        <QuickLink icon="heart" label="علاقه‌مندی‌ها" onClick={() => navigate("/mini/favorites")} />
         <QuickLink icon="chat" label="پشتیبانی" onClick={() => navigate("/mini/support")} />
       </div>
 

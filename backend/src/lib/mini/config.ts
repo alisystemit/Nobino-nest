@@ -44,8 +44,6 @@ export type MiniConfig = {
   miniUrl: string;
   brand: MiniBrand;
   features: MiniFeatures;
-  /** اسلاگ سالنی که صفحهٔ خانهٔ مینی‌اپ را باز می‌کند (وقتی لینک/کاربر سالنی نداشته باشد) */
-  defaultSalon: string;
   featured: string[];
   platforms: MiniPlatform[];
 };
@@ -127,8 +125,8 @@ export async function readMiniConfig(): Promise<MiniConfig> {
     .filter((s) => /^[a-z0-9-]{2,40}$/.test(s))
     .slice(0, 12);
 
-  // اسلاگ سالن پیش‌فرض — همان قالبی که در آدرس /mini/s/<slug> استفاده می‌شود
-  const defaultSalon = (g["default_salon"] ?? "").trim().toLowerCase();
+  // اسلاگ سالن پیش‌فرض حذف شده است: خانهٔ مینی‌اپ هیچ «سالن نمونه‌ای» به کاربر
+  // بی‌ربط نشان نمی‌دهد؛ منبع خانه فقط لینک/QR، سالن خود کاربر یا علاقه‌مندی‌های اوست.
 
   return {
     baseUrl: base.replace(/\/+$/, ""),
@@ -149,7 +147,6 @@ export async function readMiniConfig(): Promise<MiniConfig> {
       silentLogin: bool(g["silent_login"], true),
       showFeatured: featured.length > 0,
     },
-    defaultSalon: /^[a-z0-9-]{2,40}$/.test(defaultSalon) ? defaultSalon : "",
     featured,
     platforms,
   };

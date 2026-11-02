@@ -12,6 +12,7 @@ import MiniManage from "./pages/MiniManage";
 import MiniMe from "./pages/MiniMe";
 import MiniNotifications from "./pages/MiniNotifications";
 import MiniSupport from "./pages/MiniSupport";
+import MiniFavorites from "./pages/MiniFavorites";
 import { BellButton, Icon, TopBar, type IconName } from "./components/ui";
 import { MiniProvider, mapi, useMini } from "./lib/store";
 import { PLATFORM_EMOJI, onNativeBack } from "./lib/bridge";
@@ -116,6 +117,7 @@ function Shell() {
           <Route path="/appointments" element={<MiniBookings />} />
           <Route path="/notifications" element={<MiniNotifications />} />
           <Route path="/support" element={<MiniSupport />} />
+          <Route path="/favorites" element={<MiniFavorites />} />
           <Route path="/manage" element={<MiniManage />} />
           <Route path="/me" element={<MiniMe />} />
           <Route path="*" element={<Navigate to="/mini" replace />} />

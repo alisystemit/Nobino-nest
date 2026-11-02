@@ -324,6 +324,9 @@
   outline: none;
 }
 .mini-input:focus { border-color: rgba(var(--m-rgb), 0.6); box-shadow: 0 0 0 3px rgba(var(--m-rgb), 0.14); }
+.mini-slug-row { display: flex; gap: 8px; align-items: stretch; }
+.mini-slug-row .mini-input { flex: 1 1 auto; min-width: 0; }
+.mini-slug-row .mini-btn { flex: 0 0 auto; }
 .mini-code { letter-spacing: 8px; text-align: center; font-weight: 900; font-size: 20px; }
 
 /* ── وضعیت نوبت ────────────────────────────────────────────────────── */
@@ -835,11 +838,56 @@
   cursor: pointer;
 }
 .mini-icon-btn.is-on { color: rgb(var(--m-rgb)); border-color: rgba(var(--m-rgb), 0.4); background: rgba(var(--m-rgb), 0.08); }
+/* ♥ علاقه‌مندی: وقتی روشن است قلب پُر می‌شود تا از حالت خاموش متمایز باشد */
+.mini-fav-btn.is-on svg path { fill: currentColor; }
 .mini-icon-btn.is-off { color: #b91c1c; border-color: rgba(185, 28, 28, 0.25); }
 .mini-item.is-muted { opacity: 0.6; }
 /* .mini-item روی <button> (ردیف مشتری، ردیف تیکت) — بازنشانی ظاهر پیش‌فرض دکمه */
 button.mini-item { font: inherit; color: inherit; text-align: start; cursor: pointer; width: 100%; }
 button.mini-item:active { transform: scale(0.985); }
+
+/* ── علاقه‌مندی‌ها ─────────────────────────────────────────────────── */
+/* ردیف بازکردنیِ یک سالن علاقه‌مندی (روی <button>) */
+.mini-fav-open { border: 0; background: transparent; font: inherit; color: inherit; text-align: start; cursor: pointer; }
+.mini-fav-chip {
+  flex: 0 0 auto;
+  width: 122px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--m-line);
+  border-radius: 16px;
+  background: var(--m-card);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+}
+.mini-fav-chip:active { transform: scale(0.985); }
+.mini-fav-chip-cover {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(var(--m-rgb), 0.12);
+  color: rgb(var(--m-rgb));
+  font-size: 17px;
+  font-weight: 900;
+}
+.mini-fav-chip-cover img { width: 100%; height: 100%; object-fit: cover; }
+.mini-fav-chip-name {
+  font-size: 12.5px;
+  font-weight: 900;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mini-fav-chip-city { font-size: 11px; color: var(--m-muted); }
 
 /* ── نوارهای درآمد ────────────────────────────────────────────────── */
 .mini-bars { display: flex; align-items: flex-end; gap: 6px; height: 108px; padding: 6px 2px 0; }

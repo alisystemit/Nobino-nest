@@ -10,6 +10,7 @@ import { BookingSummary, DayStrip, ServicePicker, SlotGrid, StaffPicker, Waitlis
 import { Button, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList, StarIcon } from "../components/ui";
 import { closeMiniApp, haptic } from "../lib/bridge";
 import { dayLabel, faDigits, isPhone, normalizePhone, ratingText, timeLabel, toman } from "../lib/format";
+import { useFavorites } from "../lib/favorites";
 import { mapi, useMini } from "../lib/store";
 import type { AvailabilityResponse, MiniReview, MiniSalonDetail, MiniService, MiniStaff } from "../lib/types";
 
@@ -19,6 +20,7 @@ export default function MiniSalon() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
   const { config, configReady, me, draft, setDraft, resetDraft, toast, profile, saveProfile } = useMini();
+  const favorites = useFavorites(me?.id ?? null);
 
   const [salon, setSalon] = useState<MiniSalonDetail | null>(null);
   const [staff, setStaff] = useState<MiniStaff[]>([]);
@@ -256,6 +258,30 @@ export default function MiniSalon() {
     resetDraft();
   }
 
+  /** ♥ علاقه‌مندی — بدون ورود معنا ندارد، پس شیت ورود را باز می‌کند */
+  async function toggleFavorite() {
+    if (!salon) return;
+    if (!me) {
+      setLoginOpen(true);
+      return;
+    }
+    const wasOn = favorites.has(salon.id);
+    const ok = await favorites.toggle({
+      id: salon.id,
+      slug: salon.slug,
+      name: salon.name,
+      city: salon.city,
+      coverColor: salon.coverColor,
+      bannerUrl: salon.bannerUrl,
+    });
+    if (!ok) {
+      toast(wasOn ? "حذف ممکن نشد؛ دوباره تلاش کنید" : "این سالن اضافه نشد", "error");
+      return;
+    }
+    haptic("success");
+    toast(wasOn ? "از علاقه‌مندی‌ها حذف شد" : "به علاقه‌مندی‌های شما اضافه شد", "ok");
+  }
+
   if (loading) {
     return (
       <div className="mini-fade">
@@ -282,14 +308,24 @@ export default function MiniSalon() {
     <div className="mini-fade">
       {/* معرفی سالن */}
       <div className="mini-card">
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <div className="mini-salon-cover" style={{ width: 54, height: 54, flex: "0 0 54px" }}>
             {salon.logoUrl || salon.bannerUrl ? <img src={salon.logoUrl || salon.bannerUrl || ""} alt="" /> : salon.name.slice(0, 1)}
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div className="mini-salon-name">{salon.name}</div>
             <div className="mini-salon-meta">{[salon.city, salon.address].filter(Boolean).join(" · ") || "—"}</div>
           </div>
+          <button
+            type="button"
+            className={`mini-icon-btn mini-fav-btn${favorites.has(salon.id) ? " is-on" : ""}`}
+            onClick={() => void toggleFavorite()}
+            aria-pressed={favorites.has(salon.id)}
+            aria-label={favorites.has(salon.id) ? "حذف این سالن از علاقه‌مندی‌ها" : "افزودن این سالن به علاقه‌مندی‌ها"}
+            title={favorites.has(salon.id) ? "در علاقه‌مندی‌های شما" : "افزودن به علاقه‌مندی‌ها"}
+          >
+            <Icon name="heart" size={18} />
+          </button>
         </div>
         {salon.description ? <p className="mini-option-sub" style={{ marginTop: 10, lineHeight: 1.9 }}>{salon.description}</p> : null}
         <div className="mini-row" style={{ marginTop: 6 }}>
