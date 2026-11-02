@@ -24,7 +24,7 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,39}$/;
 /** اسلاگ از پارامترهای کوئری (پیام‌رسان‌ها معمولاً ?startapp= یا ?salon= می‌فرستند) */
 export function slugFromSearch(search: string): string {
   const params = new URLSearchParams(search);
-  for (const key of ["salon", "slug", "s", "startapp", "startparam"]) {
+  for (const key of ["salon", "slug", "s", "startapp", "startparam", "fav"]) {
     const raw = (params.get(key) ?? "").trim().toLowerCase();
     // مقدار startapp ممکن است «salon:mah» باشد
     const value = raw.includes(":") ? raw.split(":").pop() ?? "" : raw;

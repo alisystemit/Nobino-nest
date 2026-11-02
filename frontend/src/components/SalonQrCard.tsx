@@ -125,10 +125,31 @@ export default function SalonQrCard({ slug, name, customDomain, domainStatus, si
           {url.replace(/^https?:\/\//, "")}
         </div>
       )}
+      {/* لینک علاقه‌مندی — همان کیو‌آرِ مینی‌اپ به‌صورت متن؛ برای ارسال در استوری/پیامک */}
+      {mode === "mini" && miniBase ? (
+        <div className="w-full rounded-xl border border-pink-200/70 bg-pink-50/60 p-2.5 text-right dark:border-neutral-700 dark:bg-neutral-800/60">
+          <div className="mb-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-200">لینک افزودن به علاقه‌مندی‌ها</div>
+          <div className="flex items-center gap-1.5">
+            <code dir="ltr" className="min-w-0 flex-1 truncate rounded-lg bg-white px-2 py-1.5 text-[10.5px] text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
+              {url}
+            </code>
+            <button
+              type="button"
+              onClick={copyLink}
+              className="shrink-0 rounded-lg bg-pink-600 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-pink-700"
+            >
+              {copied ? "کپی شد ✅" : "کپی"}
+            </button>
+          </div>
+          <p className="mt-1.5 text-[10.5px] leading-4 text-neutral-500 dark:text-neutral-400">
+            مشتری با لمس این لینک، مینی‌اپ را باز می‌کند و سالن به علاقه‌مندی‌هایش اضافه می‌شود.
+          </p>
+        </div>
+      ) : null}
       <p className="text-[11px] leading-5 text-neutral-500 dark:text-neutral-400">
         {mode === "mini"
           ? miniBase
-            ? "مشتری با اسکن، مینی‌اپ را در پیام‌رسان باز می‌کند و این سالن به علاقه‌مندی‌هایش اضافه می‌شود."
+            ? "مشتری با اسکن یا لمس لینک، مینی‌اپ را در پیام‌رسان باز می‌کند و این سالن به علاقه‌مندی‌هایش اضافه می‌شود."
             : "لینک مینی‌اپ از پنل سوپرادمین تنظیم نشده است؛ فعلاً همان صفحهٔ وب اسکن می‌شود."
           : "مشتری با اسکن، مستقیم وارد صفحهٔ نوبت‌دهی سالن می‌شود."}
       </p>
@@ -149,7 +170,7 @@ export default function SalonQrCard({ slug, name, customDomain, domainStatus, si
           onClick={copyLink}
           className="flex-1 rounded-xl bg-neutral-100 px-3 py-2 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
         >
-          {copied ? "کپی شد ✅" : "🔗 کپی لینک"}
+          {copied ? "کپی شد ✅" : mode === "mini" ? "🔗 کپی لینک علاقه‌مندی" : "🔗 کپی لینک"}
         </button>
       </div>
     </div>

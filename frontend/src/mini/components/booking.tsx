@@ -252,9 +252,12 @@ export function WaitlistSheet({
   useEffect(() => {
     if (!open) return;
     setDone(false);
-    setName((prev) => prev || me?.name || profile.name);
-    setPhone((prev) => prev || me?.phone || profile.phone);
-  }, [open, me?.name, me?.phone, profile.name, profile.phone]);
+    // فقط مشتریِ واقعی نامش پیش‌پر می‌شود؛ سالن‌دار برای مشتریِ دیگری لیست انتظار می‌گیرد.
+    if (me?.role === "CUSTOMER") {
+      setName((prev) => prev || me?.name || profile.name);
+      setPhone((prev) => prev || me?.phone || profile.phone);
+    }
+  }, [open, me?.role, me?.name, me?.phone, profile.name, profile.phone]);
 
   async function submit() {
     const cleanName = name.trim();

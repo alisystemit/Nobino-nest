@@ -38,8 +38,11 @@ export default function MiniSalon() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
-  const [name, setName] = useState(me?.name || profile.name);
-  const [phone, setPhone] = useState(profile.phone || me?.phone || "");
+  // نام/شماره فقط برای «مشتری» از حسابش پیش‌پر می‌شود؛ سالن‌دار که برای
+  // مشتریِ دیگری رزرو می‌کند نباید نام خودش (مثلاً صاحب سالن) پیش‌فرض شود.
+  const isCustomer = me?.role === "CUSTOMER";
+  const [name, setName] = useState(isCustomer ? (me?.name || profile.name) : "");
+  const [phone, setPhone] = useState(isCustomer ? (profile.phone || me?.phone || "") : "");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<{ id: string; startAt: string } | null>(null);
@@ -215,8 +218,10 @@ export default function MiniSalon() {
       setLoginOpen(true);
       return;
     }
-    setName((prev) => prev || me?.name || profile.name);
-    setPhone((prev) => prev || me?.phone || profile.phone);
+    if (isCustomer) {
+      setName((prev) => prev || me?.name || profile.name);
+      setPhone((prev) => prev || me?.phone || profile.phone);
+    }
     setSheetOpen(true);
   }
 
