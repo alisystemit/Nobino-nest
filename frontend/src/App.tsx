@@ -35,6 +35,7 @@ import DashboardSetup from "@/pages/DashboardSetup";
 import DashboardSettings from "@/pages/DashboardSettings";
 import AdminPage from "@/pages/AdminPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
+import MiniApp from "@/mini/MiniApp";
 
 function RequireAuth({ roles }: { roles?: string[] }) {
   const { me, loading } = useAuth();
@@ -64,6 +65,7 @@ function ScrollToTop() {
  * چیدمان سراسری و جدول مسیرهای عادی روتر اجرا می‌شوند.
  */
 function AppInner() {
+  const location = useLocation();
   const slug = currentSalonSlug();
   if (slug) {
     return (
@@ -72,9 +74,11 @@ function AppInner() {
       </div>
     );
   }
-  const location = useLocation();
+  // ماژول مینی‌اپ پیام‌رسان‌ها — تمام‌صفحه، بدون هدر سراسری و مستقل از AuthProvider سایت
+  const isMiniApp = location.pathname === "/mini" || location.pathname.startsWith("/mini/");
   // صفحات «راه‌اندازی» و «ساخت سالن جدید» به‌صورت مستقل و تمام‌صفحه نمایش داده می‌شوند (بدون منوی بالا/کنار)
   const hideHeader =
+    isMiniApp ||
     location.pathname.startsWith("/dashboard/setup") ||
     (location.pathname === "/dashboard/salon" && new URLSearchParams(location.search).has("new"));
   return (
@@ -91,6 +95,7 @@ function AppInner() {
         <Route path="/wa/salon/:slug" element={<WaSalonPage />} />
         <Route path="/pay/:token" element={<PayPage />} />
         <Route path="/payment/result" element={<PaymentResultPage />} />
+        <Route path="/mini/*" element={<MiniApp />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/dashboard" element={<DashboardHome />} />

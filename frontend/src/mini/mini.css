@@ -1,0 +1,629 @@
+/* ══════════════════════════════════════════════════════════════════════
+   مینی‌اپ پیام‌رسان‌ها — استایل مستقل ماژول /mini
+   همهٔ قوانین داخل `.mini-root` محدود شده‌اند تا با استایل سایت/پنل تداخل نکنند.
+   رنگ اصلی از تنظیمات سوپرادمین در متغیر --m-rgb (سه عدد RGB) تزریق می‌شود؛
+   از rgba(var(--m-rgb), …) استفاده می‌کنیم تا در وب‌ویوهای قدیمی‌تر هم کار کند.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.mini-root {
+  /* مقدار پیش‌فرض؛ سوپرادمین رنگ را در --mini-accent-rgb روی <html> می‌گذارد */
+  --m-rgb: var(--mini-accent-rgb, 225, 29, 99);
+  --m-ink: #ffffff;
+  --m-bg: #f6f5f8;
+  --m-card: #ffffff;
+  --m-line: rgba(18, 18, 24, 0.08);
+  --m-text: #17171d;
+  --m-muted: #6d6d7a;
+  --m-radius: 20px;
+  --m-shadow: 0 8px 24px -12px rgba(18, 18, 24, 0.24);
+
+  position: relative;
+  min-height: 100dvh;
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(var(--m-rgb), 0.14), rgba(var(--m-rgb), 0) 62%),
+    var(--m-bg);
+  color: var(--m-text);
+  font-family: "Yekan", "Vazirmatn", var(--font-vazir), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  direction: rtl;
+}
+
+.mini-root.dark {
+  --m-bg: #0f0f14;
+  --m-card: #191920;
+  --m-line: rgba(255, 255, 255, 0.1);
+  --m-text: #f3f3f7;
+  --m-muted: #a0a0b0;
+  --m-shadow: 0 10px 26px -14px rgba(0, 0, 0, 0.7);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(var(--m-rgb), 0.26), rgba(var(--m-rgb), 0) 62%),
+    var(--m-bg);
+}
+
+.mini-shell {
+  max-width: 520px;
+  margin-inline: auto;
+  padding: 0 14px calc(88px + env(safe-area-inset-bottom));
+}
+
+/* ── نوار بالا ─────────────────────────────────────────────────────── */
+.mini-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  margin-bottom: 6px;
+  background: rgba(var(--m-rgb), 0.06);
+  backdrop-filter: saturate(160%) blur(14px);
+  border-bottom: 1px solid var(--m-line);
+}
+.mini-top .mini-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.2px;
+}
+.mini-top .mini-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--m-ink);
+  background: linear-gradient(140deg, rgb(var(--m-rgb)), rgba(var(--m-rgb), 0.62));
+  box-shadow: 0 6px 16px -8px rgba(var(--m-rgb), 0.9);
+  font-size: 15px;
+}
+.mini-top .mini-platform-chip {
+  margin-inline-start: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(var(--m-rgb), 1);
+  background: rgba(var(--m-rgb), 0.12);
+  border-radius: 999px;
+  padding: 5px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mini-top .mini-back {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: var(--m-text);
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+/* ── کارت‌ها و بخش‌ها ──────────────────────────────────────────────── */
+.mini-card {
+  background: var(--m-card);
+  border: 1px solid var(--m-line);
+  border-radius: var(--m-radius);
+  box-shadow: var(--m-shadow);
+  padding: 14px;
+}
+.mini-card + .mini-card { margin-top: 12px; }
+.mini-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 2px 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--m-text);
+}
+.mini-section-title small {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--m-muted);
+}
+.mini-hero {
+  padding: 16px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(var(--m-rgb), 0.95), rgba(var(--m-rgb), 0.55));
+  color: #fff;
+  box-shadow: 0 14px 30px -18px rgba(var(--m-rgb), 0.95);
+}
+.mini-hero h1 { margin: 0; font-size: 19px; font-weight: 900; }
+.mini-hero p { margin: 6px 0 0; font-size: 13px; opacity: 0.92; line-height: 1.8; }
+
+/* ── جست‌وجو ───────────────────────────────────────────────────────── */
+.mini-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--m-card);
+  border: 1px solid var(--m-line);
+  border-radius: 16px;
+  padding: 4px 12px;
+  box-shadow: var(--m-shadow);
+}
+.mini-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--m-text);
+  font: inherit;
+  font-size: 14px;
+  padding: 11px 4px;
+}
+.mini-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 2px 4px;
+  scrollbar-width: none;
+}
+.mini-chips::-webkit-scrollbar { display: none; }
+.mini-chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: var(--m-muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+.mini-chip[aria-pressed="true"],
+.mini-chip.is-on {
+  background: rgba(var(--m-rgb), 0.12);
+  border-color: rgba(var(--m-rgb), 0.5);
+  color: rgb(var(--m-rgb));
+}
+
+/* ── کارت سالن ─────────────────────────────────────────────────────── */
+.mini-salon {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 18px;
+  background: var(--m-card);
+  border: 1px solid var(--m-line);
+  box-shadow: var(--m-shadow);
+  cursor: pointer;
+  text-align: right;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+}
+.mini-salon + .mini-salon { margin-top: 10px; }
+.mini-salon:active { transform: scale(0.995); }
+.mini-salon-cover {
+  width: 62px;
+  height: 62px;
+  flex: 0 0 62px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 22px;
+  color: #fff;
+  background: linear-gradient(140deg, rgba(var(--m-rgb), 0.9), rgba(var(--m-rgb), 0.45));
+}
+.mini-salon-cover img { width: 100%; height: 100%; object-fit: cover; }
+.mini-salon-name { font-weight: 800; font-size: 15px; }
+.mini-salon-meta { margin-top: 3px; font-size: 12px; color: var(--m-muted); line-height: 1.7; }
+.mini-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #b8860b;
+}
+.mini-list { display: grid; gap: 10px; }
+
+/* ── دکمه‌ها ───────────────────────────────────────────────────────── */
+.mini-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 50px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: rgb(var(--m-rgb));
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 24px -14px rgba(var(--m-rgb), 0.95);
+  transition: 0.15s ease;
+}
+.mini-btn:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+.mini-btn.ghost {
+  background: var(--m-card);
+  color: var(--m-text);
+  border-color: var(--m-line);
+  box-shadow: none;
+}
+.mini-btn.soft {
+  background: rgba(var(--m-rgb), 0.12);
+  color: rgb(var(--m-rgb));
+  box-shadow: none;
+}
+.mini-btn.tiny { min-height: 36px; width: auto; padding: 0 12px; font-size: 13px; border-radius: 12px; }
+.mini-btn-row { display: flex; gap: 8px; }
+.mini-btn-row .mini-btn { flex: 1; }
+
+/* ── خدمت / آرایشگر / ساعت ─────────────────────────────────────────── */
+.mini-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 15px;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+.mini-option + .mini-option { margin-top: 8px; }
+.mini-option.is-on {
+  border-color: rgba(var(--m-rgb), 0.55);
+  background: rgba(var(--m-rgb), 0.08);
+}
+.mini-option .mini-check {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 8px;
+  border: 1.6px solid var(--m-line);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: transparent;
+}
+.mini-option.is-on .mini-check {
+  background: rgb(var(--m-rgb));
+  border-color: rgb(var(--m-rgb));
+  color: var(--m-ink);
+}
+.mini-option-title { font-weight: 700; font-size: 14px; }
+.mini-option-sub { font-size: 12px; color: var(--m-muted); margin-top: 2px; }
+.mini-option-price { margin-inline-start: auto; font-weight: 800; font-size: 13px; color: rgb(var(--m-rgb)); white-space: nowrap; }
+
+.mini-days {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  scrollbar-width: none;
+}
+.mini-days::-webkit-scrollbar { display: none; }
+.mini-day {
+  flex: 0 0 auto;
+  width: 60px;
+  padding: 9px 0;
+  border-radius: 15px;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: var(--m-muted);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.mini-day b { display: block; font-size: 15px; color: var(--m-text); }
+.mini-day span { display: block; font-size: 11px; margin-top: 2px; }
+.mini-day.is-on {
+  border-color: rgba(var(--m-rgb), 0.6);
+  background: rgba(var(--m-rgb), 0.12);
+}
+.mini-day.is-on b, .mini-day.is-on span { color: rgb(var(--m-rgb)); }
+
+.mini-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 8px;
+}
+.mini-slot {
+  padding: 11px 0;
+  border-radius: 13px;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: var(--m-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mini-slot.is-on {
+  background: rgb(var(--m-rgb));
+  border-color: rgb(var(--m-rgb));
+  color: var(--m-ink);
+}
+
+/* ── ورود (OTP) ────────────────────────────────────────────────────── */
+.mini-field { margin-bottom: 10px; }
+.mini-field label { display: block; font-size: 12px; font-weight: 700; color: var(--m-muted); margin-bottom: 6px; }
+.mini-input {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: var(--m-text);
+  font: inherit;
+  font-size: 15px;
+  padding: 10px 14px;
+  outline: none;
+}
+.mini-input:focus { border-color: rgba(var(--m-rgb), 0.6); box-shadow: 0 0 0 3px rgba(var(--m-rgb), 0.14); }
+.mini-code { letter-spacing: 8px; text-align: center; font-weight: 900; font-size: 20px; }
+
+/* ── وضعیت نوبت ────────────────────────────────────────────────────── */
+.mini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.mini-badge.is-requested { background: rgba(234, 179, 8, 0.16); color: #92610a; }
+.mini-badge.is-confirmed { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+.mini-badge.is-completed { background: rgba(59, 130, 246, 0.16); color: #1d4ed8; }
+.mini-badge.is-cancelled, .mini-badge.is-no_show { background: rgba(239, 68, 68, 0.14); color: #b91c1c; }
+.mini-root.dark .mini-badge.is-requested { color: #fcd34d; }
+.mini-root.dark .mini-badge.is-confirmed { color: #86efac; }
+.mini-root.dark .mini-badge.is-completed { color: #93c5fd; }
+.mini-root.dark .mini-badge.is-cancelled, .mini-root.dark .mini-badge.is-no_show { color: #fca5a5; }
+
+/* ── نوار پایین ────────────────────────────────────────────────────── */
+.mini-tabs {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+.mini-tabs-inner {
+  pointer-events: auto;
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 420px;
+  padding: 6px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--m-line);
+  box-shadow: 0 14px 34px -18px rgba(18, 18, 24, 0.5);
+  backdrop-filter: saturate(180%) blur(16px);
+}
+.mini-root.dark .mini-tabs-inner { background: rgba(25, 25, 32, 0.9); }
+.mini-tab {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--m-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 0 6px;
+  border-radius: 16px;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+.mini-tab svg { width: 21px; height: 21px; }
+.mini-tab.is-on {
+  background: rgba(var(--m-rgb), 0.13);
+  color: rgb(var(--m-rgb));
+}
+
+/* ── شیت پایین ─────────────────────────────────────────────────────── */
+.mini-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(10, 10, 16, 0.45);
+  backdrop-filter: blur(2px);
+}
+.mini-sheet {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 61;
+  margin-inline: auto;
+  max-width: 520px;
+  width: 100%;
+  max-height: 82dvh;
+  overflow-y: auto;
+  background: var(--m-bg);
+  border-top-left-radius: 26px;
+  border-top-right-radius: 26px;
+  border-top: 1px solid var(--m-line);
+  padding: 8px 14px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -20px 46px -22px rgba(0, 0, 0, 0.5);
+}
+.mini-sheet-grabber {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--m-line);
+  margin: 4px auto 12px;
+}
+.mini-sheet h3 { margin: 0 0 12px; font-size: 16px; font-weight: 900; }
+
+/* ── وضعیت‌ها ─────────────────────────────────────────────────────── */
+.mini-empty {
+  text-align: center;
+  padding: 34px 16px;
+  color: var(--m-muted);
+  font-size: 13px;
+  line-height: 1.9;
+}
+.mini-empty svg { width: 76px; height: 76px; opacity: 0.75; margin-bottom: 10px; }
+.mini-skeleton {
+  border-radius: 16px;
+  background: linear-gradient(90deg, var(--m-line) 25%, rgba(var(--m-rgb), 0.08) 37%, var(--m-line) 63%);
+  background-size: 400% 100%;
+  animation: mini-shimmer 1.3s infinite ease-in-out;
+  height: 74px;
+}
+@keyframes mini-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+.mini-toast {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  inset-inline: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.mini-toast > div {
+  max-width: 90vw;
+  padding: 11px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(23, 23, 29, 0.92);
+  box-shadow: 0 14px 30px -16px rgba(0, 0, 0, 0.7);
+  animation: mini-pop 0.18s ease-out;
+}
+.mini-toast.is-error > div { background: rgba(190, 30, 45, 0.95); }
+.mini-toast.is-ok > div { background: rgba(20, 130, 70, 0.95); }
+@keyframes mini-pop {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.mini-sticky-cta {
+  position: fixed;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  inset-inline: 0;
+  z-index: 35;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.mini-sticky-cta > div {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 480px;
+  padding: 0 14px;
+}
+
+/* ── جزئیات ────────────────────────────────────────────────────────── */
+.mini-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; font-size: 13px; }
+.mini-row + .mini-row { border-top: 1px dashed var(--m-line); }
+.mini-row span:first-child { color: var(--m-muted); font-weight: 600; }
+.mini-row span:last-child { font-weight: 800; text-align: left; }
+.mini-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.mini-summary b { font-size: 17px; color: rgb(var(--m-rgb)); }
+.mini-note {
+  font-size: 12px;
+  color: var(--m-muted);
+  line-height: 1.9;
+  background: rgba(var(--m-rgb), 0.07);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.mini-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--m-rgb), 0.16);
+  color: rgb(var(--m-rgb));
+  font-weight: 900;
+  flex: 0 0 46px;
+}
+.mini-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mini-stars { display: inline-flex; gap: 2px; color: #f0b429; font-size: 13px; }
+.mini-link { color: rgb(var(--m-rgb)); font-weight: 800; text-decoration: none; font-size: 13px; }
+.mini-divider { height: 1px; background: var(--m-line); margin: 12px 0; }
+.mini-fade { animation: mini-fade 0.2s ease-out; }
+@keyframes mini-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── افزودنی‌های ماژول ────────────────────────────────────────────── */
+@keyframes mini-spin {
+  to { transform: rotate(360deg); }
+}
+.mini-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px;
+}
+.mini-stat {
+  background: var(--m-card);
+  border: 1px solid var(--m-line);
+  border-radius: 16px;
+  padding: 12px 10px;
+  text-align: center;
+  box-shadow: var(--m-shadow);
+}
+.mini-stat b { display: block; font-size: 20px; font-weight: 900; color: rgb(var(--m-rgb)); }
+.mini-stat span { display: block; font-size: 11.5px; color: var(--m-muted); margin-top: 3px; font-weight: 700; }
+.mini-slot:disabled { opacity: 0.42; cursor: not-allowed; text-decoration: line-through; }
+.mini-btn.danger { background: rgba(220, 38, 38, 0.12); color: #b91c1c; box-shadow: none; }
+.mini-root.dark .mini-btn.danger { color: #fca5a5; }
+.mini-avatars { display: flex; gap: 8px; overflow-x: auto; padding: 2px; scrollbar-width: none; }
+.mini-avatars::-webkit-scrollbar { display: none; }
+.mini-pick {
+  flex: 0 0 auto;
+  width: 84px;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  border-radius: 16px;
+  padding: 10px 6px;
+  text-align: center;
+  cursor: pointer;
+  font: inherit;
+  color: var(--m-text);
+}
+.mini-pick.is-on { border-color: rgba(var(--m-rgb), 0.6); background: rgba(var(--m-rgb), 0.1); }
+.mini-pick .mini-avatar { margin: 0 auto 6px; }
+.mini-pick b { display: block; font-size: 12px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-pick span { display: block; font-size: 10.5px; color: var(--m-muted); margin-top: 2px; }
+.mini-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgb(var(--m-rgb));
+  background: rgba(var(--m-rgb), 0.12);
+  border-radius: 999px;
+  padding: 3px 9px;
+  margin-inline-end: 5px;
+}
+.mini-scroll-x { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.mini-scroll-x::-webkit-scrollbar { display: none; }
+.mini-appt { text-align: right; width: 100%; }
+.mini-appt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mini-appt-body { margin-top: 8px; font-size: 12.5px; color: var(--m-muted); line-height: 1.9; }
+.mini-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }

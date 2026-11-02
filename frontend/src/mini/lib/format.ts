@@ -1,0 +1,160 @@
+/**
+ * قالب‌بندی فارسی مینی‌اپ — اعداد، قیمت، تاریخ/ساعت شمسی.
+ * همه‌چیز با Intl و «رقم لاتین در کد، رقم فارسی در نمایش» کار می‌کند.
+ */
+
+const FA = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+
+/** رقم‌های ASCII داخل یک رشته به فارسی تبدیل می‌شوند */
+export function faDigits(input: string | number): string {
+  return String(input).replace(/[0-9]/g, (d) => FA[Number(d)]);
+}
+
+/** ۱۲۵۰۰۰ → «۱۲۵٬۰۰۰ تومان» */
+export function toman(amount: number | null | undefined): string {
+  if (amount == null || !Number.isFinite(amount)) return "—";
+  return new Intl.NumberFormat("fa-IR").format(Math.round(amount)) + " تومان";
+}
+
+/** قیمت فشرده برای کارت‌ها: «از ۱۲۰ هزار» */
+export function shortPrice(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return "رایگان";
+  if (amount < 1000) return faDigits(amount) + " تومان";
+  const k = Math.round(amount / 1000);
+  return faDigits(k) + " هزار";
+}
+
+/** مدت: 90 → «۱ ساعت و ۳۰ دقیقه» */
+export function duration(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes || 0));
+  if (m < 60) return `${faDigits(m)} دقیقه`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  if (!rest) return h === 1 ? "۱ ساعت" : `${faDigits(h)} ساعت`;
+  return `${faDigits(h)} ساعت و ${faDigits(rest)} دقیقه`;
+}
+
+function opts(tz?: string): Intl.DateTimeFormatOptions & { timeZone?: string } {
+  return tz ? { timeZone: tz } : {};
+}
+
+/** ساعت کوتاه: «۱۴:۳۰» */
+export function timeLabel(iso: string, tz?: string): string {
+  try {
+    return new Intl.DateTimeFormat("fa-IR", { hour: "2-digit", minute: "2-digit", ...opts(tz) }).format(new Date(iso));
+  } catch {
+    return iso.slice(11, 16);
+  }
+}
+
+/** تاریخ شمسی کوتاه: «۱ آذر» */
+export function dayLabel(dateKey: string, tz?: string): string {
+  try {
+    return new Intl.DateTimeFormat("fa-IR", { day: "numeric", month: "long", ...opts(tz) }).format(new Date(`${dateKey}T12:00:00`));
+  } catch {
+    return dateKey;
+  }
+}
+
+/** نام روز شمسی: «دوشنبه» */
+export function weekdayLabel(dateKey: string, tz?: string): string {
+  try {
+    return new Intl.DateTimeFormat("fa-IR", { weekday: "long", ...opts(tz) }).format(new Date(`${dateKey}T12:00:00`));
+  } catch {
+    return "";
+  }
+}
+
+/** برچسب «امروز / فردا / پس‌فردا» و در غیر این صورت نام روز */
+export function relativeDayLabel(dateKey: string, tz?: string): string {
+  const idx = dayIndexOffset(dateKey, tz);
+  if (idx === 0) return "امروز";
+  if (idx === 1) return "فردا";
+  if (idx === 2) return "پس‌فردا";
+  return weekdayLabel(dateKey, tz);
+}
+
+/** اختلاف تاریخ با «امروز» به عدد (منفی = گذشته) */
+export function dayIndexOffset(dateKey: string, tz?: string): number {
+  const today = ymd(new Date(), tz);
+  return daysBetween(today, dateKey);
+}
+
+/** YYYY-MM-DD یک لحظه، در منطقهٔ زمانی سالن */
+export function ymd(date: Date, tz?: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz ?? undefined }).format(date);
+    return parts; // en-CA → YYYY-MM-DD
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+function daysBetween(a: string, b: string): number {
+  const da = new Date(`${a}T00:00:00Z`).getTime();
+  const db = new Date(`${b}T00:00:00Z`).getTime();
+  return Math.round((db - da) / 86_400_000);
+}
+
+/** «۱۲ آذر ۱۴۰۴، دوشنبه ساعت ۱۴:۳۰» */
+export function fullLabel(iso: string, tz?: string): string {
+  try {
+    const d = new Intl.DateTimeFormat("fa-IR", { weekday: "long", day: "numeric", month: "long", year: "numeric", ...opts(tz) }).format(new Date(iso));
+    return `${d} — ساعت ${timeLabel(iso, tz)}`;
+  } catch {
+    return iso;
+  }
+}
+
+/** فاصلهٔ زمانی نسبت به حالا: «۳ ساعت دیگر» / «دیروز» */
+export function fromNow(iso: string): string {
+  const diff = new Date(iso).getTime() - Date.now();
+  const abs = Math.abs(diff);
+  const past = diff < 0;
+  const mins = Math.round(abs / 60000);
+  if (mins < 60) return past ? `${faDigits(Math.max(1, mins))} دقیقه پیش` : `${faDigits(mins)} دقیقه دیگر`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return past ? `${faDigits(hours)} ساعت پیش` : `${faDigits(hours)} ساعت دیگر`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return past ? "دیروز" : "فردا";
+  return past ? `${faDigits(days)} روز پیش` : `${faDigits(days)} روز دیگر`;
+}
+
+/** میانگین امتیاز با یک رقم اعشار و رقم فارسی */
+export function ratingText(rating: number | null | undefined, count: number): string {
+  if (rating == null) return count ? `${faDigits(count)} نظر` : "بدون نظر";
+  return `${faDigits(rating.toFixed(1))} از ۵ · ${faDigits(count)} نظر`;
+}
+
+/** نرمال‌سازی شمارهٔ تلفن ایران به قالب 09xxxxxxxxx (ارقام فارسی هم پذیرفته می‌شود) */
+export function normalizePhone(input: string): string {
+  const digits = String(input ?? "")
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[^\d]/g, "");
+  if (/^\+?989\d{9}$/.test(digits)) return `0${digits.slice(-10)}`;
+  if (/^00989\d{9}$/.test(digits)) return `0${digits.slice(-10)}`;
+  if (/^09\d{9}$/.test(digits)) return digits;
+  if (/^9\d{9}$/.test(digits)) return `0${digits}`;
+  return digits;
+}
+
+export function isPhone(value: string): boolean {
+  return /^09\d{9}$/.test(normalizePhone(value));
+}
+
+/** حروف اول نام برای آواتار متنی */
+export function initials(name: string): string {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "ن";
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return (parts[0][0] ?? "") + (parts[1][0] ?? "");
+}
+
+/** hex → «225,29,99» برای تزریق در CSS variable */
+export function hexToRgb(hex: string): string | null {
+  const v = (hex || "").trim().replace(/^#/, "");
+  if (!/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) return null;
+  const full = v.length === 3 ? v.split("").map((c) => c + c).join("") : v;
+  const n = parseInt(full, 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
