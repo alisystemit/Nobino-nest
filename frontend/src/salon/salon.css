@@ -143,7 +143,31 @@
   font-weight: 800;
   cursor: pointer;
 }
-.salon-page .mini-days { padding-bottom: 2px; }
+
+/* ── نوار روزها و آرایشگرها ─────────────────────────────────────────── */
+/* در مینی‌اپ این دو نوار یک‌خطی و افقی اسکرول می‌شوند؛ روی صفحهٔ سالن نصفِ
+   آخرین قلم پشت لبهٔ کارت پنهان می‌ماند و کاربر نمی‌فهمد ادامه دارد. اینجا
+   قلم‌ها خط‌به‌خط می‌شکنند تا همه‌شان کامل دیده شوند (فقط در همین صفحه،
+   رفتار خودِ مینی‌اپ تغییر نمی‌کند). */
+.salon-page .mini-days,
+.salon-page .mini-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: visible;
+  padding-bottom: 2px;
+}
+/* قلم‌ها عرضِ خودشان را نگه می‌دارند و در ردیفِ باقی‌مانده یکدست پخش می‌شوند */
+.salon-page .mini-days .mini-day {
+  flex: 1 1 60px;
+  min-width: 60px;
+  max-width: 86px;
+}
+.salon-page .mini-avatars .mini-pick {
+  flex: 1 1 84px;
+  min-width: 84px;
+  max-width: 124px;
+}
 
 /* صوت */
 .salon-page .sm-voice {
