@@ -74,6 +74,25 @@ export function relativeDayLabel(dateKey: string, tz?: string): string {
   return weekdayLabel(dateKey, tz);
 }
 
+/** نام روزهای هفته به شیوهٔ ایرانی؛ ایندکس ۰ = شنبه (همان dayOfWeek در دیتابیس) */
+export const WEEKDAYS_FA = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+
+/** شمارهٔ امروز در هفته به شیوهٔ ایرانی (شنبه = ۰) در منطقهٔ زمانی سالن */
+export function todayWeekdayIndex(tz?: string): number {
+  const map: Record<string, number> = { Sat: 0, Sun: 1, Mon: 2, Tue: 3, Wed: 4, Thu: 5, Fri: 6 };
+  try {
+    const short = new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      ...(tz ? { timeZone: tz } : {}),
+    }).format(new Date());
+    const idx = map[short.slice(0, 3)];
+    if (idx != null) return idx;
+  } catch {
+    /* منطقهٔ زمانی ناشناخته */
+  }
+  return (new Date().getDay() + 1) % 7;
+}
+
 /** اختلاف تاریخ با «امروز» به عدد (منفی = گذشته) */
 export function dayIndexOffset(dateKey: string, tz?: string): number {
   const today = ymd(new Date(), tz);

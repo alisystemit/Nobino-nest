@@ -19,6 +19,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
     // ── تازه (مصرف‌شده توسط ماژول /mini) ──
     brand: cfg.brand,
     features: cfg.features,
+    defaultSalon: cfg.defaultSalon,
     featured: cfg.featured,
     availablePlatforms: cfg.platforms.map((p) => ({
       id: p.id,

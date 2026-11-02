@@ -59,6 +59,8 @@ export type MiniConfig = {
     silentLogin: boolean;
     showFeatured: boolean;
   };
+  /** اسلاگ سالن پیش‌فرض صفحهٔ خانه (تنظیم سوپرادمین) */
+  defaultSalon: string;
   featured: string[];
   availablePlatforms?: MiniPlatformView[];
 };
@@ -84,6 +86,7 @@ export const DEFAULT_CONFIG: MiniConfig = {
     silentLogin: true,
     showFeatured: false,
   },
+  defaultSalon: "",
   featured: [],
 };
 

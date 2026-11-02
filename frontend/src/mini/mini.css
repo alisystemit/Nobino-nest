@@ -627,3 +627,75 @@
 .mini-appt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .mini-appt-body { margin-top: 8px; font-size: 12.5px; color: var(--m-muted); line-height: 1.9; }
 .mini-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* ── خانهٔ سالن‌محور ─────────────────────────────────────────────────
+   صفحهٔ /mini دیگر فهرست سالن‌ها نیست؛ سربرگ همان سالن + توضیحات +
+   تازه‌ترین پکیج‌ها + تیم + ساعات کاری + راه‌های تماس است.
+   ─────────────────────────────────────────────────────────────────── */
+.mini-hero.has-cover {
+  background-image:
+    linear-gradient(135deg, rgba(var(--m-rgb), 0.88), rgba(var(--m-rgb), 0.58)),
+    var(--mini-cover, none);
+  background-size: cover;
+  background-position: center;
+}
+.mini-hero-row { display: flex; align-items: center; gap: 12px; }
+.mini-hero-cover {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  border-radius: 18px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 23px;
+  color: rgb(var(--m-rgb));
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 20px -12px rgba(0, 0, 0, 0.55);
+}
+.mini-hero-cover img { width: 100%; height: 100%; object-fit: cover; }
+.mini-hero-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.mini-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+}
+.mini-hero-chip.is-you { background: #fff; color: rgb(var(--m-rgb)); }
+.mini-hero-hello { font-size: 12.5px; opacity: 0.92; }
+.mini-desc { margin: 0; font-size: 13.5px; line-height: 2; white-space: pre-line; word-break: break-word; }
+.mini-desc.is-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mini-more {
+  border: 0;
+  background: transparent;
+  color: rgb(var(--m-rgb));
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 6px 0 0;
+}
+.mini-contact { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.mini-pkg-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--m-rgb));
+  background: rgba(var(--m-rgb), 0.12);
+}
+.mini-row.is-today,
+.mini-row.is-today span { color: rgb(var(--m-rgb)); }

@@ -3,8 +3,8 @@
  * ثبت نوبت از همان `POST /api/appointments` سایت انجام می‌شود (با channel=WEBAPP)
  * تا قوانین سالن، قفل هم‌زمان و پیامک تأیید یکسان بماند.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import LoginSheet from "../components/login-sheet";
 import { BookingSummary, DayStrip, ServicePicker, SlotGrid, StaffPicker, eligibleStaff, upcomingDays } from "../components/booking";
 import { Button, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList, StarIcon } from "../components/ui";
@@ -50,6 +50,19 @@ export default function MiniSalon() {
   useEffect(() => {
     if (!day && days.length) setDay(days[0]);
   }, [day, days]);
+
+  /* ── ?service=<id> — وقتی از خانه روی یک پکیج زده شده، همان انتخاب می‌شود ── */
+  const [searchParams] = useSearchParams();
+  const presetService = (searchParams.get("service") ?? "").trim();
+  const presetApplied = useRef("");
+  useEffect(() => {
+    if (!presetService || !salon || presetApplied.current === `${slug}:${presetService}`) return;
+    if (!salon.services.some((s) => s.id === presetService)) return;
+    presetApplied.current = `${slug}:${presetService}`;
+    setServiceIds([presetService]);
+    setStartAt("");
+    setDraft({ salonId: salon.id, slug: salon.slug, salonName: salon.name, serviceIds: [presetService] });
+  }, [presetService, salon, slug, setDraft]);
 
   /* ── بارگذاری سالن، آرایشگران و نظرات ───────────────────────────── */
   useEffect(() => {
@@ -216,7 +229,7 @@ export default function MiniSalon() {
       <div className="mini-fade">
         <EmptyState text={loadError || "سالن یافت نشد."} hint="شاید این سالن غیرفعال شده باشد." />
         <Button variant="ghost" onClick={() => navigate("/mini")}>
-          بازگشت به فهرست
+          بازگشت به خانه
         </Button>
       </div>
     );

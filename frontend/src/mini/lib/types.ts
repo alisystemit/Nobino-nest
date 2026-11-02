@@ -1,21 +1,8 @@
 /**
  * تایپ‌های دادهٔ مینی‌اپ — دقیقاً همان شكلی که endpoint های `/api/mini/*` و
  * `/api/salons/*` برمی‌گردانند (بدون تبدیل یا field mapping اضافه).
+ * مینی‌اپ سالن‌محور است، پس شكل «ردیف فهرست سالن‌ها» اینجا تعریف نشده.
  */
-
-export type MiniSalon = {
-  id: string;
-  slug: string;
-  name: string;
-  city: string | null;
-  address: string | null;
-  description: string | null;
-  logoUrl: string | null;
-  bannerUrl: string | null;
-  coverColor: string | null;
-  rating: number | null;
-  reviewCount: number;
-};
 
 export type MiniService = {
   id: string;
@@ -23,6 +10,8 @@ export type MiniService = {
   durationMin: number;
   price: number;
   description?: string | null;
+  category?: string | null;
+  createdAt?: string;
 };
 
 export type MiniSalonDetail = {
@@ -36,8 +25,16 @@ export type MiniSalonDetail = {
   logoUrl: string | null;
   bannerUrl: string | null;
   coverColor: string | null;
+  timezone?: string | null;
+  whatsapp?: string | null;
+  instagram?: string | null;
+  website?: string | null;
+  mapUrl?: string | null;
+  neshanUrl?: string | null;
+  baladUrl?: string | null;
   services: MiniService[];
   hours: { dayOfWeek: number; openTime: string; closeTime: string; isClosed?: boolean }[];
+  gallery?: { id: string; title: string | null; imageUrl: string; type: string }[];
 };
 
 export type MiniStaff = {

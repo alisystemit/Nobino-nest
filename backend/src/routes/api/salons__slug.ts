@@ -33,12 +33,23 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       logoUrl: salon.logoUrl,
       bannerUrl: salon.bannerUrl,
       coverColor: salon.coverColor,
+      timezone: salon.timezone,
+      // راه‌های تماس/موقعیت — مینی‌اپ پیام‌رسان این‌ها را در صفحهٔ خانه نشان می‌دهد
+      whatsapp: salon.whatsapp,
+      instagram: salon.instagram,
+      website: salon.website,
+      mapUrl: salon.mapUrl,
+      neshanUrl: salon.neshanUrl,
+      baladUrl: salon.baladUrl,
       services: salon.services.map((s) => ({
         id: s.id,
         name: s.name,
         durationMin: s.durationMin,
         price: s.price,
         description: s.description,
+        // «تازه‌ترین پکیج‌ها» در مینی‌اپ بر همین اساس مرتب می‌شود
+        category: s.category,
+        createdAt: s.createdAt.toISOString(),
       })),
       gallery: salon.galleryItems,
       hours: salon.openingHours,
