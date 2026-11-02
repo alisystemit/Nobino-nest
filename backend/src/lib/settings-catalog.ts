@@ -306,6 +306,22 @@ const generalSection = (): CatalogSection => ({
         { key: "contact.address", label: "آدرس", type: "string", placeholder: "تهران، ایران" },
       ],
     },
+    {
+      id: "dashboard",
+      title: "سبک داشبورد سالن",
+      description:
+        "مشخص می‌کند مالک سالن داشبوردش را به چه شکلی ببیند: نسخهٔ کلاسیک وب یا نسخهٔ تازه به سبک مینی‌اپ. پیش‌فرض «web» است تا تا وقتی خودتان انتخاب نکرده‌اید هیچ داشبوردی جابه‌جا نشود.",
+      fields: [
+        {
+          key: "dashboard.style",
+          label: "سبک پیش‌فرض داشبورد سالن‌ها",
+          type: "select",
+          options: ["web", "mini"],
+          defaultValue: "web",
+          hint: "web = پنل کلاسیک با منوی کناری (مسیر /dashboard) — mini = داشبورد به سبک مینی‌اپ (مسیر /dash). برای یک سالن خاص می‌توانید در بخش «سالن‌ها» اورراید بگذارید.",
+        },
+      ],
+    },
   ],
 });
 

@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireAuth, resolveToken } from "@/lib/auth/guards";
+import { dashboardStyleForUser, type DashboardStyle } from "@/lib/dashboard-style";
 import { json, apiError } from "@/lib/utils";
 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
@@ -16,6 +17,15 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
     if (token) return json({ success: false, user: null }, { status: 401 });
     return json({ success: true, user: null });
   }
+  // سبک داشبوردی که این کاربر باید ببیند («web» کلاسیک یا «mini» به‌سبک مینی‌اپ)
+  // را سوپرادمین در پنل تنظیم می‌کند. خطای خواندن هرگز نباید «من کیستم» را بشکند،
+  // پس پیش‌فرض امن همان نسخهٔ کلاسیک است.
+  let dashboardStyle: DashboardStyle = "web";
+  try {
+    dashboardStyle = await dashboardStyleForUser(user);
+  } catch {
+    /* تنظیم نخوانده شد → کلاسیک */
+  }
   return json({
     success: true,
     user: {
@@ -25,6 +35,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
       role: user.role,
       email: user.email,
       avatarUrl: user.avatarUrl,
+      dashboardStyle,
     },
   });
 }

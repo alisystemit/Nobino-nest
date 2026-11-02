@@ -11,6 +11,8 @@ export type SessionUser = {
   name: string | null;
   role: "CUSTOMER" | "SALON_OWNER" | "AGENT" | "ADMIN";
   avatarUrl?: string | null;
+  /** سبک داشبوردی که سوپرادمین برای این حساب انتخاب کرده؛ web = کلاسیک */
+  dashboardStyle?: "web" | "mini";
 };
 
 type AuthState = {
