@@ -11,8 +11,10 @@ import { spawnSync } from "node:child_process";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PIDS_FILE = resolve(ROOT, ".dev.pids");
 
-// روی ویندوز، kill برنامه‌ای را متوقف می‌کند؛ روی یونیکس SIGTERM می‌فرستد.
-const killArg = process.platform === "win32" ? "/T /F" : "-9";
+// روی ویندوز whole process-tree با taskkill /T /F بسته می‌شود (npm child از vite)؛
+// روی یونیکس SIGTERM کافی است تا خودِ پروسه graceful خاموش شود.
+const winTaskkillArgs = ["/T", "/F"];
+const posixSignal = "SIGTERM";
 
 if (!existsSync(PIDS_FILE)) {
   console.log("ℹ️  فرایندی در حال اجرا نیست (فایل .dev.pids وجود ندارد).");
@@ -26,9 +28,9 @@ for (const line of lines) {
   if (!p) continue;
   try {
     if (process.platform === "win32") {
-      spawnSync("taskkill", ["/PID", String(p), killArg], { stdio: "ignore" });
+      spawnSync("taskkill", ["/PID", String(p), ...winTaskkillArgs], { stdio: "ignore" });
     } else {
-      process.kill(p, "SIGTERM");
+      process.kill(p, posixSignal);
     }
     console.log(`⏹  توقف ${name} (PID ${p})`);
   } catch {

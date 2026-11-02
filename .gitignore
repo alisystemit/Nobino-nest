@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 dist/
 *.log
 .env
@@ -16,6 +16,13 @@ backend/public/uploads/
 deploy/ecosystem.config.cjs
 logs/
 .pm2/
+
+# فرایندهای توسعهٔ لوکال (npm run dev / stop)
+.dev.pids
+.dev-logs/
+
+# پچ‌های موقت تولیدی حین کار
+temp-patches/
 
 # فایل‌های آپلودی کاربر در محیط لوکال (روی سرور volume/دایرکتوری جدا هستند)
 public/uploads/*

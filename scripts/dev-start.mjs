@@ -20,7 +20,6 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PIDS_FILE = resolve(ROOT, ".dev.pids");
 const LOG_DIR = resolve(ROOT, ".dev-logs");
-const k = (v, fb) => (v === undefined || v === null || v === "" ? fb : v);
 
 function readEnv(name, fallback) {
   try {
@@ -42,7 +41,6 @@ if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
 
 const backendPort = readEnv("PORT", "3100");
 const frontendPort = process.env.VITE_PORT || "5175";
-const backendCmd = process.env.NODE_ENV === "production" ? "start:backend" : "dev:backend";
 
 // ۰) تولید Prisma Client
 try {
