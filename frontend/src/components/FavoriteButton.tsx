@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mapi } from "@/mini/lib/store";
 
 type State = "loading" | "on" | "off" | "guest";
 
@@ -10,15 +11,21 @@ type State = "loading" | "on" | "off" | "guest";
  * (مثل صفحهٔ سالن روی ساب‌دامین، که مسیر /login را نشان نمی‌دهد) آن را
  * می‌دهند؛ در بقیه همان لینک همیشگی به /login باقی می‌ماند.
  * `sessionKey` هم اگر عوض شود (ورود/خروج)، وضعیت علاقه‌مندی دوباره خوانده می‌شود.
+ * `signedIn`: اگر صفحه وضعیت نشست را می‌داند، آن را بدهد تا برای مهمان اصلاً
+ * درخواست protected فرستاده نشود (کنسولِ بازدیدکنندهٔ صفحهٔ عمومی سالن تمیز بماند).
+ * `null` یعنی «هنوز نمی‌دانم» → صبر می‌کنیم؛ `undefined` یعنی رفتار قبلی (پروب کن).
+ * درخواست‌ها از `mapi` می‌روند تا توکن Bearer نشست مینی‌اپ هم ارسال شود.
  */
 export default function FavoriteButton({
   salonId,
   onLogin,
   sessionKey = "",
+  signedIn,
 }: {
   salonId: string;
   onLogin?: () => void;
   sessionKey?: string;
+  signedIn?: boolean | null;
 }) {
   const [state, setState] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
@@ -26,19 +33,19 @@ export default function FavoriteButton({
 
   useEffect(() => {
     let alive = true;
+    if (signedIn === null) return;
+    if (signedIn === false) {
+      setState("guest");
+      return;
+    }
     (async () => {
       try {
-        const res = await fetch("/api/favorites");
-        if (res.status === 401) {
+        const res = await mapi<{ success: boolean; favorites?: { salon: { id: string } }[] }>("/api/favorites");
+        if (res.status === 401 || !res.ok) {
           if (alive) setState("guest");
           return;
         }
-        const data = await res.json();
-        if (!data.success) {
-          if (alive) setState("guest");
-          return;
-        }
-        const saved = (data.favorites as { salon: { id: string } }[]).some((f) => f.salon.id === salonId);
+        const saved = (res.data.favorites ?? []).some((f) => f.salon.id === salonId);
         if (alive) setState(saved ? "on" : "off");
       } catch {
         if (alive) setState("guest");
@@ -47,20 +54,27 @@ export default function FavoriteButton({
     return () => {
       alive = false;
     };
-  }, [salonId, sessionKey]);
+  }, [salonId, sessionKey, signedIn]);
 
   async function toggle() {
     if (state === "guest" || state === "loading" || busy) return;
     setBusy(true);
     setHint("");
     try {
-      const res = await fetch(`/api/favorites/${salonId}`, { method: state === "on" ? "DELETE" : "POST" });
-      const data = await res.json();
-      if (data.success) {
+      const res = await mapi<{ success: boolean; error?: string }>(
+        `/api/favorites/${salonId}`,
+        state === "on" ? { method: "DELETE" } : { method: "POST" }
+      );
+      if (res.status === 401) {
+        setState("guest");
+        setHint("برای ذخیره سالن وارد شوید");
+        return;
+      }
+      if (res.ok) {
         setState(state === "on" ? "off" : "on");
         setHint(state === "on" ? "از علاقه‌مندی‌ها حذف شد" : "به علاقه‌مندی‌ها اضافه شد");
       } else {
-        setHint(data.error || "خطا");
+        setHint(res.data?.error || "خطا");
       }
     } catch {
       setHint("خطا در ارتباط با سرور");

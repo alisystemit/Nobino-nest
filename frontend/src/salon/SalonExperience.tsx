@@ -147,7 +147,7 @@ export default function SalonExperience({ slug }: { slug: string }) {
 /* ── بدنه ───────────────────────────────────────────────────────────── */
 
 function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
-  const { configReady, me, toast, toastNode } = useMini();
+  const { configReady, me, authReady, toast, toastNode } = useMini();
   const [reviewsPage, setReviewsPage] = useState(1);
   const { data, loading, error, reload } = usePageData<SalonPageData>("salon", {
     slug,
@@ -349,7 +349,13 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
                 <p>{[salon.city, salon.address].filter(Boolean).join(" · ") || "سالن زیبایی"}</p>
               </div>
               <div className="sm-hero-fav">
-                <FavoriteButton salonId={salon.id} onLogin={() => setLoginOpen(true)} sessionKey={me?.id ?? ""} />
+                {/* مهمان نباید درخواست protected بزند — فقط وقتی نشست روشن شد می‌پرسیم */}
+                <FavoriteButton
+                  salonId={salon.id}
+                  onLogin={() => setLoginOpen(true)}
+                  sessionKey={me?.id ?? ""}
+                  signedIn={me ? true : authReady ? false : null}
+                />
               </div>
             </div>
             <div className="mini-hero-chips">
