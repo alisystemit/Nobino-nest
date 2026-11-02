@@ -29,3 +29,12 @@ public/uploads/*
 public/voice/*
 !public/uploads/.gitkeep
 !public/voice/.gitkeep
+
+# خروجی بیلد مینی‌اپ برای بسته‌بندی APK (از بیرون مخزن تولید/مصرف می‌شود)
+frontend/dist-apk/
+
+# ابزارهای موقت یک‌باره‌ای که حین توسعه/ممیزی ساخته می‌شوند
+# (tsconfig.check.json = type-check بدون dist؛ tmp_audit/ = اسکریپت‌های تست + توکن زنده)
+frontend/tsconfig.check.json
+tmp_audit/
+tmp-*.mjs
