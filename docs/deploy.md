@@ -9,7 +9,20 @@
 
 ## ۰) یک‌خطی‌های شروع سریع
 
-**سرور Ubuntu/Debian (نصب کامل):**
+**VPS کاملاً خام (Ubuntu/Debian بدون هیچ چیزی) — نصب صفر‌تا‌صد:**
+```bash
+# از بیرون مخزن (تک‌فرمان؛ کلون + Node + PM2 + PostgreSQL + .env + فایروال + nginx + سرویس):
+git clone <repo-url> /opt/nobino
+sudo bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir
+```
+> bootstrap همه‌چیز را اتوماتیک می‌سازد: NodeSource 24، PM2، PostgreSQL + دیتابیس
+> `nobino` با رمز تصادفی، فایل `.env` کامل (بدون CHANGE_ME؛ پیامک/ویس روی mock تا
+> کلیدها از پنل سوپرادمین پر شوند)، swap روی رم‌های زیر ۲ گیگ، ufw روی
+> SSH/80/443/8443 — و در آخر `install.sh` را کامل اجرا می‌کند.
+> اگر Postgres روی سرور از قبل هست، دست به آن نمی‌زند (مگر `--with-postgres`)؛
+> برای دیدن مراحل بدون تغییر سرور `--dry-run` را اضافه کنید.
+
+**سرور Ubuntu/Debian (نصب کامل، وقتی .env را خودتان آماده کرده‌اید):**
 ```bash
 git clone <repo-url> /opt/nobino && cd /opt/nobino
 cp deploy/env.production.example .env && nano .env      # DATABASE_URL، JWT_SECRET، دامنه
