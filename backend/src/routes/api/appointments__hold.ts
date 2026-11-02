@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createAppointmentSafe } from "@/lib/bookings/create";
 import { json, apiError } from "@/lib/utils";
+import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } from "@/lib/rate-limit-lite";
 import { HOLD_MARKER } from "@/lib/markers";
 
 const HOLD_MINUTES = 15;
@@ -23,6 +24,23 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     const salon = await prisma.salon.findUnique({ where: { id: body.salonId } });
     if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
+
+    // مهار ربات: سقف نرخ به ازای هر IP + سقف هولوهای فعال یک سالن
+    const ip = clientIpFromRequest(req);
+    const perMinute = await numericSettingOrEnv("hold.rate_per_minute", process.env.HOLD_RATE_PER_MINUTE, 6);
+    if (perMinute > 0) {
+      const rate = checkRate(`hold:${ip}:${salon.id}`, perMinute, 60_000);
+      if (!rate.ok) return tooManyRequests(rate.retryAfterSec, "درخواست رزرو زیادی از این IP؛ کمی صبر کنید.");
+    }
+    const maxHolds = await numericSettingOrEnv("hold.max_active_per_salon", process.env.HOLD_MAX_ACTIVE_PER_SALON, 30);
+    if (maxHolds > 0) {
+      const activeHolds = await prisma.appointment.count({
+        where: { salonId: salon.id, note: HOLD_MARKER, tempLockExpiresAt: { gt: new Date() } },
+      });
+      if (activeHolds >= maxHolds) {
+        return json({ success: false, error: "تعداد رزروهای در انتظار پرداخت به سقف رسیده است؛ چند دقیقه صبر کنید." }, { status: 429 });
+      }
+    }
 
     let duration = body.durationMin;
     if (body.serviceId) {

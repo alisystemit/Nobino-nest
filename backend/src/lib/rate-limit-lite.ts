@@ -1,0 +1,62 @@
+/**
+ * محدودساز نرخ سبک (fixed-window) برای هندلرهای Route که بیرون از چرخهٔ DI
+ * نکست اجرا می‌شوند و نمی‌توانند `RateLimitMiddlewareService` تزریقی را بگیرند.
+ *
+ * دقت: کش درون‌فرایندی است؛ در PM2 با یک پروسه (fork) رفتار درست است و در
+ * مقیاس چندپروسه‌ای صرفاً تخمینی عمل می‌کند (خطای امنیتی حساسی ندارد).
+ */
+import { getSetting } from "@/lib/settings";
+
+type Bucket = { count: number; resetAt: number };
+
+const buckets = new Map<string, Bucket>();
+
+export type RateCheck = { ok: boolean; retryAfterSec: number };
+
+export function checkRate(key: string, limit: number, windowMs: number): RateCheck {
+  const now = Date.now();
+  const hit = buckets.get(key);
+  if (!hit || hit.resetAt <= now) {
+    buckets.set(key, { count: 1, resetAt: now + windowMs });
+    if (buckets.size > 5000) {
+      for (const [k, v] of buckets) if (v.resetAt <= now) buckets.delete(k);
+    }
+    return { ok: true, retryAfterSec: 0 };
+  }
+  if (hit.count >= limit) {
+    return { ok: false, retryAfterSec: Math.max(1, Math.ceil((hit.resetAt - now) / 1000)) };
+  }
+  hit.count += 1;
+  return { ok: true, retryAfterSec: 0 };
+}
+
+/** IP مشتری از هدرهای پروکسی (nginx جلوی اپ است و trust proxy روشن) */
+export function clientIpFromRequest(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim() || "unknown";
+  return req.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
+/**
+ * سقف عددی از تنظیمات سراسری (Setting KV) و در نبودش از متغیر محیطی؛
+ * مقدار ۰ به معنی «بدون سقف» است.
+ */
+export async function numericSettingOrEnv(settingKey: string, envValue: string | undefined, fallback: number): Promise<number> {
+  const raw = await getSetting(settingKey).catch(() => undefined);
+  const settingTxt = String(raw ?? "").trim();
+  if (settingTxt !== "" && Number.isFinite(Number(settingTxt))) return Number(settingTxt);
+  // نکته: Number("") برابر صفر است، پس متغیر محیطی خالی باید صریح رد شود؛
+  // وگرنه «تنظیم‌نشده» با «سقف صفر = بدون سقف» اشتباه گرفته می‌شود و محدود‌ساز
+  // بی‌صدا خاموش می‌ماند.
+  const envTxt = String(envValue ?? "").trim();
+  if (envTxt !== "" && Number.isFinite(Number(envTxt)) && Number(envTxt) >= 0) return Number(envTxt);
+  return fallback;
+}
+
+/** پاسخ ۴۲۹ استاندارد با هدر Retry-After */
+export function tooManyRequests(retryAfterSec: number, message: string) {
+  return Response.json(
+    { success: false, error: message, retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+  );
+}

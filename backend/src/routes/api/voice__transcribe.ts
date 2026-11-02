@@ -6,6 +6,7 @@ import { mergeExtracted } from "@/lib/ai/merge";
 import { storeFile } from "@/lib/storage";
 import { withinLimit } from "@/lib/plans/limits";
 import { json, apiError } from "@/lib/utils";
+import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } from "@/lib/rate-limit-lite";
 
 const FIELDS: ExtractedField[] = ["name", "phone", "service", "date", "time"];
 
@@ -39,6 +40,21 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       return json({ success: false, error: "فیلد نامعتبر است" }, { status: 400 });
     }
 
+    // سقف حجم و نرخ — این endpoint عمومی است و هر برش به سرویس STT می‌رود
+    const ip = clientIpFromRequest(req);
+    const maxBytes = await numericSettingOrEnv("voice.max_upload_bytes", process.env.VOICE_MAX_UPLOAD_BYTES, 3 * 1024 * 1024);
+    const declaredSize = Number(req.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
+      return json({ success: false, error: `حجم فایل صوتی بیش از سقف مجاز (${Math.round(maxBytes / 1024 / 1024)} مگابایت) است` }, { status: 413 });
+    }
+    const perHour = await numericSettingOrEnv("voice.rate_per_hour", process.env.VOICE_RATE_PER_HOUR, 40);
+    if (perHour > 0) {
+      const minute = checkRate(`voice:${ip}`, Math.max(2, Math.ceil(perHour / 12)), 60_000);
+      if (!minute.ok) return tooManyRequests(minute.retryAfterSec, "چند لحظه صبر سپس دوباره ضبط کنید.");
+      const hour = checkRate(`voice-hour:${ip}`, perHour, 3_600_000);
+      if (!hour.ok) return tooManyRequests(hour.retryAfterSec, "سقف تبدیل گفتار این ساعت پر شده است.");
+    }
+
     const salon = await prisma.salon.findUnique({ where: { id: salonId } });
     if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
 
@@ -47,6 +63,11 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
         { success: false, error: "رزرو صوتی در پلن فعلی این سالن فعال نیست. برای ارتقای پلن به بخش اشتراک مراجعه کنید." },
         { status: 403 }
       );
+    }
+
+    // بررسی مجدد حجم واقعی فایل (content-length می‌تواند غلط باشد)
+    if (audio && audio.size > maxBytes) {
+      return json({ success: false, error: `حجم فایل صوتی بیش از سقف مجاز (${Math.round(maxBytes / 1024 / 1024)} مگابایت) است` }, { status: 413 });
     }
 
     // ذخیره فایل صوتی (Blob در پروداکشن، محلی در توسعه) — در حالت متنی فایلی نیست
