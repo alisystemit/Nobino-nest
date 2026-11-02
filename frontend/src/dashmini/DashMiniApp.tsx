@@ -15,6 +15,9 @@ import DashAgenda from "./pages/DashAgenda";
 import DashAccount from "./pages/DashAccount";
 import DashNotifications from "./pages/DashNotifications";
 import DashSoon from "./pages/DashSoon";
+/* واژگان ظاهری مینی‌اپ (کارت‌ها، شیت، تب‌بار، هدر) از همین فایل می‌آید؛ dashmini.css
+   فقط لایهٔ مکمل همین ماژول است و بدون آن صفحه بی‌استایل می‌ماند. */
+import "@/mini/mini.css";
 import "./dashmini.css";
 
 const ROLE_CHIP: Record<string, string> = {
@@ -194,6 +197,7 @@ function Shell() {
             onClick={() => {
               setMenuOpen(false);
               leaveClassic();
+              navigate("/dash");
             }}
           >
             برگشت به سبک مینی
@@ -208,6 +212,12 @@ function Shell() {
 }
 
 export default function DashMiniApp() {
+  /* باز‌شدن /dash یعنی کاربر خودش سبک مینی را خواسته؛ پس قفل «این تب نسخهٔ وب»
+     پاک می‌شود تا رفت‌وبرگشت بین دو سبک در همان تب، بدون پاک‌کردن دستی، کار کند. */
+  useEffect(() => {
+    leaveClassic();
+  }, []);
+
   return (
     <div className="mini-root" id="dash-theme-root">
       <DashProvider>
