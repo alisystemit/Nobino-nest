@@ -1,10 +1,11 @@
 // خودکار: پورت‌شده از src/app/api/upload/avatar/route.ts — بدون تغییر منطق
+// سقف حجم از تنظیمات پویای سوپرادمین خوانده می‌شود (کلید upload.avatar_max_mb).
 import { requireAuth } from "@/lib/auth/guards";
 import { storeFile } from "@/lib/storage";
+import { uploadLimits, sizeLimitFa } from "@/lib/upload-limits";
 import { json, apiError } from "@/lib/utils";
 
 
-const MAX_BYTES = 3 * 1024 * 1024; // ۳ مگابایت
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 
 /**
@@ -24,8 +25,9 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     if (!ALLOWED.includes(file.type)) {
       return json({ success: false, error: "فرمت تصویر مجاز نیست (JPG، PNG یا WebP)" }, { status: 400 });
     }
-    if (file.size > MAX_BYTES) {
-      return json({ success: false, error: "حجم تصویر باید کمتر از ۳ مگابایت باشد" }, { status: 400 });
+    const { avatarMaxBytes } = await uploadLimits();
+    if (file.size > avatarMaxBytes) {
+      return json({ success: false, error: sizeLimitFa(Math.round(avatarMaxBytes / (1024 * 1024))) }, { status: 400 });
     }
 
     const stored = await storeFile(file, { dir: "uploads/avatars" });

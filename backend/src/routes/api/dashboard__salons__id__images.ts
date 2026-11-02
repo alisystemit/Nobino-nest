@@ -1,11 +1,12 @@
 // خودکار: پورت‌شده از src/app/api/dashboard/salons/[id]/images/route.ts — بدون تغییر منطق
+// سقف حجم از تنظیمات پویای سوپرادمین خوانده می‌شود (کلید upload.image_max_mb).
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { storeFile } from "@/lib/storage";
 import { checkLimit } from "@/lib/plans/limits";
+import { uploadLimits, sizeLimitFa } from "@/lib/upload-limits";
 import { json, apiError, getPagination } from "@/lib/utils";
 
-const MAX_BYTES = 5 * 1024 * 1024; // ۵ مگابایت
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/avif"];
 
 /**
@@ -31,8 +32,9 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
     if (!ALLOWED.includes(file.type)) {
       return json({ success: false, error: "فرمت تصویر مجاز نیست (JPG، PNG، WebP، GIF یا SVG)" }, { status: 400 });
     }
-    if (file.size > MAX_BYTES) {
-      return json({ success: false, error: "حجم تصویر باید کمتر از ۵ مگابایت باشد" }, { status: 400 });
+    const { imageMaxBytes } = await uploadLimits();
+    if (file.size > imageMaxBytes) {
+      return json({ success: false, error: sizeLimitFa(Math.round(imageMaxBytes / (1024 * 1024))) }, { status: 400 });
     }
     if (!["logo", "banner", "gallery"].includes(kind)) {
       return json({ success: false, error: "نوع تصویر نامعتبر است" }, { status: 400 });
@@ -92,16 +94,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
     const { id } = await params;
     await requireSalonManage(id);
     const { page, limit, skip, take } = getPagination(_req.url, 100, 500);
-    const [items, galleryTotal, salon] = await Promise.all([
+    const [items, galleryTotal, salon, { imageMaxBytes }] = await Promise.all([
       prisma.galleryItem.findMany({ where: { salonId: id }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], skip, take }),
       prisma.galleryItem.count({ where: { salonId: id } }),
       prisma.salon.findUnique({ where: { id }, select: { logoUrl: true, bannerUrl: true } }),
+      uploadLimits(),
     ]);
     return json({
       success: true,
       items,
       logoUrl: salon?.logoUrl ?? null,
       bannerUrl: salon?.bannerUrl ?? null,
+      maxMb: Math.round(imageMaxBytes / (1024 * 1024)),
       total: galleryTotal,
       page,
       limit,

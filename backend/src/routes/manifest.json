@@ -874,6 +874,14 @@
     ]
   },
   {
+    "path": "public/upload-limits",
+    "url": "/api/public/upload-limits",
+    "module": "@/routes/api/public__upload_limits",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
     "path": "pwa/manifest/[slug]",
     "url": "/api/pwa/manifest/:slug",
     "module": "@/routes/api/pwa__manifest__slug",

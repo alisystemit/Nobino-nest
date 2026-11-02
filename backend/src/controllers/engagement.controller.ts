@@ -6,8 +6,8 @@ import * as R0 from "@/routes/api/account__reviews";
 import * as R85 from "@/routes/api/favorites";
 import * as R86 from "@/routes/api/favorites__salonId";
 import * as R96 from "@/routes/api/notifications";
-import * as R115 from "@/routes/api/support";
-import * as R116 from "@/routes/api/upload__avatar";
+import * as R116 from "@/routes/api/support";
+import * as R117 from "@/routes/api/upload__avatar";
 
 @Controller()
 export class EngagementController {
@@ -44,16 +44,16 @@ export class EngagementController {
 
   @Post("/api/support")
   async postSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R115.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R116.POST(r as never, c as never));
   }
 
   @Get("/api/support")
   async getSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R115.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R116.GET(r as never, c as never));
   }
 
   @Post("/api/upload/avatar")
   async postUploadAvatarRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R116.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R117.POST(r as never, c as never));
   }
 }

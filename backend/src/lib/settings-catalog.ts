@@ -492,6 +492,57 @@ const crmSection = (): CatalogSection => ({
   ],
 });
 
+/* ─── ۱۰) بارگذاری فایل (آواتار / تصویر سالن / ویس تبدیل) ──────────── */
+
+const uploadSection = (): CatalogSection => ({
+  id: "upload",
+  title: "بارگذاری فایل",
+  emoji: "📤",
+  description:
+    "سقف حجم فایل‌هایی که سالن‌دار و مشتری آپلود می‌کنند: آواتار پروفایل، تصاویر سالن (لوگو/بنر/گالری) و ویس «رزرو هوشمند» که به متن تبدیل می‌شود. این مقدارها سراسری‌اند و با «ذخیره» بلافاصله (بدون ری‌استارت) اعمال می‌شوند؛ متن راهنماها و بررسی حجم قبل از آپلود در سایت و مینی‌اپ هم از همین‌جا خوانده می‌شود. (سقف عکس/ویس بخش «پروندهٔ مشتریان» در کارت بالایی جداگانه تنظیم می‌شود.)",
+  cards: [
+    {
+      id: "upload-limits",
+      title: "سقف حجم هر فایل (مگابایت)",
+      description: "مقادیر خالی یا نامعتبر، پیش‌فرض کد را نگه می‌دارند. بازهٔ مجاز: ۱ تا ۱۰۰.",
+      fields: [
+        {
+          key: "upload.avatar_max_mb",
+          label: "حداکثر حجم آواتار (مگابایت)",
+          type: "number",
+          defaultValue: "3",
+          placeholder: "3",
+          hint: "JPG/PNG/WebP/AVIF — برای تصویر پروفایل کاربر و کارمند.",
+        },
+        {
+          key: "upload.image_max_mb",
+          label: "حداکثر حجم تصویر سالن (مگابایت)",
+          type: "number",
+          defaultValue: "5",
+          placeholder: "5",
+          hint: "JPG/PNG/WebP/GIF/SVG/AVIF — لوگو، بنر و تصاویر گالری در تنظیمات سالن.",
+        },
+        {
+          key: "upload.voice_max_mb",
+          label: "حداکثر حجم ویس رزرو هوشمند (مگابایت)",
+          type: "number",
+          defaultValue: "3",
+          placeholder: "3",
+          hint: "ویسی که ضبط و به متن تبدیل می‌شود (سایت + مینی‌اپ). اگر کلید قدیمی «voice.max_upload_bytes» مقدار معتبر داشته باشد، آن بر این اولویت دارد.",
+        },
+        {
+          key: "voice.max_upload_bytes",
+          label: "سقف قدیمی ویس (بایت) — فقط سازگاری",
+          type: "number",
+          defaultValue: "3145728",
+          placeholder: "3145728",
+          hint: "اختیاری. اگر پر باشد، برای حجم ویس تبدیل مصرف می‌شود و «حداکثر حجم ویس (مگابایت)» نادیده گرفته می‌شود. برای رفتار جدید خالی بگذارید و از مگابایت بالا استفاده کنید.",
+        },
+      ],
+    },
+  ],
+});
+
 export function settingsSections(): CatalogSection[] {
   const sections = [
     smsSection(),
@@ -502,6 +553,7 @@ export function settingsSections(): CatalogSection[] {
     storageSection(),
     generalSection(),
     crmSection(),
+    uploadSection(),
     miniappsSection(),
   ];
   // فیلد select «سرویس/درگاه فعال» به‌صورت یکنواخت از activeLabels ساخته می‌شود

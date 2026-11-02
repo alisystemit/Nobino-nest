@@ -19,6 +19,7 @@ import {
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import TimeField from "@/components/ui/TimeField";
 import { micBlockReason } from "@/lib/browser/capabilities";
+import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import { useMicCapability } from "@/lib/browser/use-mic-capability";
 import { formatJalali, toPersianDigits } from "@/lib/time/jalali";
 import { zonedTimeToIso } from "@/lib/time/zoned";
@@ -191,6 +192,11 @@ export default function AdminVoiceBooking({
   }
 
   async function transcribe(source: SpeechSource) {
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    if (source.audio && source.audio.size > mbToBytes(uploadLimitsSync().voiceMaxMb)) {
+      setMsg({ ok: false, text: `حجم فایل صوتی ${sizeHintFa(uploadLimitsSync().voiceMaxMb)} است.` });
+      return;
+    }
     setShowText(false);
     setTypedText("");
     setMsg(null);

@@ -368,8 +368,12 @@ export function CustomersTab({ salonId }: { salonId: string }) {
 
 /** شیت پروندهٔ مشتری: یادداشت‌ها، عکس، ویس و دسترسی تماس */
 
-/** سقف ضبط ویس در مینی‌اپ (ثانیه) — تا فایل در محدود حجمی سوپرادمین جا شود */
-const VOICE_MAX_SECONDS = 120;
+/** سقف ضبط ویس در مینی‌اپ (ثانیه) — از حجم مجاز ویسِ سوپرادمین مشتق می‌شود (تخمین ۸KB/s؛ کف ۱۲۰ ثانیه مثل پیشین) */
+const VOICE_MIN_SECONDS = 120;
+const VOICE_BYTES_PER_SECOND = 8000;
+function voiceMaxSeconds(voiceMaxMb: number): number {
+  return Math.max(VOICE_MIN_SECONDS, Math.floor((voiceMaxMb * 1024 * 1024) / VOICE_BYTES_PER_SECOND));
+}
 const MB = 1024 * 1024;
 
 function fileSizeLabel(bytes?: number | null): string {
@@ -407,6 +411,8 @@ function CustomerSheet({
   const secondsRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<number | null>(null);
+  /** سقف ثانیه‌های ضبط، هم‌راستا با حجم مجاز ویسی که سوپرادمین ست کرده است */
+  const recCapSeconds = voiceMaxSeconds(profile?.voiceMaxMb ?? 10);
 
   /** میکروفون و تایمر ضبط را آزاد می‌کند (بستن شیت یا unmount) */
   function releaseRecorder() {
@@ -610,7 +616,7 @@ function CustomerSheet({
     timerRef.current = window.setInterval(() => {
       secondsRef.current += 1;
       setRecSeconds(secondsRef.current);
-      if (secondsRef.current >= VOICE_MAX_SECONDS) stopRecorder();
+      if (secondsRef.current >= recCapSeconds) stopRecorder();
     }, 1000);
   }
 
@@ -771,7 +777,7 @@ function CustomerSheet({
                 {mediaFull ? <div className="mini-cust-empty">سقف {faDigits(mediaLimit)} فایل این پرونده پر است؛ برای افزودن، یکی را حذف کنید.</div> : null}
                 <div className="mini-cust-hint">
                   حجم مجاز: عکس تا {faDigits(profile?.photoMaxMb ?? 5)} مگابایت و ویس تا {faDigits(profile?.voiceMaxMb ?? 10)} مگابایت · ضبط ویس تا{" "}
-                  {faDigits(VOICE_MAX_SECONDS)} ثانیه. این فایل‌ها فقط در همین سالن دیده می‌شوند.
+                  {faDigits(recCapSeconds)} ثانیه. این فایل‌ها فقط در همین سالن دیده می‌شوند.
                 </div>
               </>
             ) : (

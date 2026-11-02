@@ -26,6 +26,7 @@ import { dayLabel, faDigits, fullLabel, isPhone, normalizePhone, relativeDayLabe
 import { useFavorites } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { mapi, useMini } from "../lib/store";
+import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import type { AvailabilityResponse, MiniSalonDetail, MiniStaff } from "../lib/types";
 
 type Extracted = { name?: string; phone?: string; service?: string; date?: string; time?: string };
@@ -33,8 +34,13 @@ type FieldKey = "name" | "phone" | "service" | "date" | "time";
 type Mode = "ai" | "manual";
 type Stage = "idle" | "recording" | "working" | "needs" | "done";
 
-/** سقف ضبط — با `voice.max_upload_bytes` سرویس هم‌خوان است (۶۰ ثانیه ≈ ۱/۲ مگابایت webm) */
-const RECORD_MAX_SECONDS = 60;
+/**
+ * سقف ضبط — از حجم مجاز ویسِ سوپرادمین مشتق می‌شود.
+ * مبنای تخمین، همان ۸KB/s سرور برای مدت ضبط webm است (۶۰ ثانیه ≈ ۰/۵ مگابایت)؛
+ * کف آن ۶۰ ثانیه می‌ماند تا رفتار پیشین با پایین آمدن سقف تغییر ناگهانی نکند.
+ */
+const RECORD_MIN_SECONDS = 60;
+const BYTES_PER_SECOND = 8000;
 const DAYS_SHOWN = 14;
 /** فیلدهایی که بدون آن‌ها نوبتی ثبت نمی‌شود (خدمت اختیاری است، مثل پنل) */
 const REQUIRED_FIELDS: FieldKey[] = ["name", "phone", "date", "time"];
@@ -143,6 +149,14 @@ export default function MiniVoiceBooking() {
   const shownStaff = useMemo(() => eligibleStaff(staff, serviceIds), [staff, serviceIds]);
   const staffValid = staffId === "" || shownStaff.some((s) => s.id === staffId);
 
+  /* ── سقف ضبط از تنظیمات سوپرادمین (مگابایت ویس) ──────────────────── */
+  const [recordMaxSeconds, setRecordMaxSeconds] = useState(RECORD_MIN_SECONDS);
+  useEffect(() => {
+    void getUploadLimits().then((l) => {
+      setRecordMaxSeconds(Math.max(RECORD_MIN_SECONDS, Math.floor(mbToBytes(l.voiceMaxMb) / BYTES_PER_SECOND)));
+    });
+  }, []);
+
   /* ── پیش‌پرکردن فرم دستی از حساب مشتری ───────────────────────────── */
   useEffect(() => {
     if (!isCustomer) return;
@@ -191,9 +205,9 @@ export default function MiniVoiceBooking() {
     if (stage !== "recording") return;
     timerRef.current = window.setInterval(() => {
       setSeconds((s) => {
-        if (s + 1 >= RECORD_MAX_SECONDS) {
+        if (s + 1 >= recordMaxSeconds) {
           stopRecordingRef.current?.();
-          return RECORD_MAX_SECONDS;
+          return recordMaxSeconds;
         }
         return s + 1;
       });
@@ -204,7 +218,7 @@ export default function MiniVoiceBooking() {
     };
     // stopRecordingRef پایدار است و در renderهای دوباره لازم نیست
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage]);
+  }, [stage, recordMaxSeconds]);
 
   /** بستن کامل ضبط‌کننده و میکروفون */
   function releaseRecorder() {
@@ -323,6 +337,13 @@ export default function MiniVoiceBooking() {
   /* ── تبدیل گفتار/متن به اطلاعات نوبت ─────────────────────────────── */
   async function transcribe(source: { audio?: Blob | File; text?: string }, onlyField?: FieldKey) {
     if (!salon) return;
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    if (source.audio && source.audio.size > mbToBytes(uploadLimitsSync().voiceMaxMb)) {
+      const error = `حجم فایل صوتی ${sizeHintFa(uploadLimitsSync().voiceMaxMb)} است.`;
+      setMsg(error);
+      toast(error, "error");
+      return;
+    }
     setMsg("");
     setAdjusted("");
     setShowText(false);

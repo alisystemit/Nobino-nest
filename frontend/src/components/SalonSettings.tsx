@@ -5,6 +5,8 @@ import { Link } from "@/router-shim";
 import SalonIcon from "@/components/icons/SalonIcon";
 import TimeField from "@/components/ui/TimeField";
 import Pagination from "@/components/ui/Pagination";
+import { toPersianDigits } from "@/lib/time/jalali";
+import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 
 /** اندازهٔ صفحهٔ گالری — هم‌راستا با پیش‌فرض سرور */
 const IMAGES_LIMIT = 100;
@@ -104,6 +106,11 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
   /** سالن قبلی — برای بازگرداندن گالری به صفحه ۱ هنگام تغییر سالن */
   const lastImagesSalonRef = useRef(salon.id);
 
+  // سقف حجم پویا از سوپرادمین — برای راهنما و پیش‌بررسی آپلود
+  useEffect(() => {
+    void getUploadLimits();
+  }, []);
+
   async function loadImages(page = imgPage) {
     try {
       const res = await fetch(`/api/dashboard/salons/${salon.id}/images?${imagesQuery(page)}`);
@@ -149,6 +156,12 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
   }, [salon.id, imgPage]);
 
   async function uploadImage(kind: "logo" | "banner" | "gallery", file: File) {
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    const { imageMaxMb } = uploadLimitsSync();
+    if (file.size > mbToBytes(imageMaxMb)) {
+      setMsg({ ok: false, text: `حجم تصویر ${sizeHintFa(imageMaxMb)} است.` });
+      return;
+    }
     setUploading(kind);
     setMsg(null);
     try {
@@ -258,7 +271,10 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
       {/* تصاویر سالن */}
       <div className="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800">
         <h3 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">تصاویر سالن</h3>
-        <p className="mt-1 text-[11px] text-neutral-400">لوگو و بنر در صفحه عمومی سالن نمایش داده می‌شوند (حداکثر ۵ مگابایت).</p>
+        <p className="mt-1 text-[11px] text-neutral-400">
+          لوگو و بنر در صفحه عمومی سالن نمایش داده می‌شوند (حداکثر{" "}
+          {toPersianDigits(uploadLimitsSync().imageMaxMb)} مگابایت، تعیین‌شده توسط پشتیبانی).
+        </p>
         <div className="mt-3 grid grid-cols-2 gap-4">
           <div>
             <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl border border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">

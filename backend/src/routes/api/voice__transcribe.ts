@@ -7,6 +7,7 @@ import { storeFile } from "@/lib/storage";
 import { withinLimit } from "@/lib/plans/limits";
 import { json, apiError } from "@/lib/utils";
 import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } from "@/lib/rate-limit-lite";
+import { uploadLimits } from "@/lib/upload-limits";
 
 const FIELDS: ExtractedField[] = ["name", "phone", "service", "date", "time"];
 
@@ -41,8 +42,9 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     }
 
     // سقف حجم و نرخ — این endpoint عمومی است و هر برش به سرویس STT می‌رود
+    // حجم از تنظیمات پویا: upload.voice_max_mb (پنل) با تقدم کلید بایتی قدیمی voice.max_upload_bytes
     const ip = clientIpFromRequest(req);
-    const maxBytes = await numericSettingOrEnv("voice.max_upload_bytes", process.env.VOICE_MAX_UPLOAD_BYTES, 3 * 1024 * 1024);
+    const { voiceMaxBytes: maxBytes } = await uploadLimits();
     const declaredSize = Number(req.headers.get("content-length") ?? "0");
     if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
       return json({ success: false, error: `حجم فایل صوتی بیش از سقف مجاز (${Math.round(maxBytes / 1024 / 1024)} مگابایت) است` }, { status: 413 });

@@ -9,6 +9,7 @@ import TimeField from "@/components/ui/TimeField";
 import Pagination from "@/components/ui/Pagination";
 import { zonedTimeToIso } from "@/lib/time/zoned";
 import { formatJalali, toPersianDigits } from "@/lib/time/jalali";
+import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import { useI18n } from "@/lib/i18n";
 
 /* ─── انواع ─────────────────────────────────────────────────────────── */
@@ -209,6 +210,12 @@ function StaffForm({ ctx }: { ctx: Ctx }) {
   const [uploading, setUploading] = useState(false);
 
   async function uploadAvatar(file: File) {
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    const { avatarMaxMb } = uploadLimitsSync();
+    if (file.size > mbToBytes(avatarMaxMb)) {
+      ctx.setMsg({ ok: false, text: `حجم تصویر ${sizeHintFa(avatarMaxMb)} است.` });
+      return;
+    }
     setUploading(true);
     try {
       const fd = new FormData();
@@ -1920,6 +1927,12 @@ function StaffRow({ ctx, item }: { ctx: Ctx; item: StaffItem }) {
   const [uploading, setUploading] = useState(false);
 
   async function uploadAvatar(file: File) {
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    const { avatarMaxMb } = uploadLimitsSync();
+    if (file.size > mbToBytes(avatarMaxMb)) {
+      ctx.setMsg({ ok: false, text: `حجم تصویر ${sizeHintFa(avatarMaxMb)} است.` });
+      return;
+    }
     setUploading(true);
     try {
       const fd = new FormData();

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
+import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 
 type Service = {
   id: string;
@@ -202,6 +203,11 @@ export default function SalonBooking({
     };
   }, [serviceIdsKey, date, employeeId, branchId, slug, timezone]);
 
+  // سقف حجم ویس از سوپرادمین — پیش‌از‌ثبت warm می‌شود
+  useEffect(() => {
+    void getUploadLimits();
+  }, []);
+
   function toggleService(id: string) {
     setMsg(null);
     setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -259,6 +265,11 @@ export default function SalonBooking({
 
   async function sendAudio() {
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    if (blob.size > mbToBytes(uploadLimitsSync().voiceMaxMb)) {
+      setMsg({ ok: false, text: `حجم فایل صوتی ${sizeHintFa(uploadLimitsSync().voiceMaxMb)} است.` });
+      return;
+    }
     const form = new FormData();
     form.append("audio", blob, "recording.webm");
     form.append("salonId", salonId);
@@ -293,6 +304,11 @@ export default function SalonBooking({
   /** مشتری فقط همان فیلدِ نامفهوم را دوباره می‌گوید */
   async function sendFieldAudio(field: FieldKey) {
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    // همان پیش‌بررسی حجم با سقف پویای سوپرادمین
+    if (blob.size > mbToBytes(uploadLimitsSync().voiceMaxMb)) {
+      setMsg({ ok: false, text: `حجم فایل صوتی ${sizeHintFa(uploadLimitsSync().voiceMaxMb)} است.` });
+      return;
+    }
     const form = new FormData();
     form.append("audio", blob, "recording.webm");
     form.append("salonId", salonId);

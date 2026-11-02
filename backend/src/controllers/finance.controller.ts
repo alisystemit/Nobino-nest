@@ -6,7 +6,7 @@ import * as R42 from "@/routes/api/commission";
 import * as R87 from "@/routes/api/giftcards__redeem";
 import * as R88 from "@/routes/api/giftcards";
 import * as R90 from "@/routes/api/loyalty__redeem";
-import * as R118 from "@/routes/api/wallet";
+import * as R119 from "@/routes/api/wallet";
 
 @Controller()
 export class FinanceController {
@@ -38,11 +38,11 @@ export class FinanceController {
 
   @Get("/api/wallet")
   async getWalletRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R118.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R119.GET(r as never, c as never));
   }
 
   @Post("/api/wallet")
   async postWalletRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R118.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R119.POST(r as never, c as never));
   }
 }

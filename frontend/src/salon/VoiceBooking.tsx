@@ -10,6 +10,7 @@ import { Icon, Spinner } from "@/mini/components/ui";
 import { haptic } from "@/mini/lib/bridge";
 import { useMini } from "@/mini/lib/store";
 import { faDigits } from "@/mini/lib/format";
+import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 
 export type VoicePatch = { name?: string; phone?: string; service?: string; date?: string; time?: string };
 export type VoiceFieldKey = "name" | "phone" | "service" | "date" | "time";
@@ -55,6 +56,11 @@ export default function VoiceBooking({
   const chunksRef = useRef<Blob[]>([]);
 
   async function post(parts: Record<string, string>, blob?: Blob) {
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    if (blob && blob.size > mbToBytes(uploadLimitsSync().voiceMaxMb)) {
+      onNotice(`حجم فایل صوتی ${sizeHintFa(uploadLimitsSync().voiceMaxMb)} است.`, "error");
+      return;
+    }
     setBusy(true);
     try {
       const form = new FormData();

@@ -7,6 +7,7 @@ import { LogOut } from "lucide-react";
 import RescheduleModal from "@/components/RescheduleModal";
 import Pagination from "@/components/ui/Pagination";
 import { toJalali, toPersianDigits } from "@/lib/utils";
+import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 
 type Appointment = {
   id: string;
@@ -739,6 +740,12 @@ function ProfileForm({ me, onSave }: { me: Me; onSave: (form: { name: string; em
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function uploadAvatar(file: File) {
+    // پیش‌بررسی حجم با سقف پویای سوپرادمین (بررسی قطعی سمت سرور است)
+    const { avatarMaxMb } = uploadLimitsSync();
+    if (file.size > mbToBytes(avatarMaxMb)) {
+      setMsg({ ok: false, text: `حجم تصویر ${sizeHintFa(avatarMaxMb)} است.` });
+      return;
+    }
     setUploading(true);
     setMsg(null);
     try {
@@ -782,6 +789,7 @@ function ProfileForm({ me, onSave }: { me: Me; onSave: (form: { name: string; em
               }}
             />
           </label>
+          <p className="mt-1 text-[11px] text-neutral-400">حداکثر {toPersianDigits(uploadLimitsSync().avatarMaxMb)} مگابایت (JPG/PNG/WebP)</p>
         </div>
       </div>
       {msg && <p className={`rounded-lg px-3 py-2 text-xs ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>{msg.text}</p>}
