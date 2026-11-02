@@ -131,7 +131,8 @@ function AppInner() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <PwaInstall />
+      {/* بنر «نصب اپ» مخصوص مرورگر است؛ داخل وب‌ویو پیام‌رسان (مینی‌اپ) جایی ندارد */}
+      {!isMiniApp && <PwaInstall />}
     </div>
   );
 }
