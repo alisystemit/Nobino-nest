@@ -375,7 +375,7 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
                           <div>
                             <div className="font-bold text-neutral-800">{a.salonName ?? "سالن"}</div>
                             <div className="text-xs text-neutral-500">
-                              {a.service ?? "خدمت"} — {toJalali(a.startAt)}
+                              {a.service ?? "خدمت"} — {toJalali(a.startAt, a.salonTimezone ?? "Asia/Tehran")}
                               {a.employee ? ` — ${a.employee}` : ""}
                             </div>
                           </div>
@@ -681,7 +681,7 @@ function AppointmentList({
                 <div>
                   <div className="font-bold text-neutral-800">{a.salonName ?? "سالن"}</div>
                   <div className="text-xs text-neutral-500">
-                    {a.service ?? "خدمت"} — {toJalali(a.startAt)}
+                    {a.service ?? "خدمت"} — {toJalali(a.startAt, a.salonTimezone ?? "Asia/Tehran")}
                     {a.employee ? ` — ${a.employee}` : ""}
                   </div>
                 </div>

@@ -9,6 +9,9 @@ import Pagination from "@/components/ui/Pagination";
 
 type Tx = { id: string; kind: string; reason: string; amount: number; balanceAfter: number; description?: string; createdAt: string };
 
+// اندازهٔ صفحه — همان مقداری که به API داده می‌شود؛ شمارش صفحه‌ها را API می‌دهد
+const PAGE_SIZE = 25;
+
 const kindLabels: Record<string, string> = { CREDIT: "واریز", DEBIT: "برداشت" };
 const reasonLabels: Record<string, string> = {
   PACKAGE_PURCHASE: "خرید پکیج",
@@ -48,7 +51,7 @@ export default function WalletPage() {
   const [submitting, setSubmitting] = useState(false);
 
   function load() {
-    fetch(`/api/wallet?page=${page}&limit=25`)
+    fetch(`/api/wallet?page=${page}&limit=${PAGE_SIZE}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -56,7 +59,8 @@ export default function WalletPage() {
           setTransactions(data.wallet.transactions);
           setTransactionsTotal(data.wallet.transactionsTotal ?? 0);
           setCreditSum(data.wallet.summary?.credit ?? 0);
-          setTotalPages(Math.max(1, Math.ceil((data.wallet.transactionsTotal ?? 0) / 25)));
+          // totalPages از خود API خوانده می‌شود؛ عدد آ محلی با سقف بک‌اند می‌جنگد
+          setTotalPages(Math.max(1, Number(data.totalPages ?? data.wallet.totalPages ?? 1)));
         }
         setLoading(false);
       });

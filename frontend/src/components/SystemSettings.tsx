@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { toPersianDigits } from "@/lib/utils";
 
 /**
  * پنل تنظیمات سیستم (سوپرادمین) — کاملاً کاتالوگ‌محور.
@@ -182,8 +183,8 @@ export default function SystemSettings() {
       setMsg({ ok: false, text: String(r.data?.error ?? "خطا در ذخیره") });
       return;
     }
-    const skipped = r.data.skipped?.length ? ` — ${r.data.skipped.length} کلید فقط‌محیطی رد شد` : "";
-    setMsg({ ok: true, text: `${updates.length} تنظیم ذخیره شد ✅${skipped} (نیاز به تازه‌سازی صفحه برای دیدن مقدار تازه)` });
+    const skipped = r.data.skipped?.length ? ` — ${toPersianDigits(r.data.skipped.length)} کلید فقط‌محیطی رد شد` : "";
+    setMsg({ ok: true, text: `${toPersianDigits(updates.length)} تنظیم ذخیره شد ✅${skipped} (نیاز به تازه‌سازی صفحه برای دیدن مقدار تازه)` });
     setCleared(new Set());
   }
 

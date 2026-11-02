@@ -15,6 +15,7 @@ const NAV = [
   { href: "/admin?tab=charts", label: "نمودارها", icon: "M4 19V5h3v14H4Zm6 0V9h3v10h-3Zm6 0V3h3v16h-3Z" },
   { href: "/admin?tab=salons", label: "سالن‌ها", icon: "M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.5 3.6v6.2L12 17.7 5.5 14.1V7.9L12 4.3ZM11 8h2v6h-2V8Zm0 7h2v2h-2v-2Z" },
   { href: "/admin?tab=subscriptions", label: "اشتراک‌ها", icon: "M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm0 2.2 6 2.3v4.5c0 3.9-2.5 7.4-6 8.8-3.5-1.4-6-4.9-6-8.8V6.5l6-2.3Z" },
+  { href: "/admin?tab=payouts", label: "تسویه حساب", icon: "M2 6h20v12H2V6Zm2 2v8h16V8H4Zm3 1h5v2H7V9Zm7 4h4v2h-4v-2Z" },
   { href: "/admin?tab=support", label: "پشتیبانی", icon: "M12 3c4.97 0 9 3.58 9 8 0 4.42-4.03 8-9 8a9.9 9.9 0 0 1-3.7-.72L4 20l1.2-3.1A7.6 7.6 0 0 1 3 11c0-4.42 4.03-8 9-8Z" },
   { href: "/admin?tab=security", label: "امنیت", icon: "M12 2a5 5 0 0 0-5 5v3H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Zm2 6v-2h2v2h-2Z" },
   { href: "/admin?tab=notifications", label: "گزارش پیامک", icon: "M4 4h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H8l-4 4V5a1 1 0 0 1 1-1Z" },

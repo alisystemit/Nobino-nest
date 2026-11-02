@@ -178,6 +178,18 @@ type NotifSummary = {
 };
 type NotifData = { summary: NotifSummary; notifications: NotifItem[] };
 
+type Payout = {
+  id: string;
+  amount: number;
+  method: string;
+  bankInfo?: string | null;
+  status: string;
+  requestedAt: string;
+  processedAt?: string | null;
+  walletBalance: number;
+  owner?: { id: string; name?: string | null; phone?: string | null } | null;
+};
+
 type Ctx = {
   api: <T = ApiRes>(path: string, method: string, body?: unknown, okMsg?: string) => Promise<T | null>;
   setMsg: (m: { ok: boolean; text: string } | null) => void;
@@ -1471,6 +1483,147 @@ function ReviewManager({ ctx }: { ctx: Ctx }) {
   );
 }
 
+/* ─── درخواست‌های تسویه ──────────────────────────────────────────────── */
+
+const PAYOUT_STATUS: Record<string, { label: string; cls: string }> = {
+  REQUESTED: { label: "در انتظار", cls: "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
+  PROCESSING: { label: "در حال واریز", cls: "bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300" },
+  PAID: { label: "واریز شد", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" },
+  REJECTED: { label: "رد شد (وجه برگشت)", cls: "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400" },
+};
+
+const PAYOUT_METHOD: Record<string, string> = {
+  BANK: "کارت به کارت / سات",
+  CARD: "شبا کارت",
+  SMS: "به‌صورت اعتبار پیامکی",
+};
+
+const payoutBadge = (s?: string | null) => {
+  const m = PAYOUT_STATUS[s ?? ""] ?? { label: s ?? "—", cls: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400" };
+  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${m.cls}`}>{m.label}</span>;
+};
+
+function PayoutManager({ ctx }: { ctx: Ctx }) {
+  const PAGE_SIZE = 25;
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/admin/payouts?page=${page}&limit=${PAGE_SIZE}${status ? `&status=${status}` : ""}`);
+        const d = await r.json();
+        if (cancelled || !d.success) return;
+        setPayouts(d.payouts as Payout[]);
+        setTotal(d.total ?? 0);
+        setTotalPages(Math.max(1, Number(d.totalPages ?? 1)));
+        setPendingTotal(d.pendingTotal ?? 0);
+        setPendingCount(d.pendingCount ?? 0);
+      } catch {
+        /* خطای شبکه از طریق msg مدیریت می‌شود */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, status, reload]);
+
+  async function setPayoutStatus(id: string, next: string) {
+    setBusy(id);
+    const ok = next === "PAID" ? "تسویه پرداخت شد ✅" : next === "REJECTED" ? "درخواست رد و وجه به کیف پول برگشت ✅" : undefined;
+    await ctx.api(`/api/admin/payouts/${id}`, "PATCH", { status: next }, ok);
+    setReload((n) => n + 1);
+    setBusy(null);
+  }
+
+  const filters: { key: string; label: string }[] = [
+    { key: "", label: "همه" },
+    { key: "REQUESTED", label: "در انتظار" },
+    { key: "PROCESSING", label: "در حال واریز" },
+    { key: "PAID", label: "واریز شد" },
+    { key: "REJECTED", label: "رد شده" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+        <div className="text-sm text-neutral-600 dark:text-neutral-300">
+          {pendingCount > 0 ? (
+            <>
+              <b className="text-neutral-900 dark:text-neutral-100">{faInt(pendingCount)}</b> درخواست در انتظار بررسی به مجموع{" "}
+              <b className="text-neutral-900 dark:text-neutral-100">{faInt(pendingTotal)} تومان</b>
+            </>
+          ) : (
+            "درخواست تسویه‌ای در انتظار بررسی نیست."
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {filters.map((f) => (
+            <button
+              key={f.key || "all"}
+              onClick={() => {
+                setStatus(f.key);
+                setPage(1);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                status === f.key
+                  ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
+                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {payouts.length === 0 && <p className="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">درخواست تسویه‌ای ثبت نشده است.</p>}
+
+      {payouts.map((p) => (
+        <div key={p.id} className={`${listRow} flex flex-wrap items-center justify-between gap-3`}>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-black text-neutral-900 dark:text-neutral-100">{faInt(p.amount)} تومان</span>
+              {payoutBadge(p.status)}
+            </div>
+            <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+              {p.owner?.name ?? "مالک"} — {p.owner?.phone ?? "—"} · {PAYOUT_METHOD[p.method] ?? p.method} · درخواست: {faDateTime(p.requestedAt)}
+              {p.processedAt ? ` · آخرین تغییر: ${faDateTime(p.processedAt)}` : ""}
+            </div>
+            {p.bankInfo && <div className="mt-1 break-all text-xs text-neutral-600 dark:text-neutral-300" dir="ltr">{p.bankInfo}</div>}
+            <div className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">موجودی فعلی کیف پول: {faInt(p.walletBalance)} تومان</div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {(p.status === "REQUESTED" || p.status === "PROCESSING") && (
+              <>
+                <button disabled={busy === p.id} onClick={() => setPayoutStatus(p.id, "PROCESSING")} className={ghostBtn}>
+                  در حال واریز
+                </button>
+                <button disabled={busy === p.id} onClick={() => setPayoutStatus(p.id, "PAID")} className={okBtn}>
+                  پرداخت شد
+                </button>
+                <button disabled={busy === p.id} onClick={() => setPayoutStatus(p.id, "REJECTED")} className={dangerBtn}>
+                  رد و بازگشت وجه
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+
+      <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+    </div>
+  );
+}
+
 /* ─── لاگ فعالیت‌ها ──────────────────────────────────────────────────── */
 
 /* ─── فراداده اقدام‌های حسابرسی ──────────────────────────────────────── */
@@ -1497,6 +1650,7 @@ const ACTION_META: Record<string, AuditActionMeta> = {
   force_delete_package: { label: "حذف اجباری پکیج", icon: "⚠️", grad: "from-red-500 to-rose-600", desc: "حذف اجباری بسته‌ای که مشترک فعال دارد." },
   update_plan_limits: { label: "تغییر محدودیت‌های پلن", icon: "⚙️", grad: "from-slate-500 to-neutral-600", desc: "تغییر سقف محدودیت‌های هر پلن اشتراک." },
   settings_update: { label: "به‌روزرسانی تنظیمات", icon: "⚙️", grad: "from-slate-500 to-neutral-600", desc: "تغییر تنظیمات سیستمی مهم." },
+  payout_update: { label: "رسیدگی به تسویه", icon: "💸", grad: "from-emerald-500 to-teal-500", desc: "تأیید، ثبت در حال واریز، یا رد یک درخواست تسویه و بازگشت وجه به کیف پول." },
 };
 
 const ENTITY_LABEL: Record<string, string> = {
@@ -1507,6 +1661,7 @@ const ENTITY_LABEL: Record<string, string> = {
   Package: "پکیج",
   System: "سیستم",
   Setting: "تنظیمات",
+  Payout: "درخواست تسویه",
 };
 
 const ENTITY_ICON: Record<string, string> = {
@@ -3829,6 +3984,7 @@ export default function AdminExtras({ initialTab = "metrics" }: { initialTab?: s
         {tab === "salons" && <SalonManagerList ctx={ctx} salons={salons} refresh={refreshSalons} />}
         {tab === "reviews" && <ReviewManager ctx={ctx} />}
         {tab === "subscriptions" && <SubscriptionManager ctx={ctx} />}
+        {tab === "payouts" && <PayoutManager ctx={ctx} />}
         {tab === "users" && <UserManager ctx={ctx} />}
         {tab === "packages" && <PackageManager ctx={ctx} />}
         {tab === "limits" && <LimitMatrixPanel ctx={ctx} />}

@@ -22,9 +22,10 @@ export default function Pagination({ page, totalPages, total, onChange }: Pagina
   for (let i = start; i <= end; i++) pages.push(i);
 
   return (
-    <div className="mt-5 flex flex-wrap items-center justify-center gap-1.5">
+    <nav aria-label="صفحه‌بندی فهرست" className="mt-5 flex flex-wrap items-center justify-center gap-1.5">
       <button
         type="button"
+        aria-label="صفحهٔ قبلی"
         className={`${btnBase} ${btnIdle}`}
         disabled={page <= 1}
         onClick={() => onChange(page - 1)}
@@ -32,21 +33,24 @@ export default function Pagination({ page, totalPages, total, onChange }: Pagina
         قبلی
       </button>
 
-      {pages[0] > 1 && <span className="px-1 text-neutral-400">…</span>}
+      {pages[0] > 1 && <span aria-hidden="true" className="px-1 text-neutral-400">…</span>}
       {pages.map((p) => (
         <button
           key={p}
           type="button"
+          aria-label={`صفحهٔ ${p}`}
+          aria-current={p === page ? "page" : undefined}
           className={`${btnBase} ${p === page ? btnActive : btnIdle}`}
           onClick={() => onChange(p)}
         >
           {toPersianDigits(p)}
         </button>
       ))}
-      {pages[pages.length - 1] < totalPages && <span className="px-1 text-neutral-400">…</span>}
+      {pages[pages.length - 1] < totalPages && <span aria-hidden="true" className="px-1 text-neutral-400">…</span>}
 
       <button
         type="button"
+        aria-label="صفحهٔ بعدی"
         className={`${btnBase} ${btnIdle}`}
         disabled={page >= totalPages}
         onClick={() => onChange(page + 1)}
@@ -57,6 +61,6 @@ export default function Pagination({ page, totalPages, total, onChange }: Pagina
       {typeof total === "number" && (
         <span className="mr-2 text-xs text-neutral-400">کل: {toPersianDigits(total)}</span>
       )}
-    </div>
+    </nav>
   );
 }

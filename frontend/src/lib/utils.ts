@@ -15,16 +15,24 @@ export function formatToman(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " تومان";
 }
 
-/** تبدیل تاریخ به شمسی (فقط نمایش) */
-export function toJalali(date: Date | string): string {
+/**
+ * تبدیل تاریخ به شمسی (فقط نمایش).
+ * @param timeZone منطقهٔ زمانی نمایش — مثلاً منطقهٔ زمانی سالن؛ اگر داده نشود
+ *                 از ساعت مرورگر استفاده می‌شود (تاریخ اشتباه در مرز شبانه).
+ */
+export function toJalali(date: Date | string, timeZone?: string): string {
   const d = typeof date === "string" ? new Date(date) : date;
+  const opts: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" };
+  if (timeZone) opts.timeZone = timeZone;
   try {
-    return new Intl.DateTimeFormat("fa-IR", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(d);
+    return new Intl.DateTimeFormat("fa-IR", opts).format(d);
   } catch {
-    return d.toLocaleString();
+    // منطقهٔ زمانی نامعتبر یا تاریخ خارج از بازهٔ معتبر
+    try {
+      return new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeStyle: "short" }).format(d);
+    } catch {
+      return d.toLocaleString();
+    }
   }
 }
 

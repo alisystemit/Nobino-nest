@@ -297,7 +297,7 @@ export default function HomePage() {
               <Link href="/login" className="rounded-2xl bg-gradient-to-l from-pink-600 to-purple-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-pink-500/25 transition hover:scale-[1.03]">
                 ورود به پنل
               </Link>
-              <Link href="https://mah.localhost:5175" className="rounded-2xl border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+              <Link href={subdomainUrl("mah")} className="rounded-2xl border border-neutral-300 bg-white px-6 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
                 دیدن صفحه نمونه
               </Link>
             </div>
@@ -546,7 +546,7 @@ export default function HomePage() {
                 <Link href="/packages" className="hover:text-pink-600">پکیج‌ها و تعرفه</Link>
                 <Link href="/help" className="hover:text-pink-600">راهنمای کامل</Link>
                 <Link href="/login" className="hover:text-pink-600">ورود / ثبت‌نام</Link>
-                <Link href="https://mah.localhost:5175" className="hover:text-pink-600">صفحه نمونه سالن</Link>
+                <Link href={subdomainUrl("mah")} className="hover:text-pink-600">صفحه نمونه سالن</Link>
               </div>
             </div>
             <div>

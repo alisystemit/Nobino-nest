@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/router-shim";
 import { useRouter } from "@/router-shim";
+import Pagination from "@/components/ui/Pagination";
 
 // مشتریان به پکیج‌ها دسترسی ندارند
 async function isCustomer(): Promise<boolean> {
@@ -18,6 +19,8 @@ type Feature = { key: string | null; label: string; icon: string };
 type Pkg = { id: string; name: string; description?: string; price: number; yearlyPrice?: number | null; durationDays: number; features: Feature[] };
 type Gateway = { id: string; name: string; sandbox: boolean };
 
+const PAGE_SIZE = 6;
+
 export default function PackagesPage() {
   const router = useRouter();
   const [packages, setPackages] = useState<Pkg[]>([]);
@@ -29,31 +32,41 @@ export default function PackagesPage() {
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       if (await isCustomer()) {
-        router.replace("/dashboard");
+        if (!cancelled) router.replace("/dashboard");
         return;
       }
       try {
         const [pkgRes, gwRes] = await Promise.all([
-          fetch("/api/packages"),
+          fetch(`/api/packages?page=${page}&limit=${PAGE_SIZE}`),
           fetch("/api/payments/gateways"),
         ]);
         const pkgData = await pkgRes.json();
         const gwData = await gwRes.json();
+        if (cancelled) return;
         setPackages(pkgData.packages ?? []);
+        setTotal(pkgData.total ?? (pkgData.packages?.length ?? 0));
+        setTotalPages(Math.max(1, pkgData.totalPages ?? 1));
         setGateways(gwData.gateways ?? []);
-        setGateway(gwData.gateways?.[0]?.id ?? "");
+        setGateway((cur) => cur || gwData.gateways?.[0]?.id || "");
 
       } catch {
-        setError("خطا در بارگیری داده‌ها");
+        if (!cancelled) setError("خطا در بارگیری داده‌ها");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [router, page]);
 
   async function buy(pkgId: string) {
     setBuying(pkgId);
@@ -181,6 +194,16 @@ export default function PackagesPage() {
               );
             })}
           </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            onChange={(p) => {
+              setPage(p);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
 
           {error && <p className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600">{error}</p>}
         </>

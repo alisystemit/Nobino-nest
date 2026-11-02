@@ -63,7 +63,7 @@ type CustomerAppt = {
   branch?: { name: string } | null;
 };
 type Invoice = { id: string; number: string; issuedAt: string; period: string; amount: number; status: string; kind?: string; customerName?: string | null; customerPhone?: string | null; description?: string | null; payLink?: string | null };
-type Campaign = { id: string; name: string; channel: string; segment: string; status: string; sentCount: number };
+type Campaign = { id: string; name: string; channel: string; segment: string; status: string; sentCount: number; scheduledAt?: string | null; sentAt?: string | null };
 type ApptItem = { id: string; startAt: string; customerName: string; employee?: string | null; service?: string | null; status: string };
 type PeakHour = { hour: number; count: number };
 type StaffPerf = { id: string; name: string; completed: number; total: number };
@@ -138,6 +138,7 @@ const INVOICE_STATUS: Record<string, string> = {
 const CAMPAIGN_STATUS: Record<string, string> = {
   DRAFT: "پیش‌نویس",
   QUEUED: "در صف",
+  SCHEDULED: "زمان‌بندی‌شده",
   SENDING: "در حال ارسال",
   SENT: "ارسال‌شده",
   FAILED: "ناموفق",
@@ -342,12 +343,12 @@ function ReportView({ ctx }: { ctx: Ctx }) {
   if (!report) return <p className="py-6 text-center text-neutral-400">در حال محاسبه گزارش...</p>;
 
   const cards = [
-    { label: "کل نوبت‌ها", value: String(report.total), icon: "📋" },
-    { label: "انجام‌شده", value: String(report.completed), icon: "✅" },
-    { label: "نرخ لغو", value: `${report.cancelRate}٪`, icon: "❌" },
-    { label: "مشتریان متمایز", value: String(report.distinctCustomers), icon: "👥" },
-    { label: "نرخ مراجعه مجدد", value: `${report.returnRate}٪`, icon: "🔁" },
-    { label: "مشتری جدید امروز", value: String(report.newCustomersToday), icon: "🆕" },
+    { label: "کل نوبت‌ها", value: toPersianDigits(report.total), icon: "📋" },
+    { label: "انجام‌شده", value: toPersianDigits(report.completed), icon: "✅" },
+    { label: "نرخ لغو", value: `${toPersianDigits(report.cancelRate)}٪`, icon: "❌" },
+    { label: "مشتریان متمایز", value: toPersianDigits(report.distinctCustomers), icon: "👥" },
+    { label: "نرخ مراجعه مجدد", value: `${toPersianDigits(report.returnRate)}٪`, icon: "🔁" },
+    { label: "مشتری جدید امروز", value: toPersianDigits(report.newCustomersToday), icon: "🆕" },
   ];
 
   return (
@@ -1548,6 +1549,11 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
   const [segment, setSegment] = useState("ALL");
   const [channel, setChannel] = useState("SMS");
   const [showTemplates, setShowTemplates] = useState(false);
+  /** زمان ارسال زمان‌بندی‌شده (خالی = پیش‌نویس) */
+  const [schedDate, setSchedDate] = useState("");
+  const [schedTime, setSchedTime] = useState("");
+  /** مصرف پیامک/کمپین این ماه از سرور */
+  const [usage, setUsage] = useState<{ planLabel?: string; sms?: { used: number; limit: number | boolean }; campaigns?: { used: number; limit: number | boolean } } | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -1563,6 +1569,7 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
       setCampaigns(d.campaigns as Campaign[]);
       setTotal(d.total ?? 0);
       setTotalPages(d.totalPages ?? Math.max(1, Math.ceil((d.total ?? 0) / 25)));
+      setUsage(d.usage ?? null);
     }
   }, [ctx.base, page]);
 
@@ -1579,20 +1586,41 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
 
   async function create() {
     if (!name || !message) return ctx.setMsg({ ok: false, text: t("campaigns.required") });
-    const r = await ctx.api(`${ctx.base}/campaigns`, "POST", { name, channel, segment, message }, t("campaigns.created"));
+    if (Boolean(schedDate) !== Boolean(schedTime)) return ctx.setMsg({ ok: false, text: "برای زمان‌بندی، هر دو فیلد تاریخ و ساعت را پر کنید" });
+    let scheduledAt: string | undefined;
+    if (schedDate && schedTime) {
+      try {
+        scheduledAt = zonedTimeToIso(schedDate, schedTime, ctx.timezone);
+      } catch {
+        return ctx.setMsg({ ok: false, text: "تاریخ یا ساعت نامعتبر است" });
+      }
+      if (new Date(scheduledAt).getTime() <= Date.now()) return ctx.setMsg({ ok: false, text: "زمان ارسال باید در آینده باشد" });
+    }
+    const r = await ctx.api(`${ctx.base}/campaigns`, "POST", { name, channel, segment, message, ...(scheduledAt ? { scheduledAt } : {}) }, scheduledAt ? "کمپین زمان‌بندی شد" : t("campaigns.created"));
     if (r) {
       setName("");
       setMessage("");
+      setSchedDate("");
+      setSchedTime("");
       load();
     }
   }
 
   async function run(id: string) {
-    const res = await ctx.api(`${ctx.base}/campaigns/${id}/run`, "POST", undefined, t("campaigns.queued"));
-    if (res) {
-      ctx.setMsg({ ok: true, text: t("campaigns.queued") });
-      load();
-    }
+    const res = await ctx.api<ApiRes<{ recipients?: number; blocked?: number; warning?: string }>>(
+      `${ctx.base}/campaigns/${id}/run`,
+      "POST",
+      undefined,
+      t("campaigns.queued"),
+    );
+    if (!res) return;
+    const sent = Number(res.recipients ?? 0);
+    const blocked = Number(res.blocked ?? 0);
+    // «موفق» وقتی صفر پیامک رفته گمراه‌کننده است؛ warning/blocked سرور را نشان می‌دهیم
+    if (sent === 0) ctx.setMsg({ ok: false, text: res.warning || "هیچ پیامکی ارسال نشد (سقف پلن یا مخاطب معتبر)." });
+    else if (blocked > 0) ctx.setMsg({ ok: false, text: `${toPersianDigits(sent)} پیامک ارسال شد؛ ${res.warning || `${toPersianDigits(blocked)} مخاطب ارسال نشد.`}` });
+    else ctx.setMsg({ ok: true, text: `${toPersianDigits(sent)} پیامک ارسال شد.` });
+    load();
   }
 
   return (
@@ -1608,7 +1636,11 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
           <option value="ALL">{t("campaigns.all")}</option>
           <option value="RETURNING">{t("campaigns.returning")}</option>
         </select>
-        <button onClick={create} className={primaryBtn}>{t("campaigns.create")}</button>
+        <div className="grid grid-cols-1 gap-2 sm:col-span-2 sm:grid-cols-2">
+          <JalaliDatePicker value={schedDate} onChange={setSchedDate} timeZone={ctx.timezone} placeholder="زمان ارسال (اختیاری — شمسی)" />
+          <TimeField value={schedTime} onChange={setSchedTime} label="ساعت ارسال" />
+        </div>
+        <button onClick={create} className={`${primaryBtn} sm:col-span-2`}>{t("campaigns.create")}</button>
       </div>
 
       {/* قالب‌های آماده مناسبتی */}
@@ -1643,6 +1675,18 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
         )}
       </div>
 
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-extrabold text-neutral-700 dark:text-neutral-200">کمپین‌های این سالن</div>
+        {/* مصرف واقعی این ماه از سرور (شمارش پیامک، نه تعداد ردیف‌های همین صفحه) */}
+        {usage?.sms && (
+          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+            پیامک این ماه: {toPersianDigits(usage.sms.used)} /{" "}
+            {typeof usage.sms.limit === "number" ? toPersianDigits(usage.sms.limit) : "نامحدود"}
+            {usage.planLabel ? ` — پلن ${usage.planLabel}` : ""}
+          </div>
+        )}
+      </div>
+
       <div className="mt-4 space-y-2">
         {campaigns.length === 0 && <p className="py-4 text-center text-sm text-neutral-400">{t("campaigns.empty")}</p>}
         {campaigns.map((c) => (
@@ -1650,8 +1694,13 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
             <div>
               <div className="font-bold text-neutral-800 dark:text-neutral-100">{c.name}</div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                {CHANNEL_LABEL[c.channel] ?? c.channel} — {CAMPAIGN_SEGMENT[c.segment] ?? c.segment} — {CAMPAIGN_STATUS[c.status] ?? c.status} — ارسال: {c.sentCount}
+                {CHANNEL_LABEL[c.channel] ?? c.channel} — {CAMPAIGN_SEGMENT[c.segment] ?? c.segment} — {CAMPAIGN_STATUS[c.status] ?? c.status} — ارسال: {toPersianDigits(c.sentCount ?? 0)}
               </div>
+              {c.scheduledAt && c.status !== "SENT" && (
+                <div className="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                  📅 ارسال خودکار: {new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short", timeZone: ctx.timezone || "Asia/Tehran" }).format(new Date(c.scheduledAt))}
+                </div>
+              )}
             </div>
             <button onClick={() => run(c.id)} className={darkBtn}>{t("campaigns.run")}</button>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toPersianDigits } from "@/lib/utils";
 
 /**
  * تب «هوش مصنوعی» سوپرادمین — کلیدها، فعال‌سازی و تست اتصال.
@@ -168,7 +169,7 @@ export default function AiSettings() {
       if (!d.success) {
         setMsg({ ok: false, text: d.error ?? "خطا در ذخیره" });
       } else {
-        setMsg({ ok: true, text: `${updates.length} تنظیم هوش مصنوعی ذخیره شد ✅` });
+        setMsg({ ok: true, text: `${toPersianDigits(updates.length)} تنظیم هوش مصنوعی ذخیره شد ✅` });
         setCleared(new Set());
         await refresh();
       }
