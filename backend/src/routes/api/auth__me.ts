@@ -3,13 +3,18 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, requireAuth } from "@/lib/auth/guards";
+import { getCurrentUser, requireAuth, resolveToken } from "@/lib/auth/guards";
 import { json, apiError } from "@/lib/utils";
 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
+  // نبودِ نشست (بازدیدکنندهٔ مهمان صفحهٔ عمومی سالن) خطا نیست؛ پاسخ 200 با user:null
+  // تا پروبِ «من کیستم؟» در کنسول مرورگر خطای 401 تولید نکند.
+  const token = await resolveToken();
   const user = await getCurrentUser();
   if (!user) {
-    return json({ success: false, user: null }, { status: 401 });
+    // توکن فرستاده شده ولی معتبر نیست (منقضی/باطل) → همان 401 مستندِ docs/mobile-api.md
+    if (token) return json({ success: false, user: null }, { status: 401 });
+    return json({ success: true, user: null });
   }
   return json({
     success: true,
