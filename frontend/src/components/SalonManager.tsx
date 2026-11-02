@@ -997,6 +997,10 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
     media: CustomerMedia[];
     noteLimit: number;
     mediaLimit: number;
+    /** سقف حجم فایل‌ها — از تنظیمات سوپرادمین (پروندهٔ مشتریان) */
+    photoMaxMb?: number;
+    voiceMaxMb?: number;
+    mediaEnabled?: boolean;
   } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -1206,7 +1210,7 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                 )}
               </div>
 
-              {/* یادداشت‌ها (حداکثر ۵) */}
+              {/* یادداشت‌ها (سقف از پنل سوپرادمین) */}
               <div className="mt-6">
                 <div className="flex items-center justify-between">
                   <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">یادداشت‌ها</h5>
@@ -1242,7 +1246,7 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                 )}
               </div>
 
-              {/* عکس‌ها و صداها (حداکثر ۱۰) */}
+              {/* عکس‌ها و صداها (سقف از پنل سوپرادمین) */}
               <div className="mt-6">
                 <div className="flex items-center justify-between">
                   <h5 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">عکس‌ها و صداها</h5>
@@ -1270,8 +1274,8 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                   ))}
                 </div>
 
-                {(detail?.media?.length ?? 0) < (detail?.mediaLimit ?? 10) && (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                {(detail?.mediaEnabled ?? true) && (detail?.media?.length ?? 0) < (detail?.mediaLimit ?? 10) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <label className="flex h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
                       {uploading ? "در حال بارگذاری..." : "📷 عکس"}
                       <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="hidden" disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
@@ -1280,8 +1284,15 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                       {uploading ? "در حال بارگذاری..." : "🎙️ صدا"}
                       <input type="file" accept="audio/*" className="hidden" disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
                     </label>
-                    <span className="self-center text-[11px] text-neutral-400">این فایل‌ها فقط در همین سالن دیده می‌شوند.</span>
+                    <span className="self-center text-[11px] text-neutral-400">
+                      عکس تا {toPersianDigits(detail?.photoMaxMb ?? 5)} مگابایت، ویس تا {toPersianDigits(detail?.voiceMaxMb ?? 10)} مگابایت — فقط در همین سالن دیده می‌شود.
+                    </span>
                   </div>
+                )}
+                {!(detail?.mediaEnabled ?? true) && (
+                  <p className="mt-2 text-[11px] leading-6 text-amber-600 dark:text-amber-400">
+                    ثبت عکس و ویس در پروندهٔ مشتریان از سوی پشتیبانی غیرفعال شده است؛ یادداشت‌ها همچنان فعال‌اند.
+                  </p>
                 )}
               </div>
             </div>

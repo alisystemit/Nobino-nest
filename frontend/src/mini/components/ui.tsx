@@ -135,6 +135,13 @@ const ICON_PATHS = {
       <circle cx="12" cy="13.5" r="3.5" />
     </>
   ),
+  mic: (
+    <>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5 12a7 7 0 0 0 14 0M12 19v2.5" />
+    </>
+  ),
+  stop: <rect x="6" y="6" width="12" height="12" rx="2.5" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICON_PATHS;

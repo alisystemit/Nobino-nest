@@ -22,12 +22,14 @@ export interface CatalogValue {
   readOnly: boolean;
   /** نام متغیر محیطی جایگزین */
   env?: string;
+  /** پیش‌فرض کد (برای نمایش در پنل وقتی چیزی ست نشده است) */
+  defaultValue?: string;
   /** آیا مقدار در دیتابیس ذخیره شده است */
   hasDbValue: boolean;
   /** آیا متغیر محیطی جایگزین پر است */
   hasEnvValue: boolean;
-  /** منبع فعلی مقدار: دیتابیس / env / هیچی */
-  source: "db" | "env" | "none";
+  /** منبع فعلی مقدار: دیتابیس / env / پیش‌فرض کد / هیچی */
+  source: "db" | "env" | "default" | "none";
   /** برای secret فقط نشانهٔ KEEP_SECRET ارسال می‌شود، نه مقدار */
   value: string;
 }
@@ -48,6 +50,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
       const envRaw = envValue(field.env);
       const hasEnvValue = envRaw.length > 0;
       const masked = field.readOnly || field.type === "secret";
+      const fallback = field.defaultValue ?? "";
       return {
         key: field.key,
         group: section.id,
@@ -58,10 +61,13 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
         isSecret: field.type === "secret",
         readOnly: Boolean(field.readOnly),
         env: field.env,
+        defaultValue: fallback || undefined,
         hasDbValue,
         hasEnvValue,
-        source: hasDbValue ? "db" : hasEnvValue ? "env" : "none",
-        value: masked ? (hasDbValue ? KEEP_SECRET : "") : (row?.value ?? envRaw ?? ""),
+        source: hasDbValue ? "db" : hasEnvValue ? "env" : fallback ? "default" : "none",
+        // `envRaw` همیشه رشته است (حتی وقتی env ست نشده)، پس از `||` استفاده می‌کنیم
+        // تا پیش‌فرض کد جای خالی را پر کند.
+        value: masked ? (hasDbValue ? KEEP_SECRET : "") : (row?.value || envRaw || fallback),
       };
     });
 

@@ -193,8 +193,11 @@ function writeToken(token: string): void {
 /** fetch یکسان با Bearer اختیاری و پاسخ envelope */
 export async function mapi<T = any>(path: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; data: T }> {
   const token = readToken();
+  // بدنهٔ FormData (آپلود عکس/ویس) باید مرز multipart خودش را داشته باشد،
+  // پس content-type دست‌ی ما روی آن نمی‌نشیند.
+  const isForm = typeof FormData !== "undefined" && init.body instanceof FormData;
   const headers: Record<string, string> = {
-    "content-type": "application/json",
+    ...(isForm ? {} : { "content-type": "application/json" }),
     ...((init.headers as Record<string, string>) ?? {}),
   };
   if (token) headers.authorization = `Bearer ${token}`;

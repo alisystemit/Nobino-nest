@@ -178,6 +178,7 @@ export type SalonServiceRow = {
 };
 
 export type SalonCustomerRow = {
+  id?: string;
   phone: string;
   firstName: string | null;
   lastName: string | null;
@@ -190,6 +191,33 @@ export type SalonCustomerRow = {
   tags?: string[];
   mediaCount?: number;
   notesCount?: number;
+};
+
+/** یادداشت پروندهٔ مشتری (سالن → مشتری) */
+export type CustomerNoteRow = { id: string; note: string; createdAt: string };
+
+/** عکس یا ویس ضمیمهٔ پروندهٔ مشتری */
+export type CustomerMediaRow = {
+  id: string;
+  type: "photo" | "voice";
+  url: string;
+  name?: string | null;
+  mimeType?: string | null;
+  size?: number;
+  createdAt: string;
+};
+
+/** پاسخ GET /api/dashboard/salons/:id/customers/:customerId */
+export type CustomerProfile = {
+  success: boolean;
+  error?: string;
+  notes?: CustomerNoteRow[];
+  media?: CustomerMediaRow[];
+  noteLimit?: number;
+  mediaLimit?: number;
+  photoMaxMb?: number;
+  voiceMaxMb?: number;
+  mediaEnabled?: boolean;
 };
 
 export type CashTotals = { cash: number; card: number; online: number; expense: number; net: number };

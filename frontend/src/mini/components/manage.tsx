@@ -3,11 +3,20 @@
  * داده‌ها از همان endpoint های داشبورد وب می‌آیند (requireSalonManage) تا با پنل
  * یکی بمانند؛ اگر حسابی دسترسی نداشته باشد، ۴۰۳ با پیام کوتاه نمایش داده می‌شود.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Area, Button, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList } from "./ui";
-import { compactToman, dayLabel, duration, faDigits, initials, shortPrice, toman, toNumber, ymd } from "../lib/format";
+import { compactToman, dayLabel, duration, faDigits, fromNow, initials, shortPrice, toman, toNumber, ymd } from "../lib/format";
 import { mapi, useMini } from "../lib/store";
-import type { CashTotals, FinancialReport, RevenueSeries, SalonCustomerRow, SalonServiceRow } from "../lib/types";
+import type {
+  CashTotals,
+  CustomerMediaRow,
+  CustomerNoteRow,
+  CustomerProfile,
+  FinancialReport,
+  RevenueSeries,
+  SalonCustomerRow,
+  SalonServiceRow,
+} from "../lib/types";
 
 /** پیام دوستانه برای خطاهای دسترسی */
 function accessText(status: number, error?: string): string {
@@ -330,7 +339,18 @@ export function CustomersTab({ salonId }: { salonId: string }) {
   );
 }
 
-/** شیت پروندهٔ مشتری: یادداشت و دسترسی تماس */
+/** شیت پروندهٔ مشتری: یادداشت‌ها، عکس، ویس و دسترسی تماس */
+
+/** سقف ضبط ویس در مینی‌اپ (ثانیه) — تا فایل در محدود حجمی سوپرادمین جا شود */
+const VOICE_MAX_SECONDS = 120;
+const MB = 1024 * 1024;
+
+function fileSizeLabel(bytes?: number | null): string {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes >= MB) return `${(bytes / MB).toFixed(1).replace(/\.0$/, "")} مگابایت`;
+  return `${Math.max(1, Math.round(bytes / 1024))} کیلوبایت`;
+}
+
 function CustomerSheet({
   salonId,
   row,
@@ -347,9 +367,76 @@ function CustomerSheet({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // پروندهٔ کامل (یادداشت‌ها + فایل‌ها + سقف‌هایی که سوپرادمین ست کرده است)
+  const [profile, setProfile] = useState<CustomerProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const secondsRef = useRef(0);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<number | null>(null);
+
+  /** میکروفون و تایمر ضبط را آزاد می‌کند (بستن شیت یا unmount) */
+  function releaseRecorder() {
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }
+
+  const customerId = row?.id ?? "";
+
+  const loadProfile = useCallback(async () => {
+    if (!customerId) {
+      setProfile(null);
+      return;
+    }
+    setLoadingProfile(true);
+    const res = await mapi<CustomerProfile>(`/api/dashboard/salons/${salonId}/customers/${customerId}`);
+    if (res.ok) setProfile(res.data);
+    else {
+      setProfile(null);
+      onToast(res.data?.error || "فایل‌های پرونده بارگذاری نشد", "error");
+    }
+    setLoadingProfile(false);
+    // onToast پایدار است (useCallback در store) و در deps نمی‌آید تا حلقهٔ رندر نشود
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, salonId]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
   useEffect(() => {
     if (row) setNote(row.note ?? "");
   }, [row]);
+
+  useEffect(
+    () => () => {
+      releaseRecorder();
+    },
+    []
+  );
+
+  /** در بستن شیت هم اگر ضبطی باز است بسته شود (میکروفون آزاد بماند) */
+  useEffect(() => {
+    if (!row) stopRecorder();
+  }, [row]);
+
+  const notes: CustomerNoteRow[] = profile?.notes ?? [];
+  const media: CustomerMediaRow[] = profile?.media ?? [];
+  const noteLimit = profile?.noteLimit ?? 5;
+  const mediaLimit = profile?.mediaLimit ?? 10;
+  const mediaEnabled = profile?.mediaEnabled !== false;
+  const notesFull = notes.length >= noteLimit;
+  const mediaFull = media.length >= mediaLimit;
 
   async function save() {
     if (!row) return;
@@ -365,7 +452,139 @@ function CustomerSheet({
     }
     onToast("یادداشت ذخیره شد", "ok");
     onSaved();
-    onClose();
+  }
+
+  async function addNote() {
+    const text = noteDraft.trim();
+    if (!text || !customerId) return;
+    setAddingNote(true);
+    const res = await mapi<{ success: boolean; error?: string }>(`/api/dashboard/salons/${salonId}/customers/${customerId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ note: text }),
+    });
+    setAddingNote(false);
+    if (!res.ok) {
+      onToast(res.data?.error || "یادداشت ثبت نشد", "error");
+      return;
+    }
+    setNoteDraft("");
+    onToast("یادداشت به پرونده اضافه شد", "ok");
+    void loadProfile();
+  }
+
+  async function removeNote(id: string) {
+    if (!customerId) return;
+    const res = await mapi<{ success: boolean; error?: string }>(
+      `/api/dashboard/salons/${salonId}/customers/${customerId}/notes/${id}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      onToast(res.data?.error || "حذف یادداشت ممکن نشد", "error");
+      return;
+    }
+    onToast("یادداشت حذف شد", "ok");
+    void loadProfile();
+  }
+
+  async function uploadMedia(file: File) {
+    if (!customerId) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    const res = await mapi<{ success: boolean; error?: string }>(`/api/dashboard/salons/${salonId}/customers/${customerId}/media`, {
+      method: "POST",
+      body: form,
+    });
+    setUploading(false);
+    if (!res.ok) {
+      onToast(res.data?.error || "بارگذاری فایل ممکن نشد", "error");
+      return;
+    }
+    onToast("فایل به پرونده اضافه شد", "ok");
+    void loadProfile();
+  }
+
+  async function removeMedia(id: string) {
+    if (!customerId) return;
+    const res = await mapi<{ success: boolean; error?: string }>(
+      `/api/dashboard/salons/${salonId}/customers/${customerId}/media?mediaId=${encodeURIComponent(id)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      onToast(res.data?.error || "حذف فایل ممکن نشد", "error");
+      return;
+    }
+    onToast("فایل حذف شد", "ok");
+    void loadProfile();
+  }
+
+  function stopRecorder() {
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+  }
+
+  async function startRecording() {
+    if (!customerId) return;
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      onToast("این پیام‌رسان ضبط ویس را پشتیبانی نمی‌کند؛ از «بارگذاری ویس» استفاده کنید.", "error");
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      onToast("دسترسی به میکروفون داده نشد؛ مجوز را از پیام‌رسان بررسی کنید.", "error");
+      return;
+    }
+    streamRef.current = stream;
+    const mime = MediaRecorder.isTypeSupported("audio/webm")
+      ? "audio/webm"
+      : MediaRecorder.isTypeSupported("audio/mp4")
+        ? "audio/mp4"
+        : "";
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    chunksRef.current = [];
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    rec.onstop = async () => {
+      const type = mime || "audio/webm";
+      const blob = new Blob(chunksRef.current, { type });
+      stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      recorderRef.current = null;
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setRecording(false);
+      if (blob.size === 0) return;
+      const target = customerId;
+      setUploading(true);
+      const form = new FormData();
+      form.append("file", blob, type === "audio/mp4" ? "voice-note.m4a" : "voice-note.webm");
+      const res = await mapi<{ success: boolean; error?: string }>(`/api/dashboard/salons/${salonId}/customers/${target}/media`, {
+        method: "POST",
+        body: form,
+      });
+      setUploading(false);
+      if (!res.ok) {
+        onToast(res.data?.error || "ویس بارگذاری نشد", "error");
+        return;
+      }
+      onToast("ویس ضبط‌شده به پرونده اضافه شد", "ok");
+      void loadProfile();
+    };
+    rec.start();
+    recorderRef.current = rec;
+    secondsRef.current = 0;
+    setRecSeconds(0);
+    setRecording(true);
+    timerRef.current = window.setInterval(() => {
+      secondsRef.current += 1;
+      setRecSeconds(secondsRef.current);
+      if (secondsRef.current >= VOICE_MAX_SECONDS) stopRecorder();
+    }, 1000);
   }
 
   const full = row ? [row.firstName, row.lastName].filter(Boolean).join(" ") || "مشتری" : "";
@@ -393,6 +612,145 @@ function CustomerSheet({
           <Button onClick={save} loading={busy}>
             ذخیرهٔ یادداشت
           </Button>
+
+          {/* ── یادداشت‌های پرونده (چندتایی) ───────────────────────── */}
+          <div className="mini-cust-block">
+            <div className="mini-cust-head">
+              <span>یادداشت‌های پرونده</span>
+              <small>
+                {faDigits(notes.length)} / {faDigits(noteLimit)}
+              </small>
+            </div>
+            {loadingProfile ? (
+              <SkeletonList count={2} />
+            ) : notes.length === 0 ? (
+              <div className="mini-cust-empty">هنوز یادداشتی در پرونده ثبت نشده است.</div>
+            ) : (
+              <div className="mini-cust-notes">
+                {notes.map((n) => (
+                  <div key={n.id} className="mini-cust-note">
+                    <p>{n.note}</p>
+                    <div className="mini-cust-note-foot">
+                      <span>{fromNow(n.createdAt)}</span>
+                      <button type="button" className="mini-cust-del" onClick={() => void removeNote(n.id)}>
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!notesFull ? (
+              <div className="mini-cust-addrow">
+                <input
+                  className="mini-input"
+                  value={noteDraft}
+                  maxLength={2000}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="یادداشت کوتاه (حساسیت، فرم صورت، رنگ موردعلاقه…)"
+                  aria-label="یادداشت جدید پرونده"
+                />
+                <Button tiny variant="soft" onClick={() => void addNote()} loading={addingNote} disabled={!noteDraft.trim()}>
+                  افزودن
+                </Button>
+              </div>
+            ) : (
+              <div className="mini-cust-empty">به سقف {faDigits(noteLimit)} یادداشت رسیدید؛ برای افزودن، یکی را حذف کنید.</div>
+            )}
+          </div>
+
+          {/* ── عکس و ویس ──────────────────────────────────────────── */}
+          <div className="mini-cust-block">
+            <div className="mini-cust-head">
+              <span>عکس و ویس</span>
+              <small>
+                {faDigits(media.length)} / {faDigits(mediaLimit)}
+              </small>
+            </div>
+
+            {mediaEnabled ? (
+              <>
+                {media.length === 0 && !loadingProfile ? <div className="mini-cust-empty">فایلی در این پرونده نیست.</div> : null}
+                <div className="mini-cust-media">
+                  {media.map((m) => (
+                    <div key={m.id} className="mini-cust-media-item">
+                      {m.type === "photo" ? (
+                        <a href={m.url} target="_blank" rel="noreferrer" className="mini-cust-photo">
+                          <img src={m.url} alt={m.name || "عکس مشتری"} loading="lazy" />
+                        </a>
+                      ) : (
+                        <audio controls preload="metadata" src={m.url} className="mini-cust-audio" />
+                      )}
+                      <div className="mini-cust-media-foot">
+                        <span>
+                          {m.type === "photo" ? "عکس" : "ویس"} · {fromNow(m.createdAt)}
+                          {fileSizeLabel(m.size) ? ` · ${faDigits(fileSizeLabel(m.size))}` : ""}
+                        </span>
+                        <button type="button" className="mini-cust-del" onClick={() => void removeMedia(m.id)} aria-label="حذف فایل">
+                          <Icon name="trash" size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {recording ? (
+                  <div className="mini-cust-rec">
+                    <span className="mini-cust-rec-dot" aria-hidden="true" />
+                    <span>در حال ضبط… {faDigits(recSeconds)} ثانیه</span>
+                    <Button tiny variant="ghost" onClick={stopRecorder}>
+                      <Icon name="stop" size={14} />
+                      <span>توقف و ذخیره</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mini-cust-actions">
+                    <label className={`mini-btn soft tiny${uploading || mediaFull ? " is-disabled" : ""}`}>
+                      <Icon name="camera" size={16} />
+                      <span>{uploading ? "در حال بارگذاری…" : "درج عکس"}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                        style={{ display: "none" }}
+                        disabled={uploading || mediaFull}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void uploadMedia(f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <label className={`mini-btn soft tiny${uploading || mediaFull ? " is-disabled" : ""}`}>
+                      <Icon name="plus" size={16} />
+                      <span>بارگذاری ویس</span>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        style={{ display: "none" }}
+                        disabled={uploading || mediaFull}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void uploadMedia(f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <Button tiny variant="primary" onClick={() => void startRecording()} disabled={uploading || mediaFull}>
+                      <Icon name="mic" size={15} />
+                      <span>ضبط ویس</span>
+                    </Button>
+                  </div>
+                )}
+                {mediaFull ? <div className="mini-cust-empty">سقف {faDigits(mediaLimit)} فایل این پرونده پر است؛ برای افزودن، یکی را حذف کنید.</div> : null}
+                <div className="mini-cust-hint">
+                  حجم مجاز: عکس تا {faDigits(profile?.photoMaxMb ?? 5)} مگابایت و ویس تا {faDigits(profile?.voiceMaxMb ?? 10)} مگابایت · ضبط ویس تا{" "}
+                  {faDigits(VOICE_MAX_SECONDS)} ثانیه. این فایل‌ها فقط در همین سالن دیده می‌شوند.
+                </div>
+              </>
+            ) : (
+              <div className="mini-cust-empty">عکس و ویس در پروندهٔ مشتری از سمت پنل غیرفعال شده است.</div>
+            )}
+          </div>
         </>
       ) : null}
     </Sheet>

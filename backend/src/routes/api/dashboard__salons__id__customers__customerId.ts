@@ -1,4 +1,5 @@
 import { requireSalonManage } from "@/lib/auth/guards";
+import { crmLimits, crmLimitsPayload } from "@/lib/crm-limits";
 import { prisma } from "@/lib/prisma";
 import { json, apiError } from "@/lib/utils";
 
@@ -54,7 +55,19 @@ export async function GET(
       lastVisit: completed[0]?.startAt ?? appointments[0]?.startAt ?? null,
     };
 
-    return json({ success: true, customer, appointments, stats, noteLimit: 5, mediaLimit: 10 });
+    const limits = crmLimitsPayload(await crmLimits());
+
+    // notes/media هم داخل customer هستند و هم در ریشهٔ پاسخ؛ UI های پنل یکی
+    // از دو مسیر را مصرف می‌کند و هیچ‌کدام نباید صفحهٔ خالی نشان دهد.
+    return json({
+      success: true,
+      customer,
+      notes: customer.notes,
+      media: customer.media,
+      appointments,
+      stats,
+      ...limits,
+    });
   } catch (err) {
     return apiError(err);
   }

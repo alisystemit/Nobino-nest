@@ -32,7 +32,8 @@ type CatalogValue = {
   env?: string;
   hasDbValue: boolean;
   hasEnvValue: boolean;
-  source: "db" | "env" | "none";
+  defaultValue?: string;
+  source: "db" | "env" | "default" | "none";
   value: string;
 };
 
@@ -81,6 +82,13 @@ function SourceBadge({ v }: { v: CatalogValue }) {
   }
   if (v.source === "env") {
     return <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">از env</span>;
+  }
+  if (v.source === "default") {
+    return (
+      <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+        پیش‌فرض ({v.defaultValue})
+      </span>
+    );
   }
   return <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">خالی</span>;
 }

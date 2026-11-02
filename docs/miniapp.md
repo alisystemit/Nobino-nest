@@ -120,6 +120,10 @@ frontend/src/mini/
 پنل می‌نویسد و از `GET /api/public/announcement` می‌آید. اگر خالی باشد بنر رندر نمی‌شود،
 و کاربر می‌تواند با ✕ آن را برای همان متن ببندد (در `localStorage` می‌ماند).
 
+سقف‌های «پروندهٔ مشتری» (تعداد یادداشت/عکس/ویس و حجم فایل‌ها) در این بخش نیست؛
+در بخش مستقل **«پروندهٔ مشتریان (CRM)»** با کلیدهای `crm.*` قرار دارد و روی مینی‌اپ و
+پنل وب هر دو اعمال می‌شود — جزئیات در ۳.۲.
+
 ---
 
 ## ۳) مسیرهای API ماژول
@@ -185,6 +189,52 @@ endpoint های قبلی سایت است؛ مینی‌اپ مسیر تازه‌�
 `payments__mock-pay.ts`، و سمت مینی‌اپ `frontend/src/mini/lib/deposit.ts`
 (`startDepositPayment`) + دکمهٔ پرداخت در `MiniHome`/`MiniBookings`.
 روت جدیدی اضافه نشده است.
+
+### ۳.۲) پروندهٔ مشتری: یادداشت، عکس و ویس
+
+در شیت «پروندهٔ مشتری» (تب مدیریت ← مشتریان) علاوه بر یادداشت، حالا **درج عکس**،
+**بارگذاری ویس از فایل** و **ضبط ویس با میکروفون** هم وجود دارد. سقف‌ها را
+سوپرادمین تعیین می‌کند و هر دو طرف (مینی‌اپ و داشبورد وب) از همان عدد خوانده
+می‌شوند — عدد ثابتی در کد نمی‌ماند.
+
+کلیدهای `crm.*` در بخش **«پروندهٔ مشتریان (CRM)»**ِ `پنل ادمین ← تنظیمات سیستم`:
+
+| کلید | پیش‌فرض | محدوده | اثر |
+|------|---------|--------|-----|
+| `crm.note_limit` | 5 | 1–200 | حداکثر یادداشت برای هر مشتری |
+| `crm.media_limit` | 10 | 1–500 | حداکثر فایل (عکس + ویس) برای هر مشتری |
+| `crm.photo_max_mb` | 5 | 1–50 | سقف حجم هر عکس (مگابایت) |
+| `crm.voice_max_mb` | 10 | 1–50 | سقف حجم هر ویس (مگابایت) |
+| `crm.media_enabled` | true | — | خاموش = فقط یادداشت متنی؛ بارگذاری عکس/ویس ۴۰۳ می‌شود |
+
+منبع یکتای این اعداد `backend/src/lib/crm-limits.ts` است (`crmLimits()` با `getSetting`
+که خودش ۸ ثانیه کش دارد؛ پس «ذخیره» در پنل بدون ری‌استارت سرور اعمال می‌شود).
+مقدار نامعتبر یا خارج از محدوده به پیش‌فرض برمی‌گردد تا یک غلط تایپی کل پنل را قفل نکند.
+پیش‌فرض‌ها در کاتالوگ با فیلد `defaultValue` اعلام شده‌اند، بنابراین تا وقتی رکوردی در
+جدول `Setting` ساخته نشده، همان عدد پیش‌فرض در پنل و در API دیده می‌شود
+(برچسب «پیش‌فرض» کنار فیلد).
+
+مسیرهای API (همه از قبل ثبت‌شده بودند؛ روت تازه‌ای اضافه نشد):
+
+| مسیر | متد | تغییر |
+|------|-----|-------|
+| `/api/dashboard/salons/:id/customers/:customerId` | GET | علاوه بر `customer.notes`/`customer.media`، حالا `notes`/`media` در ریشه و `noteLimit`/`mediaLimit`/`photoMaxMb`/`voiceMaxMb`/`mediaEnabled` را هم برمی‌گرداند |
+| `/api/dashboard/salons/:id/customers/:customerId/notes` | GET | `{ notes, limit }` |
+| … /notes | POST | اگر تعداد ≥ `note_limit` باشد ۴۰۰ با «حداکثر N یادداشت برای هر مشتری مجاز است…» |
+| … /notes/:noteId | DELETE | حذف یادداشت |
+| `/api/dashboard/salons/:id/customers/:customerId/media` | GET | `{ media, limit, limits: { mediaLimit, mediaEnabled } }` |
+| … /media | POST (multipart: `file`, `type`) | `media_enabled=false` ← ۴۰۳؛ حجم بیش از سقف ← ۴۰۰؛ تعداد ≥ `media_limit` ← ۴۰۰ |
+| … /media?mediaId= | DELETE | حذف فایل از دیسک و دیتابیس |
+
+سمت مینی‌اپ `CustomerSheet` (`frontend/src/mini/components/manage.tsx`) از
+`getUserMedia({audio:true})` + `MediaRecorder` استفاده می‌کند (خروجی `audio/webm`،
+روی iOS `audio/mp4`)، تا ۱۲۰ ثانیهٔ ضبط را شمارش معکوس می‌کند و فایل را با `FormData`
+به همان `/media` می‌فرستد؛ به همین دلیل `mapi()` در `mini/lib/store.tsx` وقتی بدنه
+`FormData` است هدر `content-type` را نمی‌فرستد. استایل بلوک‌های جدید فقط در
+`mini.css` (`mini-cust-*`, `mini-rec-*`) است. داشبورد وب هم (`SalonManager.tsx`،
+`DashboardCustomers.tsx`) همین سقف‌ها را از پاسخ پرونده می‌خواند و وقتی
+`mediaEnabled` خاموش باشد به‌جای دکمهٔ بارگذاری، پیام «عکس و ویس غیرفعال است» نشان
+می‌دهد. فایل‌ها در `uploads/customers/` ذخیره و فقط به همان سالن نشان داده می‌شوند.
 
 ---
 
@@ -267,6 +317,25 @@ endpoint های قبلی سایت است؛ مینی‌اپ مسیر تازه‌�
   نشده باشد، کارت به همان لینک وب برمی‌گردد و توضیحش را نشان می‌دهد (کیو‌آر خالی نمی‌شود).
 - `npx tsc -p tsconfig.minicheck.json` (ماژول `src/mini` + `components/SalonQrCard.tsx`)،
   `npx vite build` و `npm run build` در `backend/` — هر سه بدون خطا.
+
+**دور «پروندهٔ مشتری: عکس و ویس با سقف سوپرادمین»** — روی `:3100` با توکن واقعی ADMIN و
+SALON_OWNER (چون ورود ادمین با OTP وقتی `passwordHash` ست شده بسته است، JWT ساخته و
+صف `Session` مربوطه ثبت شد؛ در پایان پاک شد) — ۱۹/۱۹ PASS:
+
+- کاتالوگ: `GET /api/admin/settings` بخش `crm` را با پنج فیلد و `source: "default"`
+  برمی‌گرداند و مقادیر 5 / 10 / 5 / 10 / true است؛ `PATCH` سوپرادمین عدد را عوض می‌کند و
+  `clear: true` آن را به پیش‌فرض برمی‌گرداند.
+- پرونده: `GET …/customers/:id` بعد از `crm.note_limit=2` و `crm.media_limit=1`،
+  `noteLimit=2`، `mediaLimit=1`، `photoMaxMb=1` و `notes`/`media` ریشه‌ای را داد.
+- سقف یادداشت: یادداشت سوم → ۴۰۰ «حداکثر 2 یادداشت برای هر مشتری مجاز است…».
+- سقف فایل: فایل دوم → ۴۰۰ «حداکثر 1 فایل برای هر مشتری مجاز است…».
+- سقف حجم: PNG یک‌ونیم مگابایتی با `photo_max_mb=1` → ۴۰۰ «حجم عکس باید کمتر از 1 مگابایت باشد».
+- خاموشی: `crm.media_enabled=false` → بارگذاری ۴۰۳ و `mediaEnabled: false` در پاسخ پرونده.
+- حذف: `DELETE …/notes/:id` و `DELETE …/media?mediaId=` هر دو ۲۰۰ و ردیف دیسک/دیتابیس رفت.
+- پایان تست: `notes=0`، `media=0` و صفر ردیف `crm.*` در جدول `Setting` (بدون دادهٔ باقی‌مانده).
+- `npm run build` در `backend/`، `npx tsc --noEmit` و `npm run build` در `frontend/` بدون خطا؛
+  رشته‌های «ضبط ویس»، «درج عکس» و «بارگذاری ویس» در `dist/assets/MiniApp-*.js` و کلاس‌های
+  `mini-cust-*` در `dist/assets/mini-*.css` تأیید شدند.
 
 ---
 

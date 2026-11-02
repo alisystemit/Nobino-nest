@@ -59,6 +59,10 @@ type Detail = {
   stats: { visits: number; completed: number; cancelled: number; noShow: number; spend: number; lastVisit: string | null };
   noteLimit: number;
   mediaLimit: number;
+  /** سقف حجم و فعال/غیرفعال بودن فایل‌ها — از تنظیمات سوپرادمین */
+  photoMaxMb?: number;
+  voiceMaxMb?: number;
+  mediaEnabled?: boolean;
 };
 
 const APPT_STATUS: Record<string, { label: string; cls: string }> = {
@@ -477,8 +481,8 @@ export default function DashboardCustomersPage() {
                     )}
                   </div>
 
-                  {detail.customer.media.length < detail.mediaLimit && (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                  {detail.mediaEnabled !== false && detail.customer.media.length < detail.mediaLimit && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <label className="flex h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
                         {uploading ? "در حال بارگذاری..." : <><Upload className="h-4 w-4" /> عکس</>}
                         <input
@@ -513,8 +517,16 @@ export default function DashboardCustomersPage() {
                         </button>
                       )}
 
-                      <span className="self-center text-[11px] text-neutral-400">این فایل‌ها فقط در همین سالن دیده می‌شوند.</span>
+                      <span className="self-center text-[11px] text-neutral-400">
+                        عکس تا {toPersianDigits(detail.photoMaxMb ?? 5)} مگابایت، ویس تا {toPersianDigits(detail.voiceMaxMb ?? 10)} مگابایت — فقط در همین سالن دیده می‌شوند.
+                      </span>
                     </div>
+                  )}
+
+                  {detail.mediaEnabled === false && (
+                    <p className="mt-3 text-[11px] leading-6 text-amber-600 dark:text-amber-400">
+                      ثبت عکس و ویس در پروندهٔ مشتریان از سوی پشتیبانی غیرفعال شده است؛ یادداشت‌ها همچنان فعال‌اند.
+                    </p>
                   )}
                 </div>
               </>

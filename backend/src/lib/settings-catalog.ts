@@ -32,6 +32,12 @@ export interface CatalogField {
   hint?: string;
   /** فقط‌خواندنی (مصرف‌شونده از env در بوت‌استرپ؛ در پنل نمایش وضعیت) */
   readOnly?: boolean;
+  /**
+   * مقداری که کد مصرف‌کننده وقتی هیچ‌جا ست نشده است به کار می‌برد. پنل همین را
+   * پیش‌فرض نمایش می‌دهد تا سوپرادمین بداند عدد فعلی از کجاست و فقط با تغییرش
+   * رکورد بسازد.
+   */
+  defaultValue?: string;
 }
 
 export interface CatalogCard {
@@ -415,6 +421,61 @@ const miniappsSection = (): CatalogSection => ({
   ],
 });
 
+/* ─── ۹) پروندهٔ مشتریان (CRM) ─────────────────────────────────────── */
+
+const crmSection = (): CatalogSection => ({
+  id: "crm",
+  title: "پروندهٔ مشتریان (CRM)",
+  emoji: "📇",
+  description:
+    "سقف‌های بخش «مشتریان» در پنل سالن‌دارها و مینی‌اپ: تعداد یادداشت، تعداد عکس/ویس و حجم هر فایل. این مقدارها سراسری‌اند و همهٔ سالن‌ها یک‌سان به آن‌ها پایبندند؛ با «ذخیره» بلافاصله (بدون ری‌استارت) اعمال می‌شوند. جایگزین عدد ثابت نسخه‌های قبلی (۵ یادداشت و ۱۰ فایل) شده‌اند.",
+  cards: [
+    {
+      id: "crm-limits",
+      title: "سقف پروندهٔ هر مشتری",
+      description: "مقادیر خالی یا نامعتبر، همان پیش‌فرض کد را نگه می‌دارند.",
+      fields: [
+        {
+          key: "crm.note_limit",
+          label: "حداکثر یادداشت برای هر مشتری",
+          type: "number",
+          defaultValue: "5",
+          placeholder: "5",
+          hint: "بین ۱ تا ۲۰۰. بعد از رسیدن به این عدد، سالن‌دار باید یکی را حذف کند تا جای جدید باز شود.",
+        },
+        {
+          key: "crm.media_limit",
+          label: "حداکثر فایل (عکس + ویس) برای هر مشتری",
+          type: "number",
+          defaultValue: "10",
+          placeholder: "10",
+          hint: "بین ۱ تا ۵۰۰. شمارش روی هر پروندهٔ مشتری است، نه کل سالن.",
+        },
+        {
+          key: "crm.photo_max_mb",
+          label: "حداکثر حجم هر عکس (مگابایت)",
+          type: "number",
+          defaultValue: "5",
+          placeholder: "5",
+          hint: "بین ۱ تا ۵۰. JPG/PNG/WebP/GIF/AVIF.",
+        },
+        {
+          key: "crm.voice_max_mb",
+          label: "حداکثر حجم هر ویس (مگابایت)",
+          type: "number",
+          defaultValue: "10",
+          placeholder: "10",
+          hint: "بین ۱ تا ۵۰. MP3/WAV/OGG/WebM/MP4/AAC.",
+        },
+        boolField("crm.media_enabled", "عکس و ویس در پروندهٔ مشتری فعال باشد", {
+          defaultValue: "true",
+          hint: "خاموش = سالن‌دارها فقط یادداشت متنی می‌توانند ثبت کنند (دکمه‌های عکس و ضبط ویس مخفی می‌شوند).",
+        }),
+      ],
+    },
+  ],
+});
+
 export function settingsSections(): CatalogSection[] {
   const sections = [
     smsSection(),
@@ -424,6 +485,7 @@ export function settingsSections(): CatalogSection[] {
     automationSection(),
     storageSection(),
     generalSection(),
+    crmSection(),
     miniappsSection(),
   ];
   // فیلد select «سرویس/درگاه فعال» به‌صورت یکنواخت از activeLabels ساخته می‌شود
