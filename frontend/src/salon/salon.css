@@ -1,0 +1,338 @@
+/* ══════════════════════════════════════════════════════════════════════
+   صفحهٔ عمومی سالن در زبان طراحی مینی‌اپ
+   فقط قوانین تازهٔ همین صفحه؛ بقیهٔ ظاهر از mini.css می‌آید که خودش کاملاً
+   داخل `.mini-root` محدود شده است. همهٔ انتخابگرها زیر `.salon-page` می‌نشینند
+   تا نه استایل سایت/پنل و نه ماژول /mini تغییر نکند.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.salon-page {
+  min-height: 100dvh;
+}
+
+.salon-page .sm-shell {
+  max-width: 600px;
+  margin-inline: auto;
+  padding: 0 14px calc(104px + env(safe-area-inset-bottom));
+}
+
+/* چیدمان دو ستونه فقط روی دسکتاپ — روی موبایل همان ستون تکیِ مینی‌اپ است */
+.salon-page .sm-layout {
+  display: grid;
+  gap: 14px;
+  align-items: start;
+}
+.salon-page .sm-col-main,
+.salon-page .sm-col-side,
+.salon-page .sm-after {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+}
+.salon-page .sm-after {
+  margin-top: 14px;
+}
+/* عنوانِ اولِ هر ستون فاصلهٔ اضافی بالای خود را نگه ندارد */
+.salon-page .sm-col-main > .mini-section-title:first-child,
+.salon-page .sm-col-side > .mini-section-title:first-child,
+.salon-page .sm-after > .mini-section-title:first-child {
+  margin-top: 2px;
+}
+
+/* ── هدر سالن ──────────────────────────────────────────────────────── */
+.salon-page .sm-hero {
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+/* نقش و حرکت‌های تزئینی پشت محتوای هدر */
+.salon-page .sm-hero-deco {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.salon-page .sm-hero-inner {
+  position: relative;
+  z-index: 1;
+}
+.salon-page a.mini-hero-chip {
+  text-decoration: none;
+}
+.salon-page .sm-hero-fav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+.salon-page .sm-open-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.salon-page .sm-open-chip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffd166;
+  display: inline-block;
+}
+.salon-page .sm-open-chip.is-open i { background: #3ddc84; }
+.salon-page .sm-open-chip.is-closed i { background: #ff6b6b; }
+
+/* ── کارت رزرو ─────────────────────────────────────────────────────── */
+.salon-page .sm-book-card {
+  background: var(--m-card);
+  border: 1px solid var(--m-line);
+  border-radius: 22px;
+  box-shadow: var(--m-shadow);
+  padding: 14px;
+  scroll-margin-top: 84px;
+}
+.salon-page .sm-book-card + .sm-book-card { margin-top: 12px; }
+.salon-page .sm-book-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -14px -14px 12px;
+  padding: 14px;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(135deg, rgba(var(--m-rgb), 0.95), rgba(var(--m-rgb), 0.6));
+  color: #fff;
+}
+.salon-page .sm-book-head b { font-size: 16px; font-weight: 900; }
+.salon-page .sm-book-head span { display: block; font-size: 11.5px; opacity: 0.9; margin-top: 2px; }
+
+/* انتخاب تاریخ در همان نوار روز — دکمه‌ای که شیت تقویم را باز می‌کند */
+.salon-page .sm-day-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 74px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  border: 1px dashed rgba(var(--m-rgb), 0.5);
+  background: rgba(var(--m-rgb), 0.06);
+  color: rgb(var(--m-rgb));
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.salon-page .mini-days { padding-bottom: 2px; }
+
+/* صوت */
+.salon-page .sm-voice {
+  border-radius: 18px;
+  border: 1px solid rgba(var(--m-rgb), 0.18);
+  background: rgba(var(--m-rgb), 0.06);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.salon-page .sm-voice-row { display: flex; align-items: center; gap: 12px; }
+.salon-page .sm-mic {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: 50%;
+  border: 0;
+  background: rgb(var(--m-rgb));
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 12px 22px -12px rgba(var(--m-rgb), 0.95);
+}
+.salon-page .sm-mic.is-on { background: #e23744; }
+.salon-page .sm-mic:disabled { opacity: 0.55; cursor: not-allowed; }
+.salon-page .sm-mic.is-on::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(226, 55, 68, 0.45);
+  animation: sm-ping 1.4s ease-out infinite;
+}
+@keyframes sm-ping {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.salon-page .sm-chip-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.14);
+  color: #15803d;
+}
+.salon-page .sm-chip-miss {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  background: rgba(234, 179, 8, 0.1);
+  padding: 8px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #92610a;
+}
+.salon-page .mini-root .sm-chip-miss button {
+  border: 0;
+  border-radius: 10px;
+  background: rgba(234, 179, 8, 0.22);
+  color: #7a5206;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.salon-page .sm-script {
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px dashed var(--m-line);
+  background: var(--m-card);
+  padding: 10px;
+  font-size: 12px;
+  line-height: 2;
+  color: var(--m-muted);
+}
+.salon-page .sm-transcript {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--m-text);
+  background: rgba(34, 197, 94, 0.08);
+  border-radius: 12px;
+  padding: 9px 11px;
+}
+
+/* ── گالری ─────────────────────────────────────────────────────────── */
+.salon-page .sm-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.salon-page .sm-gal {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 0;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(var(--m-rgb), 0.08);
+  cursor: zoom-in;
+}
+.salon-page .sm-gal img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.salon-page .sm-gal figcaption,
+.salon-page .sm-gal span {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 14px 8px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0));
+  text-align: right;
+}
+.salon-page .sm-lightbox { width: 100%; border-radius: 16px; overflow: hidden; background: #000; }
+.salon-page .sm-lightbox img { width: 100%; max-height: 62vh; object-fit: contain; display: block; }
+
+/* ── نقشه ──────────────────────────────────────────────────────────── */
+.salon-page .sm-map-frame {
+  width: 100%;
+  height: 220px;
+  border: 1px solid var(--m-line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(var(--m-rgb), 0.06);
+}
+.salon-page .sm-map-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+/* ── تیم ───────────────────────────────────────────────────────────── */
+.salon-page .sm-staff { display: flex; gap: 10px; }
+.salon-page .sm-staff-cover {
+  width: 66px;
+  height: 66px;
+  flex: 0 0 66px;
+  border-radius: 20px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 24px;
+  color: #fff;
+  background: linear-gradient(140deg, rgba(var(--m-rgb), 0.9), rgba(var(--m-rgb), 0.45));
+}
+.salon-page .sm-staff-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── نظرها ──────────────────────────────────────────────────────────── */
+.salon-page .sm-review { padding: 12px; }
+.salon-page .sm-review-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* ── دکمهٔ ثابت پایین (موبایل) ──────────────────────────────────────── */
+.salon-page .sm-cta {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 34;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.salon-page .sm-cta > div {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 480px;
+  padding: 0 14px;
+}
+
+/* دستیار هوشمند و بنر نصب روی موبایل با دکمهٔ ثابت تداخل نکنند */
+.salon-page .sm-float-layer { position: relative; z-index: 36; }
+.salon-page .sm-float-layer > button {
+  bottom: calc(84px + env(safe-area-inset-bottom));
+}
+.salon-page .sm-float-layer > div,
+.salon-page .sm-float-layer > section {
+  bottom: calc(148px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1000px) {
+  .salon-page .sm-float-layer > button { bottom: 20px; }
+}
+
+/* ── دسکتاپ ────────────────────────────────────────────────────────── */
+@media (min-width: 1000px) {
+  .salon-page .sm-shell {
+    max-width: 1180px;
+    padding: 0 22px 40px;
+  }
+  .salon-page .sm-hero { margin-bottom: 18px; }
+  .salon-page .sm-layout { grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); gap: 20px; }
+  .salon-page .sm-col-main,
+  .salon-page .sm-col-side,
+  .salon-page .sm-after { gap: 18px; }
+  .salon-page .sm-after { margin-top: 18px; }
+  .salon-page .sm-cta { display: none; }
+  .salon-page .sm-gallery { grid-template-columns: repeat(6, 1fr); }
+  .salon-page .sm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+}
+
+@media (min-width: 1000px) and (max-width: 1180px) {
+  .salon-page .sm-gallery { grid-template-columns: repeat(3, 1fr); }
+}
