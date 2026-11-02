@@ -1,8 +1,11 @@
 /**
  * کارت کیو‌آر کد سالن — دو هدف دارد:
  *   «صفحهٔ وب»  : آدرس عمومی سالن (دامنهٔ اختصاصی / ساب‌دامنه / مسیر /s/slug)
- *   «مینی‌اپ»   : /mini?salon=<slug> در پیام‌رسان؛ مشتری همان‌جا سالن را می‌بیند و
- *                 با اسکن، سالن به «علاقه‌مندی‌های» او هم اضافه می‌شود.
+ *   «مینی‌اپ»   : نشانی خودِ سالن به‌بعلاوهٔ `/mini` (مثل `http://mah.localhost:5175/mini`
+ *                 یا `https://mah.nobino.ir/mini`). مینی‌اپ از روی این نشانی همان سالن را
+ *                 به خانه‌اش می‌نشیند و به «علاقه‌مندی‌های» مشتری اضافه می‌کند.
+ *                 فقط جایی که ساختن چنین نشانی‌ای ممکن نیست (IP یا دامنهٔ اختصاصی) به
+ *                 پایهٔ مینی‌اپِ پنل + `?salon=<slug>` برمی‌گردد.
  * SVG برای نمایش روی صفحه و PNG با کیفیت بالا برای چاپ/استوری اینستاگرام تولید می‌شود.
  */
 import { useEffect, useMemo, useState } from "react";
@@ -35,6 +38,25 @@ export function salonPublicUrl(props: Pick<Props, "slug" | "customDomain" | "dom
   return `${protocol}//${host}/s/${slug}`;
 }
 
+type HostProps = Pick<Props, "slug" | "customDomain" | "domainStatus">;
+
+/**
+ * آدرس مینی‌اپِ یک سالن.
+ *  - فرم اصلی: ریشهٔ نشانی خودِ سالن + `mini` → `http://mah.localhost:5175/mini`
+ *    (روی `:5175` پورت و روی پروداکشن `https` حفظ می‌شود؛ اگر همین حالا روی همان
+ *    ساب‌دامنه باشیم هم همین آدرس می‌سازد، پس پیشوند دوباره‌ای جلوی آدرس نمی‌آید).
+ *  - حالت پشتیبان: میزبان IP یا دامنهٔ اختصاصی تأییدشده — آن‌جا اسلگ در میزبان نیست
+ *    و تشخیص سمت کلاینت ممکن نیست، پس `«پایهٔ مینی‌اپِ پنل»/?salon=<slug>` که پارامتر
+ *    کوئری بر نشانی اولویت دارد (`mini/lib/resolve.ts`).
+ * اگر پایهٔ پنل هم تنظیم نشده باشد، همان صفحهٔ وب برگردانده می‌شود (کیو‌آر خالی نمی‌ماند).
+ */
+export function salonMiniUrl(props: HostProps, miniBase: string): string {
+  const web = salonPublicUrl(props);
+  if (web.endsWith("/") && !web.includes("/s/")) return `${web}mini`;
+  if (miniBase) return `${miniBase}?salon=${encodeURIComponent(props.slug)}`;
+  return web;
+}
+
 export default function SalonQrCard({ slug, name, customDomain, domainStatus, size = 190 }: Props) {
   const [svg, setSvg] = useState<string | null>(null);
   const [png, setPng] = useState<string | null>(null);
@@ -46,6 +68,7 @@ export default function SalonQrCard({ slug, name, customDomain, domainStatus, si
   const [miniChecked, setMiniChecked] = useState(false);
 
   const webUrl = useMemo(() => salonPublicUrl({ slug, customDomain, domainStatus }), [slug, customDomain, domainStatus]);
+  const miniUrl = useMemo(() => salonMiniUrl({ slug, customDomain, domainStatus }, miniBase), [slug, customDomain, domainStatus, miniBase]);
 
   useEffect(() => {
     if (mode !== "mini" || miniChecked) return;
@@ -60,8 +83,10 @@ export default function SalonQrCard({ slug, name, customDomain, domainStatus, si
     };
   }, [mode, miniChecked]);
 
-  // اگر لینک مینی‌اپ آماده نبود، همان صفحهٔ وب نشان داده می‌شود (کیو‌آر هیچ‌وقت خالی نمی‌ماند)
-  const url = mode === "mini" && miniBase ? `${miniBase}?salon=${encodeURIComponent(slug)}` : webUrl;
+  // کیو‌آر هیچ‌وقت خالی نمی‌ماند: اگر نشانی مینی‌اپ ساخته نشود همان صفحهٔ وب نشان داده می‌شود
+  const url = mode === "mini" ? miniUrl : webUrl;
+  /** قطب مینی‌اپ آدرس واقعی مینی‌اپ را دارد (نه همان صفحهٔ وب) */
+  const miniReady = mode === "mini" && url !== webUrl;
 
   useEffect(() => {
     if (!url) return;
@@ -126,7 +151,7 @@ export default function SalonQrCard({ slug, name, customDomain, domainStatus, si
         </div>
       )}
       {/* لینک علاقه‌مندی — همان کیو‌آرِ مینی‌اپ به‌صورت متن؛ برای ارسال در استوری/پیامک */}
-      {mode === "mini" && miniBase ? (
+      {miniReady ? (
         <div className="w-full rounded-xl border border-pink-200/70 bg-pink-50/60 p-2.5 text-right dark:border-neutral-700 dark:bg-neutral-800/60">
           <div className="mb-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-200">لینک افزودن به علاقه‌مندی‌ها</div>
           <div className="flex items-center gap-1.5">
@@ -148,9 +173,9 @@ export default function SalonQrCard({ slug, name, customDomain, domainStatus, si
       ) : null}
       <p className="text-[11px] leading-5 text-neutral-500 dark:text-neutral-400">
         {mode === "mini"
-          ? miniBase
-            ? "مشتری با اسکن یا لمس لینک، مینی‌اپ را در پیام‌رسان باز می‌کند و این سالن به علاقه‌مندی‌هایش اضافه می‌شود."
-            : "لینک مینی‌اپ از پنل سوپرادمین تنظیم نشده است؛ فعلاً همان صفحهٔ وب اسکن می‌شود."
+          ? miniReady
+            ? "مشتری با اسکن یا لمس این لینک، مینی‌اپِ همین سالن را باز می‌کند: صفحهٔ خانه همان سالن است و به علاقه‌مندی‌هایش هم اضافه می‌شود."
+            : "روی این میزبان (IP یا دامنهٔ اختصاصی) نشانی /mini برای سالن ساخته نمی‌شود و پایهٔ مینی‌اپ هم از پنل تنظیم نشده؛ فعلاً همان صفحهٔ وب اسکن می‌شود."
           : "مشتری با اسکن، مستقیم وارد صفحهٔ نوبت‌دهی سالن می‌شود."}
       </p>
       <div className="flex w-full gap-2">
