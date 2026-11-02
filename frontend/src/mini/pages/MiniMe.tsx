@@ -1,17 +1,22 @@
 /**
- * صفحهٔ «حساب من» مینی‌اپ — ورود/خروج، اتصال حساب پیام‌رسان، لینک ربات‌ها و پشتیبانی.
+ * صفحهٔ «حساب من» مینی‌اپ — ورود/خروج، اتصال حساب پیام‌رسان، کیف پول، دسترسی‌های
+ * سریع به اطلاعیه‌ها و پشتیبانی، و لینک ربات‌ها.
  */
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import LoginSheet from "../components/login-sheet";
-import { Button, Field, Icon, Row, SectionTitle } from "../components/ui";
+import { Button, Field, Icon, Row, SectionTitle, type IconName } from "../components/ui";
 import { PLATFORM_EMOJI, closeMiniApp } from "../lib/bridge";
-import { faDigits, normalizePhone } from "../lib/format";
+import { compactToman, faDigits, normalizePhone, toman } from "../lib/format";
 import { mapi, useMini } from "../lib/store";
+import { WALLET_KIND_FA, WALLET_REASON_FA, type WalletView } from "../lib/types";
 
 export default function MiniMe() {
+  const navigate = useNavigate();
   const { me, authReady, config, platform, platformLabel, messengerName, linkMessenger, logout, toast, profile, saveProfile } = useMini();
   const [loginOpen, setLoginOpen] = useState(false);
   const [counts, setCounts] = useState<number | null>(null);
+  const [wallet, setWallet] = useState<WalletView | null>(null);
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -22,6 +27,12 @@ export default function MiniMe() {
     void (async () => {
       const res = await mapi<{ success: boolean; total?: number }>("/api/appointments?limit=1");
       setCounts(res.ok ? (res.data?.total ?? 0) : 0);
+    })();
+    void (async () => {
+      const res = await mapi<{ success: boolean; wallet?: WalletView }>("/api/wallet?limit=4");
+      const w = res.ok ? res.data?.wallet : null;
+      // کیف پول خالی (صفر و بدون تراکنش) چیزی برای نشان دادن ندارد
+      setWallet(w && (Number(w.balance) > 0 || (w.transactions?.length ?? 0) > 0) ? w : null);
     })();
   }, [me]);
 
@@ -111,6 +122,48 @@ export default function MiniMe() {
         </div>
       ) : null}
 
+      {wallet ? (
+        <>
+          <SectionTitle title="کیف پول" hint="مبالغ به تومان" />
+          <div className="mini-card">
+            <div className="mini-row">
+              <span>موجودی</span>
+              <span style={{ fontWeight: 900, color: "rgb(var(--m-rgb))" }}>{toman(Number(wallet.balance))}</span>
+            </div>
+            {wallet.transactions?.length ? (
+              <div style={{ marginTop: 8 }}>
+                {wallet.transactions.slice(0, 4).map((t) => (
+                  <div key={t.id} className="mini-item" style={{ border: 0, padding: "7px 0" }}>
+                    <span className="mini-item-main">
+                      <span className="mini-item-title">
+                        {WALLET_KIND_FA[t.kind] ?? t.kind} · {WALLET_REASON_FA[t.reason] ?? t.reason}
+                      </span>
+                      <span className="mini-item-sub">{[t.description, t.createdAt].filter(Boolean).join(" · ")}</span>
+                    </span>
+                    <span className="mini-item-side" style={{ color: t.kind === "DEBIT" ? "var(--m-muted)" : "rgb(var(--m-rgb))" }}>
+                      {t.kind === "DEBIT" ? "−" : "+"}
+                      {compactToman(Math.abs(Number(t.amount)))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mini-option-sub" style={{ marginTop: 6 }}>هنوز تراکنشی ثبت نشده است.</div>
+            )}
+            <div className="mini-option-sub" style={{ marginTop: 10, lineHeight: 1.9 }}>
+              برای تسویه یا دیدن ریز کامل، وارد پنل سالن شوید.
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      <SectionTitle title="دسترسی سریع" />
+      <div className="mini-quick">
+        <QuickLink icon="bell" label="اطلاعیه‌ها" onClick={() => navigate("/mini/notifications")} />
+        <QuickLink icon="calendar" label="نوبت‌های من" onClick={() => navigate("/mini/appointments")} />
+        <QuickLink icon="chat" label="پشتیبانی" onClick={() => navigate("/mini/support")} />
+      </div>
+
       {platform !== "web" ? (
         <>
           <SectionTitle title="ورود خودکار" hint={platformLabel} />
@@ -163,6 +216,16 @@ export default function MiniMe() {
         {config.brand.title} — مینی‌اپ پیام‌رسان
       </div>
     </div>
+  );
+}
+
+/** لینک ساده‌ٔ دسترسی سریع (دکمهٔ بزرگ، یک خط متن) */
+function QuickLink({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
+  return (
+    <button type="button" className="mini-btn ghost" onClick={onClick} style={{ flexDirection: "column", gap: 4 }}>
+      <Icon name={icon} size={18} />
+      {label}
+    </button>
   );
 }
 

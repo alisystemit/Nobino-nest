@@ -106,3 +106,145 @@ export type DashboardStats = {
   orders?: number;
   revenue?: number;
 };
+
+/* ── اطلاعیه‌های داخل‌برنامه‌ای (payload.message) ─────────────────── */
+
+export type MiniNotification = {
+  id: string;
+  type: string;
+  channel: string;
+  status: string;
+  readAt: string | null;
+  createdAt: string;
+  payload?: { message?: string } | null;
+};
+
+export const NOTIFICATION_TITLE: Record<string, string> = {
+  APPOINTMENT_CONFIRM: "نوبت ثبت شد",
+  APPOINTMENT_CHANGED: "تغییر وقت نوبت",
+  APPOINTMENT_CANCELLED: "لغو نوبت",
+  APPOINTMENT_STATUS: "وضعیت نوبت",
+  REMINDER: "یادآوری نوبت",
+  CANCEL: "لغو نوبت",
+  OTP: "کد ورود",
+  SUBSCRIPTION: "اشتراک سالن",
+};
+
+/* ── کیف پول ─────────────────────────────────────────────────────── */
+
+export type WalletTransaction = {
+  id: string;
+  kind: string;
+  reason: string;
+  amount: number;
+  balanceAfter: number;
+  description: string | null;
+  /** سرور با toJalali قالب‌بندی می‌کند؛ متن آمادهٔ نمایش است، نه ISO */
+  createdAt: string;
+};
+
+export type WalletView = {
+  balance: number;
+  currency: string;
+  transactions: WalletTransaction[];
+  transactionsTotal: number;
+  totalPages: number;
+  summary?: Record<string, number>;
+};
+
+export const WALLET_KIND_FA: Record<string, string> = { CREDIT: "واریزی", DEBIT: "برداشت" };
+
+export const WALLET_REASON_FA: Record<string, string> = {
+  PACKAGE_PURCHASE: "خرید بسته",
+  COMMISSION_EARNING: "کمیسیون",
+  COMMISSION_PAYOUT: "تسویه کمیسیون",
+  PAYOUT: "درخواست تسویه",
+  REFUND: "بازگشت وجه",
+  ADMIN_ADJUSTMENT: "تصحیح اپراتور",
+};
+
+/* ── بخش مدیریت سالن ────────────────────────────────────────────── */
+
+export type SalonServiceRow = {
+  id: string;
+  name: string;
+  durationMin: number;
+  price: number;
+  category: string | null;
+  description: string | null;
+  isActive: boolean;
+  branchId?: string | null;
+  bufferMin?: number | null;
+};
+
+export type SalonCustomerRow = {
+  phone: string;
+  firstName: string | null;
+  lastName: string | null;
+  completed: number;
+  cancelled: number;
+  noShow: number;
+  spend: number;
+  lastVisit: string | null;
+  note?: string | null;
+  tags?: string[];
+  mediaCount?: number;
+  notesCount?: number;
+};
+
+export type CashTotals = { cash: number; card: number; online: number; expense: number; net: number };
+
+export type RevenueSeries = { labels: string[]; appointments: number[]; revenue: number[]; cancelled: number[] };
+
+export type FinancialReport = {
+  from: string;
+  to: string;
+  totalAppointments: number;
+  completed: number;
+  cancelled: number;
+  requested: number;
+  revenue: number;
+  revenueLabel: string;
+  potentialRevenue: number;
+  paidSubscriptions: number;
+  paidSubscriptionsLabel: string;
+  topServices: { name: string; count?: number; revenue?: number }[];
+};
+
+export type ReminderItem = {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  startAt: string;
+  status: string;
+  problem: string | null;
+  windows: { window: string; status: string }[];
+};
+
+/* ── تیکت پشتیبانی ──────────────────────────────────────────────── */
+
+export type SupportTicket = {
+  id: string;
+  subject: string;
+  category: string;
+  message: string;
+  priority: string;
+  status: string;
+  createdAt: string;
+  adminReply?: string | null;
+  repliedAt?: string | null;
+};
+
+export const TICKET_STATUS_FA: Record<string, string> = {
+  OPEN: "باز",
+  IN_PROGRESS: "در حال بررسی",
+  CLOSED: "بسته شده",
+};
+
+export const SUPPORT_CATEGORY_FA: Record<string, string> = {
+  GENERAL: "عمومی",
+  BOOKING: "نوبت و رزرو",
+  PAYMENT: "پرداخت و مالی",
+  TECHNICAL: "فنی",
+  COMPLAINT: "شکایت",
+};

@@ -3,9 +3,11 @@
  * همه کنترل‌شده (controlled) هستند تا حالت در صفحهٔ سالن بماند و با رفرش وب‌ویو
  * فقط «پیش‌نویس» در sessionStorage بازیابی شود.
  */
+import { useEffect, useState } from "react";
 import type { MiniService, MiniSlot, MiniStaff } from "../lib/types";
-import { dayLabel, duration, faDigits, relativeDayLabel, shortPrice, timeLabel, toman, weekdayLabel, ymd } from "../lib/format";
-import { Icon } from "./ui";
+import { dayLabel, duration, faDigits, isPhone, normalizePhone, relativeDayLabel, shortPrice, timeLabel, toman, weekdayLabel, ymd } from "../lib/format";
+import { mapi, useMini } from "../lib/store";
+import { Area, Button, Field, Icon, Sheet } from "./ui";
 
 /* ── خدمات ────────────────────────────────────────────────────────── */
 
@@ -210,5 +212,119 @@ export function BookingSummary({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/* ── لیست انتظار ───────────────────────────────────────────────────── */
+
+/**
+ * وقتی روز انتخابی پر است، مشتری اسم و شماره‌اش را می‌گذارد تا سالن خبرش کند.
+ * `POST /api/salons/:slug/waitlist` — همان endpoint سایت؛ نیازی به ورود نیست.
+ */
+export function WaitlistSheet({
+  open,
+  slug,
+  salonName,
+  serviceIds,
+  serviceNames,
+  employeeId,
+  day,
+  timezone,
+  onClose,
+}: {
+  open: boolean;
+  slug: string;
+  salonName: string;
+  serviceIds: string[];
+  serviceNames: string[];
+  employeeId?: string;
+  day?: string;
+  timezone?: string;
+  onClose: () => void;
+}) {
+  const { me, profile, toast } = useMini();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setDone(false);
+    setName((prev) => prev || me?.name || profile.name);
+    setPhone((prev) => prev || me?.phone || profile.phone);
+  }, [open, me?.name, me?.phone, profile.name, profile.phone]);
+
+  async function submit() {
+    const cleanName = name.trim();
+    const cleanPhone = normalizePhone(phone);
+    if (cleanName.length < 2) {
+      toast("نام را کامل بنویسید", "error");
+      return;
+    }
+    if (!isPhone(cleanPhone)) {
+      toast("شماره موبایل معتبر نیست (مثال: ۰۹۱۲۳۴۵۶۷۸۹)", "error");
+      return;
+    }
+    setBusy(true);
+    const wanted = day ? `خواسته: ${dayLabel(day, timezone)}` : "";
+    const res = await mapi<{ success: boolean; error?: string }>("/api/salons/" + encodeURIComponent(slug) + "/waitlist", {
+      method: "POST",
+      body: JSON.stringify({
+        customerName: cleanName,
+        customerPhone: cleanPhone,
+        serviceId: serviceIds[0] || undefined,
+        employeeId: employeeId || undefined,
+        note: [wanted, note.trim()].filter(Boolean).join(" — ") || undefined,
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      toast(res.data?.error || "ثبت در لیست انتظار ممکن نشد", "error");
+      return;
+    }
+    setDone(true);
+    toast("در لیست انتظار ثبت شدید", "ok");
+  }
+
+  return (
+    <Sheet open={open} title={done ? "ثبت شد" : "لیست انتظار"} onClose={onClose}>
+      {done ? (
+        <>
+          <div className="mini-note" style={{ marginBottom: 12 }}>
+            شمارهٔ شما را ثبت کردیم. هر وقت ساعتی آزاد شود، سالن با شما تماس می‌گیرد.
+          </div>
+          <Button variant="ghost" onClick={onClose}>
+            بستن
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="mini-note" style={{ marginBottom: 12 }}>
+            {salonName}
+            {serviceNames.length ? ` · ${serviceNames.join("، ")}` : ""}
+            {day ? ` · ${dayLabel(day, timezone)}` : ""}
+          </div>
+          <Field label="نام" name="wl_name" value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً مریم رضایی" />
+          <Field label="شماره موبایل" name="wl_phone" dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09123456789" />
+          <Area
+            label="توضیح (اختیاری)"
+            name="wl_note"
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="مثلاً فقط روزهای پنج‌شنبه"
+          />
+          <Button onClick={submit} loading={busy}>
+            <Icon name="bell" size={17} />
+            ثبت در لیست انتظار
+          </Button>
+          <div className="mini-option-sub" style={{ marginTop: 10, textAlign: "center", lineHeight: 1.9 }}>
+            هزینه‌ای ندارد و هر وقت خواستید با سالن هماهنگ می‌شود.
+          </div>
+        </>
+      )}
+    </Sheet>
   );
 }

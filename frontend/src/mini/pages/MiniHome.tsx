@@ -8,12 +8,13 @@
  */
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { AppointmentActions, CancelSheet, RescheduleSheet, ReviewSheet, countdown } from "../components/appt-actions";
 import LoginSheet from "../components/login-sheet";
 import { Button, EmptyState, Icon, Row, SectionTitle, SkeletonList, StarIcon } from "../components/ui";
-import { duration, faDigits, ratingText, shortPrice, todayWeekdayIndex, WEEKDAYS_FA } from "../lib/format";
+import { duration, faDigits, fullLabel, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { mapi, useMini } from "../lib/store";
-import type { MiniReview, MiniSalonDetail, MiniStaff } from "../lib/types";
+import type { MiniAppointment, MiniReview, MiniSalonDetail, MiniStaff } from "../lib/types";
 
 const PACKAGES_SHOWN = 6;
 
@@ -46,6 +47,44 @@ export default function MiniHome() {
   const [loadError, setLoadError] = useState("");
   const [expandText, setExpandText] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [nextAppt, setNextAppt] = useState<MiniAppointment | null>(null);
+  const [moveFor, setMoveFor] = useState<MiniAppointment | null>(null);
+  const [cancelFor, setCancelFor] = useState<MiniAppointment | null>(null);
+  const [reviewFor, setReviewFor] = useState<MiniAppointment | null>(null);
+
+  /* ── اطلاعیهٔ سراسری نوبینو (یک بار، بدون نیاز به ورود) ───────────── */
+  useEffect(() => {
+    if (!configReady) return;
+    let alive = true;
+    void (async () => {
+      const res = await mapi<{ success: boolean; announcement?: string | null }>("/api/public/announcement");
+      if (alive && res.ok) setAnnouncement(String(res.data?.announcement ?? "").trim());
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [configReady]);
+
+  /* ── نوبت بعدیِ این مشتری (فقط برای حساب CUSTOMER) ────────────────── */
+  const loadNext = useCallback(async () => {
+    if (!me || me.role !== "CUSTOMER") {
+      setNextAppt(null);
+      return;
+    }
+    const from = ymd(new Date(), salon?.timezone || "Asia/Tehran");
+    const res = await mapi<{ success: boolean; appointments?: MiniAppointment[] }>(`/api/appointments?limit=20&from=${from}`);
+    const rows = Array.isArray(res.data?.appointments) ? res.data.appointments : [];
+    const upcoming = rows
+      .filter((a) => a.status === "REQUESTED" || a.status === "CONFIRMED")
+      .filter((a) => new Date(a.endAt).getTime() > Date.now())
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+    setNextAppt(upcoming[0] ?? null);
+  }, [me, salon?.timezone]);
+
+  useEffect(() => {
+    void loadNext();
+  }, [loadNext]);
 
   /* ── ۱) تشخیص سالن این کاربر ─────────────────────────────────────── */
   useEffect(() => {
@@ -148,6 +187,7 @@ export default function MiniHome() {
           <h1>{config.brand.title}</h1>
           <p>{config.brand.heroText || config.brand.subtitle}</p>
         </div>
+        {announcement ? <AnnouncementBanner text={announcement} /> : null}
         <div style={{ height: 14 }} />
         <EmptyState
           text={me ? "هنوز سالنی به این حساب وصل نیست" : "برای دیدن سالن خودتان وارد شوید"}
@@ -220,6 +260,49 @@ export default function MiniHome() {
         </div>
         <p className="mini-hero-hello">{greeting}</p>
       </div>
+
+      {/* ── اطلاعیهٔ سراسری ─────────────────────────────────────────── */}
+      {announcement ? <AnnouncementBanner text={announcement} /> : null}
+
+      {/* ── نوبت بعدی من ────────────────────────────────────────────── */}
+      {nextAppt ? (
+        <>
+          <SectionTitle
+            title="نوبت بعدی شما"
+            action={
+              <button type="button" className="mini-more" onClick={() => navigate("/mini/appointments")}>
+                همهٔ نوبت‌ها
+              </button>
+            }
+          />
+          <div className="mini-next">
+            <div className="mini-next-head">
+              <span className="mini-hero-cover" style={{ width: 38, height: 38, flex: "0 0 38px", fontSize: 15, borderRadius: 13 }}>
+                {salon.logoUrl ? <img src={salon.logoUrl} alt="" /> : (nextAppt.salonName || "ن").slice(0, 1)}
+              </span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="mini-next-when">{fullLabel(nextAppt.startAt, nextAppt.salonTimezone ?? undefined)}</div>
+                <div className="mini-next-sub">
+                  {nextAppt.service ?? "نوبت"}
+                  {nextAppt.employee ? ` · ${nextAppt.employee}` : ""}
+                </div>
+              </div>
+              <span className="mini-countdown">{countdown(nextAppt.startAt)}</span>
+            </div>
+            {nextAppt.depositAmount && !nextAppt.depositPaid ? (
+              <div className="mini-next-sub" style={{ marginTop: 8 }}>
+                بیعانهٔ {toman(Number(nextAppt.depositAmount))} هنوز پرداخت نشده است.
+              </div>
+            ) : null}
+            <AppointmentActions
+              appt={nextAppt}
+              onChangeTime={() => setMoveFor(nextAppt)}
+              onCancel={() => setCancelFor(nextAppt)}
+              onReview={() => setReviewFor(nextAppt)}
+            />
+          </div>
+        </>
+      ) : null}
 
       {/* ── توضیحات ─────────────────────────────────────────────────── */}
       <SectionTitle title="دربارهٔ سالن" hint={home && home.source !== "default" ? SOURCE_LABEL[home.source] : undefined} />
@@ -352,6 +435,42 @@ export default function MiniHome() {
           ) : null}
         </div>
       </div>
+
+      <RescheduleSheet appt={moveFor} onClose={() => setMoveFor(null)} onDone={() => void loadNext()} />
+      <CancelSheet appt={cancelFor} onClose={() => setCancelFor(null)} onDone={() => void loadNext()} />
+      <ReviewSheet appt={reviewFor} onClose={() => setReviewFor(null)} onDone={() => void loadNext()} />
+    </div>
+  );
+}
+
+/** بنر اطلاعیهٔ سراسری که سوپرادمین از پنل تنظیم می‌کند */
+const BANNER_KEY = "nobino.mini.banner.dismissed";
+
+/** بنر اطلاعیهٔ سوپرادمین؛ ✕ آن را تا عوض شدن متن پیام بسته نگه می‌دارد */
+function AnnouncementBanner({ text }: { text: string }) {
+  const [closed, setClosed] = useState(() => {
+    try {
+      return localStorage.getItem(BANNER_KEY) === text;
+    } catch {
+      return false;
+    }
+  });
+  if (closed) return null;
+  function close() {
+    setClosed(true);
+    try {
+      localStorage.setItem(BANNER_KEY, text);
+    } catch {
+      /* حالت خصوصی مرورگر */
+    }
+  }
+  return (
+    <div className="mini-banner">
+      <Icon name="info" size={17} />
+      <div style={{ minWidth: 0, flex: 1 }}>{text}</div>
+      <button type="button" className="mini-more" onClick={close} aria-label="بستن اطلاعیه" style={{ flex: "0 0 auto", padding: 0 }}>
+        <Icon name="close" size={14} />
+      </button>
     </div>
   );
 }

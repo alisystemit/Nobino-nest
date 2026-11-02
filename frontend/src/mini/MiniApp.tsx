@@ -3,15 +3,17 @@
  * این ماژول کاملاً مستقل است: استایلش از ./mini.css می‌آید، هیچ اجزای سایت را
  * import نمی‌کند و فقط با /api/mini/* و endpoint های عمومی نوبینو حرف می‌زند.
  */
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import MiniHome from "./pages/MiniHome";
 import MiniSalon from "./pages/MiniSalon";
 import MiniBookings from "./pages/MiniBookings";
 import MiniManage from "./pages/MiniManage";
 import MiniMe from "./pages/MiniMe";
-import { Icon, TopBar, type IconName } from "./components/ui";
-import { MiniProvider, useMini } from "./lib/store";
+import MiniNotifications from "./pages/MiniNotifications";
+import MiniSupport from "./pages/MiniSupport";
+import { BellButton, Icon, TopBar, type IconName } from "./components/ui";
+import { MiniProvider, mapi, useMini } from "./lib/store";
 import { PLATFORM_EMOJI, onNativeBack } from "./lib/bridge";
 import "./mini.css";
 
@@ -49,7 +51,22 @@ function Shell() {
   const location = useLocation();
   const { config, platform, configReady, configError, me, messengerName, toastNode } = useMini();
 
-  const isDetail = /^\/mini\/s\//.test(location.pathname);
+  const isHome = location.pathname === "/mini" || location.pathname === "/mini/";
+  const [unread, setUnread] = useState(0);
+
+  /* شمارۀ ناخوانده‌ها: با هر جابه‌جایی صفحه تازه می‌شود (سبک: فقط عدد) */
+  const refreshUnread = useCallback(async () => {
+    if (!me) {
+      setUnread(0);
+      return;
+    }
+    const res = await mapi<{ success: boolean; unread?: number }>("/api/notifications?limit=1");
+    setUnread(res.ok ? Number(res.data?.unread ?? 0) : 0);
+  }, [me]);
+
+  useEffect(() => {
+    void refreshUnread();
+  }, [refreshUnread, location.pathname]);
 
   useEffect(() => {
     // دکمهٔ «برگشت» طبیعی پیام‌رسان را به روتر وصل می‌کنیم
@@ -67,9 +84,12 @@ function Shell() {
 
   return (
     <div className="mini-shell">
-      {isDetail ? (
-        <TopBar brand={messengerName && !me ? messengerName : config.brand.title} platformChip={brandChip} onBack={() => navigate("/mini")} />
-      ) : null}
+      <TopBar
+        brand={messengerName && !me ? messengerName : config.brand.title}
+        platformChip={brandChip}
+        onBack={isHome || !configReady ? undefined : () => navigate(-1)}
+        actions={<BellButton count={unread} onClick={() => navigate("/mini/notifications")} />}
+      />
       {!configReady ? (
         <div className="mini-fade">
           <div className="mini-skeleton" style={{ height: 120 }} />
@@ -94,6 +114,8 @@ function Shell() {
           <Route path="/" element={<MiniHome />} />
           <Route path="/s/:slug" element={<MiniSalon />} />
           <Route path="/appointments" element={<MiniBookings />} />
+          <Route path="/notifications" element={<MiniNotifications />} />
+          <Route path="/support" element={<MiniSupport />} />
           <Route path="/manage" element={<MiniManage />} />
           <Route path="/me" element={<MiniMe />} />
           <Route path="*" element={<Navigate to="/mini" replace />} />

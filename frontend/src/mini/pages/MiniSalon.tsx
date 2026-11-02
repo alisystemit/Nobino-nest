@@ -6,10 +6,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import LoginSheet from "../components/login-sheet";
-import { BookingSummary, DayStrip, ServicePicker, SlotGrid, StaffPicker, eligibleStaff, upcomingDays } from "../components/booking";
+import { BookingSummary, DayStrip, ServicePicker, SlotGrid, StaffPicker, WaitlistSheet, eligibleStaff, upcomingDays } from "../components/booking";
 import { Button, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList, StarIcon } from "../components/ui";
 import { closeMiniApp, haptic } from "../lib/bridge";
-import { faDigits, isPhone, normalizePhone, ratingText, toman } from "../lib/format";
+import { dayLabel, faDigits, isPhone, normalizePhone, ratingText, timeLabel, toman } from "../lib/format";
 import { mapi, useMini } from "../lib/store";
 import type { AvailabilityResponse, MiniReview, MiniSalonDetail, MiniService, MiniStaff } from "../lib/types";
 
@@ -41,6 +41,8 @@ export default function MiniSalon() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<{ id: string; startAt: string } | null>(null);
+  const [waitOpen, setWaitOpen] = useState(false);
+  const [finding, setFinding] = useState(false);
 
   const timezone = availability?.timezone || draft.timezone || "Asia/Tehran";
   const days = useMemo(() => upcomingDays(DAYS_SHOWN, timezone), [timezone]);
@@ -152,6 +154,47 @@ export default function MiniSalon() {
   };
 
   const canBook = Boolean(salon && serviceIds.length && day && startAt && config.features.booking);
+
+  /* ── نزدیک‌ترین وقت خالی: روزهای پیش‌رو را یکی‌یکی می‌پرسد ─────────── */
+  async function findNearestSlot() {
+    if (!salon || !serviceIds.length) {
+      toast("اول یک خدمت انتخاب کنید", "error");
+      return;
+    }
+    setFinding(true);
+    const startIndex = Math.max(0, days.indexOf(day || days[0]));
+    for (let i = startIndex; i < days.length; i++) {
+      const params = new URLSearchParams({ date: days[i], serviceIds: serviceIds.join(",") });
+      if (staffStillValid && staffId) params.set("employeeId", staffId);
+      const res = await mapi<AvailabilityResponse>(`/api/salons/${encodeURIComponent(salon.slug)}/availability?${params.toString()}`);
+      const slot = res.ok ? res.data?.slots?.[0] : undefined;
+      if (slot) {
+        const tz = res.data?.timezone || timezone;
+        setDay(days[i]);
+        setStartAt(slot.startAt);
+        setDraft({
+          date: days[i],
+          startAt: slot.startAt,
+          timezone: tz,
+          salonId: salon.id,
+          slug: salon.slug,
+          salonName: salon.name,
+          serviceIds,
+          price: res.data?.totals?.price ?? totals.price,
+          durationMin: res.data?.totals?.durationMin ?? totals.durationMin,
+        });
+        haptic("success");
+        toast(`نزدیک‌ترین وقت خالی: ${dayLabel(days[i], tz)} — ${timeLabel(slot.startAt, tz)}`, "ok");
+        setFinding(false);
+        return;
+      }
+    }
+    setFinding(false);
+    toast("در این بازه وقت خالی‌ای نیست؛ در لیست انتظار ثبت شوید", "info");
+    setWaitOpen(true);
+  }
+
+  const dayIsFull = Boolean(day && serviceIds.length && !slotsLoading && availability && availability.slots.length === 0);
 
   function openSheet() {
     if (!config.features.booking) {
@@ -320,12 +363,46 @@ export default function MiniSalon() {
             value={startAt}
             timezone={timezone}
             loading={slotsLoading}
-            emptyText={day && serviceIds.length ? "در این روز وقت خالی نیست؛ روز دیگری را امتحان کنید." : "برای دیدن ساعت‌های خالی، خدمت و روز را انتخاب کنید."}
+            emptyText={day && serviceIds.length ? "در این روز وقت خالی نیست؛ راه‌های سریع‌تر را پایین ببینید." : "برای دیدن ساعت‌های خالی، خدمت و روز را انتخاب کنید."}
             onSelect={(iso) => {
               setStartAt(iso);
               haptic("light");
               setDraft({ startAt: iso, price: totals.price, durationMin: totals.durationMin });
             }}
+          />
+
+          {/* روز پر است؟ دو کار سریع به‌جای گشتن بین روزها */}
+          {dayIsFull ? (
+            <div className="mini-quick" style={{ marginTop: 12 }}>
+              <Button variant="soft" loading={finding} onClick={() => void findNearestSlot()}>
+                <Icon name="bolt" size={17} />
+                نزدیک‌ترین وقت خالی
+              </Button>
+              <Button variant="ghost" onClick={() => setWaitOpen(true)}>
+                <Icon name="bell" size={17} />
+                لیست انتظار
+              </Button>
+            </div>
+          ) : null}
+
+          {!dayIsFull && serviceIds.length && day ? (
+            <div style={{ textAlign: "center", marginTop: 10 }}>
+              <button type="button" className="mini-more" onClick={() => setWaitOpen(true)}>
+                ساعت دلخواهتان خالی نیست؟ در لیست انتظار بمانید
+              </button>
+            </div>
+          ) : null}
+
+          <WaitlistSheet
+            open={waitOpen}
+            slug={slug}
+            salonName={salon.name}
+            serviceIds={serviceIds}
+            serviceNames={pickedServices.map((s) => s.name)}
+            employeeId={staffStillValid ? staffId : ""}
+            day={day}
+            timezone={timezone}
+            onClose={() => setWaitOpen(false)}
           />
         </>
       ) : (

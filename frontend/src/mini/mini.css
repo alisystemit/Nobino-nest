@@ -137,53 +137,7 @@
 .mini-hero h1 { margin: 0; font-size: 19px; font-weight: 900; }
 .mini-hero p { margin: 6px 0 0; font-size: 13px; opacity: 0.92; line-height: 1.8; }
 
-/* ── جست‌وجو ───────────────────────────────────────────────────────── */
-.mini-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--m-card);
-  border: 1px solid var(--m-line);
-  border-radius: 16px;
-  padding: 4px 12px;
-  box-shadow: var(--m-shadow);
-}
-.mini-search input {
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--m-text);
-  font: inherit;
-  font-size: 14px;
-  padding: 11px 4px;
-}
-.mini-chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 10px 2px 4px;
-  scrollbar-width: none;
-}
-.mini-chips::-webkit-scrollbar { display: none; }
-.mini-chip {
-  flex: 0 0 auto;
-  border: 1px solid var(--m-line);
-  background: var(--m-card);
-  color: var(--m-muted);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: 0.15s ease;
-}
-.mini-chip[aria-pressed="true"],
-.mini-chip.is-on {
-  background: rgba(var(--m-rgb), 0.12);
-  border-color: rgba(var(--m-rgb), 0.5);
-  color: rgb(var(--m-rgb));
-}
+/* جست‌وجوی سالن‌ها و چیپ‌های فیلتر فهرست حذف شدند؛ چیپ‌ها در لایهٔ دوم تعریف‌اند */
 
 /* ── کارت سالن ─────────────────────────────────────────────────────── */
 .mini-salon {
@@ -580,6 +534,8 @@
   grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: 10px;
 }
+/* چهار آمار کنار هم روی موبایل نامتوازن می‌شود (۳ + ۱) → دو در دو */
+.mini-stats.is-4 { grid-template-columns: repeat(2, 1fr); }
 .mini-stat {
   background: var(--m-card);
   border: 1px solid var(--m-line);
@@ -699,3 +655,239 @@
 }
 .mini-row.is-today,
 .mini-row.is-today span { color: rgb(var(--m-rgb)); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   لایهٔ دوم مینی‌اپ — اطلاعیه‌ها، اقدامات نوبت، هاب مدیریت، مالی
+   همه در ادامهٔ همان متغیرهای بالا؛ هیچ رنگ تازه‌ای تعریف نشده.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── زنگولهٔ نوار بالا ─────────────────────────────────────────────── */
+.mini-top-actions { display: flex; align-items: center; gap: 6px; margin-inline-start: auto; }
+.mini-bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: var(--m-text);
+  cursor: pointer;
+}
+.mini-bell-dot {
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-end: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: rgb(var(--m-rgb));
+  color: #fff;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+/* ── تب‌های قطعه‌ای (داخل صفحه) ─────────────────────────────────────── */
+.mini-tabs-seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(var(--m-rgb), 0.07);
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+.mini-tab-seg {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--m-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 9px 4px;
+  border-radius: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mini-tab-seg.is-on { background: var(--m-card); color: rgb(var(--m-rgb)); box-shadow: 0 2px 10px -6px rgba(18, 18, 24, 0.5); }
+.mini-tab-badge {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(var(--m-rgb), 0.16);
+  color: rgb(var(--m-rgb));
+  border-radius: 8px;
+  padding: 1px 5px;
+}
+.mini-tab-seg.is-on .mini-tab-badge { background: rgba(var(--m-rgb), 0.14); }
+
+/* ── چیپ فیلتر ────────────────────────────────────────────────────── */
+.mini-chip {
+  border: 1px solid var(--m-line);
+  background: var(--m-card);
+  color: var(--m-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mini-chip.is-on { border-color: rgb(var(--m-rgb)); color: rgb(var(--m-rgb)); background: rgba(var(--m-rgb), 0.09); }
+.mini-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+/* ── ستاره‌های ورودی ──────────────────────────────────────────────── */
+.mini-stars-input { display: flex; flex-direction: row-reverse; justify-content: center; gap: 4px; margin: 6px 0 12px; }
+.mini-star { border: 0; background: transparent; padding: 2px; color: rgba(var(--m-rgb), 0.25); cursor: pointer; line-height: 0; }
+.mini-star.is-on { color: #f5a623; }
+.mini-stars-input.is-readonly .mini-star { cursor: default; }
+
+/* ── ورودی چندخطی ─────────────────────────────────────────────────── */
+.mini-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 84px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--m-text);
+  background: var(--m-card);
+  border: 1px solid var(--m-line);
+  border-radius: 14px;
+  padding: 11px 13px;
+}
+.mini-textarea:focus { outline: none; border-color: rgb(var(--m-rgb)); }
+
+/* ── کارت «نوبت بعدی من» ───────────────────────────────────────────── */
+.mini-next {
+  border: 1px solid rgba(var(--m-rgb), 0.28);
+  background: linear-gradient(180deg, rgba(var(--m-rgb), 0.1), var(--m-card) 62%);
+  border-radius: var(--m-radius);
+  padding: 12px 14px;
+  box-shadow: var(--m-shadow);
+}
+.mini-next-head { display: flex; align-items: center; gap: 8px; }
+.mini-next-when { font-size: 14px; font-weight: 900; }
+.mini-next-sub { font-size: 12px; color: var(--m-muted); margin-top: 3px; line-height: 1.9; }
+.mini-countdown {
+  margin-inline-start: auto;
+  font-size: 11.5px;
+  font-weight: 900;
+  color: rgb(var(--m-rgb));
+  background: rgba(var(--m-rgb), 0.12);
+  border-radius: 10px;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+
+/* ── بنر اطلاعیهٔ سوپرادمین ────────────────────────────────────────── */
+.mini-banner {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  border-radius: 16px;
+  padding: 11px 13px;
+  margin: 12px 0;
+  background: rgba(var(--m-rgb), 0.1);
+  border: 1px solid rgba(var(--m-rgb), 0.22);
+  color: var(--m-text);
+  font-size: 12.5px;
+  line-height: 1.9;
+}
+.mini-banner svg { flex: 0 0 auto; color: rgb(var(--m-rgb)); margin-top: 2px; }
+
+/* ── ردیف‌های فهرست با دکمهٔ کنارش ────────────────────────────────── */
+.mini-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--m-line);
+  border-radius: 16px;
+  background: var(--m-card);
+  margin-bottom: 8px;
+}
+.mini-item-main { min-width: 0; flex: 1; }
+.mini-item-title { font-size: 13.5px; font-weight: 900; display: block; }
+.mini-item-sub { font-size: 11.5px; color: var(--m-muted); display: block; margin-top: 3px; line-height: 1.8; }
+.mini-item-side { text-align: start; font-size: 12.5px; font-weight: 900; color: rgb(var(--m-rgb)); white-space: nowrap; }
+.mini-item-acts { display: flex; gap: 5px; flex: 0 0 auto; }
+.mini-icon-btn {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  border: 1px solid var(--m-line);
+  background: transparent;
+  color: var(--m-muted);
+  cursor: pointer;
+}
+.mini-icon-btn.is-on { color: rgb(var(--m-rgb)); border-color: rgba(var(--m-rgb), 0.4); background: rgba(var(--m-rgb), 0.08); }
+.mini-icon-btn.is-off { color: #b91c1c; border-color: rgba(185, 28, 28, 0.25); }
+.mini-item.is-muted { opacity: 0.6; }
+/* .mini-item روی <button> (ردیف مشتری، ردیف تیکت) — بازنشانی ظاهر پیش‌فرض دکمه */
+button.mini-item { font: inherit; color: inherit; text-align: start; cursor: pointer; width: 100%; }
+button.mini-item:active { transform: scale(0.985); }
+
+/* ── نوارهای درآمد ────────────────────────────────────────────────── */
+.mini-bars { display: flex; align-items: flex-end; gap: 6px; height: 108px; padding: 6px 2px 0; }
+.mini-bar { flex: 1 1 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; height: 100%; }
+.mini-bar > i {
+  display: block;
+  width: 100%;
+  border-radius: 7px 7px 3px 3px;
+  background: linear-gradient(180deg, rgb(var(--m-rgb)), rgba(var(--m-rgb), 0.55));
+  min-height: 3px;
+}
+.mini-bar > b { font-size: 10px; font-weight: 800; color: var(--m-text); }
+.mini-bar > span { font-size: 9.5px; color: var(--m-muted); }
+
+/* ── برچسب وضعیت کوچک ─────────────────────────────────────────────── */
+.mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 3px 7px;
+  background: rgba(var(--m-rgb), 0.12);
+  color: rgb(var(--m-rgb));
+}
+.mini-pill.is-warn { background: rgba(217, 119, 6, 0.14); color: #b45309; }
+.mini-pill.is-bad { background: rgba(185, 28, 28, 0.12); color: #b91c1c; }
+.mini-pill.is-ok { background: rgba(22, 163, 74, 0.13); color: #15803d; }
+.mini-root.dark .mini-pill.is-warn { color: #fbbf24; }
+.mini-root.dark .mini-pill.is-bad { color: #fca5a5; }
+.mini-root.dark .mini-pill.is-ok { color: #86efac; }
+
+/* ── دکمه‌های سریع ردیفی ──────────────────────────────────────────── */
+.mini-quick { display: flex; gap: 8px; margin-bottom: 12px; }
+.mini-quick > * { flex: 1 1 0; min-width: 0; }
+
+/* ── لیست اطلاعیه‌ها ──────────────────────────────────────────────── */
+.mini-notif { display: flex; gap: 10px; align-items: flex-start; }
+.mini-notif-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--m-rgb), 0.1);
+  color: rgb(var(--m-rgb));
+}
+.mini-notif.is-unread .mini-notif-mark { background: rgb(var(--m-rgb)); color: #fff; }
+.mini-notif-time { font-size: 11px; color: var(--m-muted); margin-top: 3px; }

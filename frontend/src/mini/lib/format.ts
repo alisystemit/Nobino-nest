@@ -24,6 +24,21 @@ export function shortPrice(amount: number): string {
   return faDigits(k) + " هزار";
 }
 
+/**
+ * عدد فشردهٔ تومان برای جا شدن در یک خط: ۲٬۸۵۱٬۰۰۰ → «۲/۹ میلیون».
+ * برخلاف shortPrice برای مبالغ بزرگ هم خوانا می‌ماند.
+ */
+export function compactToman(amount: number): string {
+  const n = Math.round(Number(amount) || 0);
+  if (!n) return "۰";
+  const sign = n < 0 ? "-" : "";
+  const v = Math.abs(n);
+  if (v >= 1_000_000_000) return `${sign}${faDigits((v / 1_000_000_000).toFixed(1)).replace(".", "/")} میلیارد`;
+  if (v >= 1_000_000) return `${sign}${faDigits((v / 1_000_000).toFixed(1)).replace(".", "/")} میلیون`;
+  if (v >= 1000) return `${sign}${faDigits(Math.round(v / 1000))} هزار`;
+  return `${sign}${faDigits(v)}`;
+}
+
 /** مدت: 90 → «۱ ساعت و ۳۰ دقیقه» */
 export function duration(minutes: number): string {
   const m = Math.max(0, Math.round(minutes || 0));
@@ -167,6 +182,16 @@ export function initials(name: string): string {
   if (!parts.length) return "ن";
   if (parts.length === 1) return parts[0].slice(0, 2);
   return (parts[0][0] ?? "") + (parts[1][0] ?? "");
+}
+
+/** رشتهٔ عددی دست‌نویس کاربر (ارقام فارسی/عربی و جداکنندهٔ هزارگان) → عدد */
+export function toNumber(input: string | number): number {
+  const s = String(input ?? "")
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[^\d-]/g, "");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
 }
 
 /** hex → «225,29,99» برای تزریق در CSS variable */
