@@ -87,10 +87,25 @@ function ScrollToTop() {
  * اگر کاربر روی یک ساب‌دامین سالن (مثل mah.localhost:5175) باشد، صفحهٔ سالن
  * همان اسلاگ را نمایش می‌دهد — بدون نیاز به مسیر /s/<slug>. در غیر این صورت
  * چیدمان سراسری و جدول مسیرهای عادی روتر اجرا می‌شوند.
+ * استثنای روشن: هر مسیری که با `/mini` شروع شود مینی‌اپ است (`mah.localhost:5175/mini`)؛
+ * مینی‌اپ هم همان سالن را به خانه‌اش می‌نشیند و به علاقه‌مندی‌ها اضافه می‌کند —
+ * تشخیصش داخل `mini/lib/host.ts` و `mini/lib/resolve.ts` انجام می‌شود.
+ * جدول `<Routes>` تکراری عمدی است: MiniApp مسیرهایش را نسبت به پیشوند `/mini` تعریف
+ * کرده (`/`، `/s/:slug` …)، پس بدون یک route والد در همان جایگاه خالی رندر می‌شود.
  */
 function AppInner() {
   const location = useLocation();
   const slug = currentSalonSlug();
+  const isMiniPath = location.pathname === "/mini" || location.pathname.startsWith("/mini/");
+  if (slug && isMiniPath) {
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/mini/*" element={<MiniApp />} />
+        </Routes>
+      </Suspense>
+    );
+  }
   if (slug) {
     return (
       <div className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">

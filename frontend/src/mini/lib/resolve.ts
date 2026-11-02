@@ -6,12 +6,19 @@
  * «سالن نمونه» یا سالن پیش‌فرض سوپرادمین حذف شده است. زنجیرهٔ تشخیص،
  * از قطعی‌ترین به عمومی‌ترین:
  *   ۱) اسلاگ داخل لینک/کیو‌آر  →  /mini?salon=mah  یا  /mini?slug=mah
+ *      یا نشانی خودِ سالن (ساب‌دامین)  →  mah.nobino.ir/mini  ·  mah.localhost:5175/mini
  *   ۲) سالن خود کاربر (اگر سالن‌دار است)  →  /api/dashboard/stats
  *   ۳) آخرین سالنی که کاربر از آن نوبت گرفته  →  /api/appointments?limit=1
  *   ۴) اگر دقیقاً یک سالن در علاقه‌مندی‌هایش باشد  →  /api/favorites
  * اگر هیچ‌کدام نبود `source: "none"` برمی‌گردد و خانه، فهرست علاقه‌مندی‌ها را نشان می‌دهد
  * (خالی باشد: راهنمای اسکن کیو‌آر و دکمهٔ ورود — هیچ سالن دیگری فاش نمی‌شود).
+ *
+ * چرا ساب‌دامین با `source: "link"`؟ چون صفحهٔ خانه همین منبع را «ورود از لینک سالن»
+ * می‌شمارد و طبق خواستهٔ صاحب محصول، هر بار که مینی‌اپ از نشانی یک سالن باز شود،
+ * همان سالن در علاقه‌مندی‌ها ثبت می‌شود (اثر جانبی این حالت در MiniHome.tsx انجام
+ * می‌شود: برای کاربر وارد‌شده `favorites.add` و برای مهمان `rememberPendingSlug`).
  */
+import { miniHostSlug } from "./host";
 import { mapi } from "./store";
 import type { MiniUser } from "./store";
 
@@ -42,9 +49,15 @@ export async function resolveHomeSalon(opts: {
   me: MiniUser | null;
   /** اسلاگ سالن‌های علاقه‌مندی کاربر (از /api/favorites) */
   favorites?: string[];
+  /** اسلاگ ساب‌دامین؛ اگر داده نشود از میزبان جاری مرورگر خوانده می‌شود */
+  hostSlug?: string;
 }): Promise<HomeSalon> {
   const fromLink = slugFromSearch(opts.search);
   if (fromLink) return { slug: fromLink, source: "link" };
+
+  // ۱ب) مینی‌اپ از نشانی خودِ سالن باز شده (mah.localhost:5175/mini) → همان سالن خانه است
+  const fromHost = (opts.hostSlug ?? miniHostSlug()).trim().toLowerCase();
+  if (isSlug(fromHost)) return { slug: fromHost, source: "link" };
 
   // ۲) سالن‌دار — سالن خودش
   if (opts.me?.role === "SALON_OWNER") {
@@ -68,7 +81,7 @@ export async function resolveHomeSalon(opts: {
 }
 
 export const SOURCE_LABEL: Record<HomeSource, string> = {
-  link: "از لینک/کیو‌آر سالن",
+  link: "از لینک/نشانی سالن",
   owner: "سالن شما",
   last_booking: "آخرین سالن شما",
   favorites: "علاقه‌مندی شما",

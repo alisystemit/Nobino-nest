@@ -249,10 +249,12 @@ export default function MiniHome() {
     toast(ok ? "از علاقه‌مندی‌ها حذف شد" : "حذف ممکن نشد؛ دوباره تلاش کنید", ok ? "ok" : "error");
   };
 
-  /* ── اسکن کیو‌آر / بازشدن لینک سالن = ثبت آن در علاقه‌مندی‌ها ──────── */
+  /* ── اسکن کیو‌آر / بازشدن لینک یا نشانی سالن = ثبت آن در علاقه‌مندی‌ها ── */
   const seenScan = useRef("");
   useEffect(() => {
     if (!salon || home?.source !== "link") return;
+    // سالنِ خودِ کاربر در «علاقه‌مندی‌ها» جایی ندارد؛ خانه‌اش همان «سالن شما» است
+    if (me && salon.isOwnerViewer) return;
     const key = `${me?.id ?? "guest"}:${salon.id}`;
     if (seenScan.current === key) return;
     seenScan.current = key;
