@@ -379,7 +379,8 @@ export default function MiniHome() {
     );
   }
 
-  const isOwner = home?.source === "owner";
+  // «سالن شما» یا از راه لینک باز شده ولی مالکش همین کاربر است — هر دو حالت مدیر را می‌گیرد
+  const isOwner = home?.source === "owner" || Boolean(salon?.isOwnerViewer);
 
   return (
     <div className="mini-fade">
@@ -587,7 +588,19 @@ export default function MiniHome() {
       <div style={{ height: 96 }} />
       <div className="mini-sticky-cta">
         <div>
-          {config.features.booking ? (
+          {isOwner ? (
+            /* مدیر سالن خودش نوبت مشتری‌محور نمی‌گیرد؛ راهش ثبت دستی یا هوشمند است */
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button onClick={() => navigate("/mini/manage")}>
+                <Icon name="edit" size={18} />
+                نوبت دستی
+              </Button>
+              <Button variant="soft" onClick={() => navigate("/mini/voice-booking")}>
+                <Icon name="mic" size={18} />
+                نوبت هوشمند
+              </Button>
+            </div>
+          ) : config.features.booking ? (
             <Button onClick={() => openBooking()}>
               <Icon name="calendar" size={18} />
               گرفتن نوبت در {salon.name}

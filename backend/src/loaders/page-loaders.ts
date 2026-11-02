@@ -216,9 +216,14 @@ async function loadSalon(url: URL) {
       : {}),
   };
 
+  // بینندهٔ فعلی مدیر همین سالن است؟ (صفحهٔ رزرو به‌جای فرم مشتری، راهنمای پنل را نشان می‌دهد)
+  const viewer = await getCurrentUser().catch(() => null);
+  const isOwnerViewer = Boolean(viewer && viewer.role === "SALON_OWNER" && salon.ownerId === viewer.id);
+
   return {
     found: true,
     salon,
+    isOwnerViewer,
     reviews,
     averageRating,
     reviewCount,

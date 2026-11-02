@@ -18,6 +18,8 @@ export type MiniSalonDetail = {
   id: string;
   slug: string;
   name: string;
+  /** بینندهٔ لاگین‌شده، مدیر همین سالن است → فرم رزرو مشتری نمایش داده نمی‌شود */
+  isOwnerViewer?: boolean;
   phone: string | null;
   city: string | null;
   address: string | null;

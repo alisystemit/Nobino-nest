@@ -211,6 +211,19 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     const user = await requireAuth().catch(() => null);
 
+    // مدیر همان سالن نمی‌تواند از راه عمومی (مینی‌اپ/صفحهٔ سالن، channel=WEBAPP) نوبت بگیرد؛
+    // نوبت‌های او باید از پنل ثبت شود: دستی (MANUAL) یا هوشمند/صوتی (VOICE).
+    if (user && user.role === "SALON_OWNER" && body.channel === "WEBAPP" && salon.ownerId === user.id) {
+      return json(
+        {
+          success: false,
+          error:
+            "مدیر همان سالن نمی‌تواند به‌عنوان مشتری نوبت بگیرد. نوبت خود را با «رزرو دستی» یا «رزرو هوشمند» در پنل ثبت کنید.",
+        },
+        { status: 403 }
+      );
+    }
+
     // بیعانه فقط برای رزروِ مشتری (با حساب یا مهمان) محاسبه می‌شود؛
     // وقتی سالن‌دار از پنل خودش رزرو می‌کند، بیعانه در محل دریافت می‌شود.
     const depositAmount = user === null || user.role === "CUSTOMER" ? depositForSalon(salon, totalPrice) : null;

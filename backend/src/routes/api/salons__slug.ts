@@ -1,6 +1,7 @@
 // خودکار: پورت‌شده از src/app/api/salons/[slug]/route.ts — بدون تغییر منطق
 import { prisma } from "@/lib/prisma";
 import { json } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/auth/guards";
 
 
 // پارامترهای مسیر async هستند
@@ -20,10 +21,16 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
   }
 
+  // اگر بیننده، مدیرِ همین سالن باشد: صفحهٔ رزرو به‌جای فرم مشتری،
+  // راهنمای «نوبت دستی/هوشمند در پنل» را نشان می‌دهد.
+  const viewer = await getCurrentUser().catch(() => null);
+  const isOwnerViewer = Boolean(viewer && viewer.role === "SALON_OWNER" && salon.ownerId === viewer.id);
+
   return json({
     success: true,
     salon: {
       id: salon.id,
+      isOwnerViewer,
       slug: salon.slug,
       name: salon.name,
       phone: salon.phone,

@@ -349,6 +349,26 @@ export default function MiniSalon() {
         ) : null}
       </div>
 
+      {/* مدیر همین سالن: فرم رزرو مشتری نمایش داده نمی‌شود؛ راهش نوبت دستی/هوشمند است */}
+      {salon.isOwnerViewer ? (
+        <div className="mini-card" style={{ marginTop: 14, textAlign: "center" }}>
+          <div style={{ fontSize: 14, fontWeight: 900 }}>شما مدیر همین سالن هستید</div>
+          <p className="mini-option-sub" style={{ marginTop: 6, lineHeight: 1.9 }}>
+            نوبت‌گیری به‌عنوان مشتری برای مدیر ممکن نیست؛ نوبت خود یا مشتری را از پنل ثبت کنید.
+          </p>
+          <div className="mini-actions" style={{ justifyContent: "center" }}>
+            <Button onClick={() => navigate("/mini/manage")}>
+              <Icon name="edit" size={17} />
+              ثبت نوبت دستی
+            </Button>
+            <Button variant="soft" onClick={() => navigate("/mini/voice-booking")}>
+              <Icon name="mic" size={17} />
+              ثبت نوبت هوشمند
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* خدمات */}
       <SectionTitle title="خدمت مورد نظر" hint="یکی یا چند مورد" />
       {salon.services.length === 0 ? (
@@ -491,6 +511,8 @@ export default function MiniSalon() {
           </div>
         </div>
       ) : null}
+        </>
+      )}
 
       {/* نظرات */}
       {config.features.reviews && reviews.length ? (

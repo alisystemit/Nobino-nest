@@ -92,6 +92,8 @@ type SalonRow = {
 type SalonPageData = {
   found: boolean;
   salon?: SalonRow;
+  /** بینندهٔ لاگین‌شده مدیر همین سالن است → فرم رزرو مشتری نمایش داده نمی‌شود */
+  isOwnerViewer?: boolean;
   reviews?: ReviewRow[];
   averageRating?: number;
   reviewCount?: number;
@@ -393,25 +395,45 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
           <div className="sm-col-main">
             <MyBookings salonId={salon.id} salonName={salon.name} nonce={bookedNonce} />
 
-            <BookingPanel
-              salon={{
-                id: salon.id,
-                slug: salon.slug,
-                name: salon.name,
-                timezone,
-                maxAdvanceDays: salon.maxAdvanceDays,
-                phone: salon.phone,
-              }}
-              services={salon.services}
-              staff={staff}
-              branches={salon.branches ?? []}
-              showPrices={true}
-              bookingEnabled={true}
-              requireLogin={false}
-              preset={preset}
-              onLoginRequired={() => setLoginOpen(true)}
-              onBooked={() => setBookedNonce((n) => n + 1)}
-            />
+            {data?.isOwnerViewer ? (
+              /* مدیر همین سالن: رزرو مشتری‌محور بسته شده؛ راهش نوبت دستی/هوشمند در پنل است */
+              <div className="mini-card" id="sm-booking" style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 14, fontWeight: 900 }}>شما مدیر همین سالن هستید</div>
+                <p className="mini-option-sub" style={{ marginTop: 6, lineHeight: 1.9 }}>
+                  نوبت‌گیری به‌عنوان مشتری در سالن خود ممکن نیست؛ نوبت خود یا مشتری را از پنل ثبت کنید.
+                </p>
+                <div className="mini-actions" style={{ justifyContent: "center" }}>
+                  <a className="mini-btn" href={siteHref("/dashboard/new-appointment")} style={{ textDecoration: "none" }}>
+                    <Icon name="edit" size={17} />
+                    ثبت نوبت دستی
+                  </a>
+                  <a className="mini-btn" href={siteHref("/dashboard/voice-booking")} style={{ textDecoration: "none" }}>
+                    <Icon name="mic" size={17} />
+                    ثبت نوبت هوشمند
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <BookingPanel
+                salon={{
+                  id: salon.id,
+                  slug: salon.slug,
+                  name: salon.name,
+                  timezone,
+                  maxAdvanceDays: salon.maxAdvanceDays,
+                  phone: salon.phone,
+                }}
+                services={salon.services}
+                staff={staff}
+                branches={salon.branches ?? []}
+                showPrices={true}
+                bookingEnabled={true}
+                requireLogin={false}
+                preset={preset}
+                onLoginRequired={() => setLoginOpen(true)}
+                onBooked={() => setBookedNonce((n) => n + 1)}
+              />
+            )}
 
             {/* راهنمای کوتاه قوانین سالن — فقط informational */}
             <div className="mini-note">
@@ -599,10 +621,17 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
       {!bookingInView ? (
         <div className="sm-cta">
           <div>
-            <Button onClick={scrollToBooking}>
-              <Icon name="calendar" size={18} />
-              رزرو نوبت در {salon.name}
-            </Button>
+            {data?.isOwnerViewer ? (
+              <a className="mini-btn" href={siteHref("/dashboard/new-appointment")} style={{ textDecoration: "none" }}>
+                <Icon name="edit" size={18} />
+                ثبت نوبت دستی در پنل
+              </a>
+            ) : (
+              <Button onClick={scrollToBooking}>
+                <Icon name="calendar" size={18} />
+                رزرو نوبت در {salon.name}
+              </Button>
+            )}
           </div>
         </div>
       ) : null}
