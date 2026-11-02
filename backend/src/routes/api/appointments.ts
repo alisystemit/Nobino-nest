@@ -32,7 +32,9 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
       const salonIds = plans.map((p) => p.salonId);
       where = salonIds.length ? { salonId: { in: salonIds } } : { id: "" };
     } else if (user.role === "CUSTOMER") {
-      where = { customerId: user.id };
+      // نوبت‌های مهمان (بدون حساب) با همان شمارهٔ تلفن هم دیده می‌شوند؛
+      // ورود با OTP مالکیت شماره را اثبات می‌کند و route لغو هم همین قاعده را دارد.
+      where = { OR: [{ customerId: user.id }, ...(user.phone ? [{ customerPhone: user.phone }] : [])] };
     } else if (user.role === "ADMIN") {
       where = {};
     }

@@ -16,9 +16,12 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
 
   if (city) where.city = { contains: city, mode: "insensitive" };
   if (q) {
+    // جستجوی آزاد فقط نام/توضیح نبود؛ کاربر «اصفهان» یا «خیابان ولیعصر» را هم تایپ می‌کند.
     where.OR = [
       { name: { contains: q, mode: "insensitive" } },
       { description: { contains: q, mode: "insensitive" } },
+      { city: { contains: q, mode: "insensitive" } },
+      { address: { contains: q, mode: "insensitive" } },
     ];
   }
 
