@@ -939,3 +939,14 @@ button.mini-item:active { transform: scale(0.985); }
 }
 .mini-notif.is-unread .mini-notif-mark { background: rgb(var(--m-rgb)); color: #fff; }
 .mini-notif-time { font-size: 11px; color: var(--m-muted); margin-top: 3px; }
+
+/* ── صفحهٔ عمومی سالن روی دسکتاپ ─────────────────────────────────────
+   صفحهٔ /s/:slug و ساب‌دامین‌ها از همین استایل‌های مینی‌اپ استفاده می‌کنند؛
+   روی نمایشگر بزرگ هدر و نوار بالا جمع‌وجورتر و مرتب‌تر می‌شوند.
+   ─────────────────────────────────────────────────────────────────── */
+@media (min-width: 1000px) {
+  .salon-page .mini-top { position: static; padding: 10px 4px; background: transparent; backdrop-filter: none; border-bottom: 0; }
+  .salon-page .mini-hero { padding: 24px 30px; }
+  .salon-page .mini-hero h1 { font-size: 24px; }
+  .salon-page .mini-hero .mini-hero-hello { font-size: 13px; max-width: 68ch; }
+}

@@ -48,8 +48,10 @@ export default function SalonInstallBanner({
 
   if (installed || dismissed) return null;
 
+  // روی دسکتاپِ صفحهٔ سالن این بنر وسط هوا روی کارت «ساعات کاری» می‌افتد؛
+  // آنجا نصب از منوی مرورگر است، پس بنر فقط تا ۱۰۰۰ پیکسل (موبایل/تبلت) می‌ماند.
   return (
-    <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-[23rem]">
+    <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-[23rem] min-[1000px]:hidden">
       <AnimatePresence>
         {openGuide && (
           <motion.div
