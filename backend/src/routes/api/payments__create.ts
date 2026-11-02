@@ -63,8 +63,11 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       const discountAmount = Math.round((unitPrice * discount.percent) / 100);
       amount = Math.max(0, unitPrice - discountAmount);
       discountId = discount.id;
-      originalAmount = pkg.price;
-      // افزایش شمارنده استفاده در صورت پرداخت موفق بعداً انجام می‌شود
+      // مبلغ پیش از تخفیف هم باید دورهٔ انتخاب‌شده را رعایت کند (نه فقط قیمت ماهانه)
+      originalAmount = unitPrice;
+      // شمارندهٔ استفاده فقط در callback موفق و داخل همان تراکنش افزایش می‌یابد
+      // (lib/payments/engine.ts) — اینجا عملاً چیزی نوشته نمی‌شود تا پرداخت
+      // ناموفق سهمیهٔ کد را نسوزاند.
     }
 
     const order = await prisma.order.create({

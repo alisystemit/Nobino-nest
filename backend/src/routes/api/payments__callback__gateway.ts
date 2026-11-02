@@ -16,6 +16,16 @@ function redirectTo(origin: string, path: string) {
   return Response.redirect(new URL(path, origin).toString());
 }
 
+/**
+ * مسیر ریدایرکت فقط باید نسبی و داخلی باشد؛ در غیر این صورت callback درگاه
+ * به یک open redirect روی دامنهٔ دلخواه مهاجم تبدیل می‌شود.
+ */
+function safeRedirectPath(path: string | undefined): string {
+  if (!path) return "/payment/result";
+  const isRelative = path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\");
+  return isRelative ? path : "/payment/result";
+}
+
 export async function GET(req: Request, { params }: { params: { gateway: string } | Promise<{ gateway: string }> }) {
   const { gateway } = await params;
   getGateway(gateway);
@@ -26,7 +36,7 @@ export async function GET(req: Request, { params }: { params: { gateway: string 
 
   const result = await handlePaymentCallback({ gatewayId: gateway, orderId, invoiceId, authority, searchParams: search });
 
-  const base = search.redirect ?? "/payment/result";
+  const base = safeRedirectPath(search.redirect);
   const origin = new URL(req.url).origin;
   if (result.success) {
     return redirectTo(origin, `${base}?status=success&ref=${result.companyId}`);
@@ -60,7 +70,7 @@ export async function POST(req: Request, { params }: { params: { gateway: string
 
   const result = await handlePaymentCallback({ gatewayId: gateway, orderId, invoiceId, authority, searchParams: search });
 
-  const base = search.redirect ?? "/payment/result";
+  const base = safeRedirectPath(search.redirect);
   const origin = new URL(req.url).origin;
   if (result.success) {
     return redirectTo(origin, `${base}?status=success&ref=${result.companyId}`);

@@ -12,7 +12,8 @@ export async function getWalletSummary(userId: string, page = 1, limit = 25) {
   const [transactions, transactionsTotal, sums] = await Promise.all([
     prisma.transaction.findMany({
       where: { walletId: wallet.id },
-      orderBy: { createdAt: "desc" },
+      // tiebreaker پایدار: ردیف‌های هم‌زمان (createdAt یکی) بین صفحه‌ها تکرار/جا نمی‌مانند
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       skip,
       take: limit,
     }),
@@ -27,7 +28,15 @@ export async function getWalletSummary(userId: string, page = 1, limit = 25) {
   const credit = sums.find((s) => s.kind === "CREDIT")?._sum.amount ?? 0;
   const debit = sums.find((s) => s.kind === "DEBIT")?._sum.amount ?? 0;
 
-  return { ...wallet, transactions, transactionsTotal, summary: { credit, debit } };
+  return {
+    ...wallet,
+    transactions,
+    transactionsTotal,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(transactionsTotal / limit)),
+    summary: { credit, debit },
+  };
 }
 
 export async function getCommissionSummary(agentId: string) {

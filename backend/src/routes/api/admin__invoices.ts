@@ -17,7 +17,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
       prisma.invoice.findMany({
         where,
         include: { salon: { select: { id: true, name: true, slug: true } } },
-        orderBy: { issuedAt: "desc" },
+        orderBy: [{ issuedAt: "desc" }, { id: "asc" }],
         skip,
         take,
       }),

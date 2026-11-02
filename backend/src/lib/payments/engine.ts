@@ -157,10 +157,14 @@ export async function handlePaymentCallback(params: {
   const orderId = params.orderId ?? "";
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { package: true, user: true } });
   if (!order) return { success: false, message: "سفارش یافت نشد" };
+  // محافظ idempotency: بازگشت تکراری درگاه نباید تخفیف/اشتراک/کمیسیون را دوباره اعمال کند
+  if (order.status === "PAID") return { success: true, companyId: "ALREADY_PAID" };
 
+  // پرداخت PENDING؛ اگر سفارش دوباره تلاش شده و پرداخت‌های قبلی لغو شده‌اند،
+  // همان رکورد را پیدا می‌کنیم تا verify درگاه روی همان رکورد بنشیند.
   const payment = await prisma.payment.findFirst({
-    where: { orderId: order.id, gateway: params.gatewayId, status: "PENDING" },
-    orderBy: { createdAt: "desc" },
+    where: { orderId: order.id, gateway: params.gatewayId },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
 
   const paymentOrder: PaymentOrder = {
@@ -177,12 +181,26 @@ export async function handlePaymentCallback(params: {
   });
 
   if (result.success) {
+    const paymentWrite = payment
+      ? prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: "PAID", refId: result.refId, cardPan: result.cardPan, payload: { verified: result.raw } as never },
+        })
+      : prisma.payment.create({
+          data: {
+            orderId: order.id,
+            gateway: params.gatewayId,
+            amount: order.amount,
+            status: "PAID",
+            authority: params.authority ?? null,
+            refId: result.refId,
+            cardPan: result.cardPan,
+            payload: { verified: result.raw } as never,
+          },
+        });
     await prisma.$transaction([
       prisma.order.update({ where: { id: order.id }, data: { status: "PAID" } }),
-      prisma.payment.update({
-        where: { id: payment?.id ?? "" },
-        data: { status: "PAID", refId: result.refId, cardPan: result.cardPan, payload: { verified: result.raw } as never },
-      }),
+      paymentWrite,
       // اگر تخفیف به‌کار رفته، شمارنده استفاده را یک واحد افزایش بده
       ...(order.discountId
         ? [prisma.discount.update({ where: { id: order.discountId }, data: { usedCount: { increment: 1 } } })]
@@ -221,10 +239,12 @@ export async function handlePaymentCallback(params: {
     return { success: true, companyId: result.refId };
   }
 
-  await prisma.payment.update({
-    where: { id: payment?.id ?? "" },
-    data: { status: "FAILED", payload: { verifyFailed: result.raw } as never },
-  });
+  if (payment) {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: "FAILED", payload: { verifyFailed: result.raw } as never },
+    });
+  }
 
   return { success: false, message: result.message ?? "پرداخت ناموفق" };
 }

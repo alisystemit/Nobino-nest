@@ -11,16 +11,23 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
     const user = await requireAuth();
     const { page, limit } = getPagination(req.url, 25, 100);
     const wallet = await getWalletSummary(user.id, page, limit);
+    // قرارداد صفحه‌بندی: total/page/limit/totalPages در پاسخ (فرانت عدد آ نسازد)
+    const totalPages = wallet?.totalPages ?? 1;
     return json({
       success: true,
       page,
       limit,
+      total: wallet?.transactionsTotal ?? 0,
+      totalPages,
       wallet: wallet
         ? {
             id: wallet.id,
             balance: wallet.balance,
             currency: wallet.currency,
             transactionsTotal: wallet.transactionsTotal,
+            page: wallet.page,
+            limit: wallet.limit,
+            totalPages: wallet.totalPages,
             summary: wallet.summary,
             transactions: wallet.transactions.map((t) => ({
               id: t.id,
@@ -50,16 +57,13 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     const user = await requireAuth();
     const body = payoutSchema.parse(await req.json());
 
-    // کیف پول کاربر
-    const wallet = await getWalletSummary(user.id);
-    if (!wallet) return json({ success: false, error: "کیف پول یافت نشد" }, { status: 404 });
-    if (wallet.balance < body.amount) {
-      return json({ success: false, error: "موجودی کافی نیست" }, { status: 400 });
-    }
-
     const payout = await prismaCreatePayout(user.id, body.amount, body.method, body.bankInfo);
+    if (!payout) return json({ success: false, error: "موجودی کافی نیست" }, { status: 400 });
     return json({ success: true, payout }, { status: 201 });
   } catch (err) {
+    if (err instanceof Error && err.message === "INSUFFICIENT_BALANCE") {
+      return json({ success: false, error: "موجودی کافی نیست" }, { status: 400 });
+    }
     return apiError(err);
   }
 }
@@ -67,27 +71,20 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 async function prismaCreatePayout(ownerId: string, amount: number, method: string, bankInfo?: string) {
   // واردات پویا برای جلوگیری از بارگذاری اضافه
   const { prisma } = await import("@/lib/prisma");
-  const wallet = await prisma.wallet.findUnique({ where: { ownerId } });
-  if (!wallet) throw new Error("کیف پول یافت نشد");
+  const { debit, ensureWallet } = await import("@/lib/financial/wallet");
 
-  const balanceAfter = wallet.balance - amount;
+  const wallet = await ensureWallet(ownerId);
+  const payout = await prisma.payout.create({
+    data: { walletId: wallet.id, amount, method, bankInfo, status: "REQUESTED" },
+  });
 
-  return prisma.$transaction([
-    prisma.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: amount } } }),
-    prisma.transaction.create({
-      data: {
-        walletId: wallet.id,
-        kind: "DEBIT",
-        reason: "PAYOUT",
-        amount,
-        balanceAfter,
-        refType: "Payout",
-        description: "درخواست تسویه حساب",
-      },
-    }),
-    prisma.payout.create({
-      data: { walletId: wallet.id, amount, method, bankInfo, status: "REQUESTED" },
-    }),
-  ]);
+  // برداشت اتمیک (شرط موجودی داخل UPDATE) + ثبت یک تراکنش DEBIT متصل به پیوت
+  try {
+    await debit(ownerId, amount, "PAYOUT", { refType: "Payout", refId: payout.id, description: "درخواست تسویه حساب" });
+  } catch {
+    await prisma.payout.delete({ where: { id: payout.id } });
+    return null;
+  }
+  return payout;
 }
 
