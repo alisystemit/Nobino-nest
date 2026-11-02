@@ -1101,6 +1101,24 @@ button.mini-item:active { transform: scale(0.985); }
 .mini-vb-needs, .mini-vb-manual { margin-top: 16px; }
 .mini-vb-services { margin-bottom: 4px; }
 .mini-vb-services > b { display: block; font-size: 12.5px; font-weight: 900; margin-bottom: 8px; }
+/* نوار آرایشگر و روز در این صفحه: هیچ قلمی نصفه پشت لبه نمی‌ماند.
+   قلم‌ها تا پرشدن عرض ظرف کشیده می‌شوند و بعد خط‌به‌خط می‌نشینند (هرچقدر هم بلند باشد). */
+.mini-vb-needs .mini-days,
+.mini-vb-manual .mini-days,
+.mini-vb-needs .mini-avatars,
+.mini-vb-manual .mini-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: visible;
+  padding-bottom: 6px;
+}
+.mini-vb-needs .mini-day,
+.mini-vb-manual .mini-day { flex: 1 1 62px; width: auto; min-width: 62px; max-width: 88px; }
+.mini-vb-needs .mini-pick,
+.mini-vb-manual .mini-pick { flex: 1 1 84px; width: auto; min-width: 84px; max-width: 124px; }
+.mini-vb-needs .mini-pick b,
+.mini-vb-manual .mini-pick b { white-space: normal; overflow: visible; text-overflow: clip; }
 .mini-vb-done {
   margin-top: 14px;
   padding: 14px;
