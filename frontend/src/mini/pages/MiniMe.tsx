@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import LoginSheet from "../components/login-sheet";
 import { Button, Field, Icon, Row, SectionTitle, type IconName } from "../components/ui";
 import { PLATFORM_EMOJI, closeMiniApp } from "../lib/bridge";
+import { requestMiniInstallSheet, useMiniInstall } from "../lib/install";
 import { compactToman, faDigits, normalizePhone, toman } from "../lib/format";
 import { mapi, useMini } from "../lib/store";
 import { WALLET_KIND_FA, WALLET_REASON_FA, type WalletView } from "../lib/types";
@@ -65,6 +66,7 @@ export default function MiniMe() {
         </div>
         <LoginSheet open={loginOpen} onClose={() => setLoginOpen(false)} reason="رزرو بدون ورود هم ممکن است، ولی با ورود نوبت‌هایتان این‌جا ذخیره می‌شود." />
         <Platforms />
+        <WebInstallRow />
       </div>
     );
   }
@@ -185,6 +187,7 @@ export default function MiniMe() {
       ) : null}
 
       <Platforms />
+      <WebInstallRow />
 
       {config.brand.supportPhone ? (
         <>
@@ -227,6 +230,22 @@ function QuickLink({ icon, label, onClick }: { icon: IconName; label: string; on
       <Icon name={icon} size={18} />
       {label}
     </button>
+  );
+}
+
+/** ردیف «نصب اپ» — فقط بیرون از پیام‌رسان‌ها؛ شیت نصب پوسته را باز می‌کند */
+function WebInstallRow() {
+  const { platform, config } = useMini();
+  const { installed } = useMiniInstall();
+  if (platform !== "web" || installed) return null;
+  return (
+    <>
+      <SectionTitle title="اپلیکیشن نوبینو" hint="مثل یک اپ روی گوشی" />
+      <button type="button" className="mini-btn" onClick={requestMiniInstallSheet}>
+        <Icon name="bolt" size={18} />
+        {`نصب ${config.brand.title} روی گوشی`}
+      </button>
+    </>
   );
 }
 
