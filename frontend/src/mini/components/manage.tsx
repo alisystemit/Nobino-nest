@@ -254,12 +254,18 @@ export function CustomersTab({ salonId }: { salonId: string }) {
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [denied, setDenied] = useState("");
   const [openRow, setOpenRow] = useState<SalonCustomerRow | null>(null);
 
+  /**
+   * replace=true یعنی شروع دوباره (جست‌وجو یا صفحهٔ اول)؛ در حالت بعدی صفحه‌های تازه
+   * به انتهای فهرست اضافه می‌شوند تا کاربر جای فعلی را گم نکند (همان سبک «نوبت‌های من»).
+   */
   const load = useCallback(
-    async (targetPage: number, search: string) => {
-      setLoading(true);
+    async (targetPage: number, replace: boolean, search: string) => {
+      if (replace) setLoading(true);
+      else setLoadingMore(true);
       setDenied("");
       const params = new URLSearchParams({ page: String(targetPage), limit: String(CUSTOMERS_PAGE) });
       if (search.trim()) params.set("q", search.trim());
@@ -267,20 +273,31 @@ export function CustomersTab({ salonId }: { salonId: string }) {
         `/api/dashboard/salons/${salonId}/customers?${params.toString()}`
       );
       if (!res.ok) setDenied(accessText(res.status, res.data?.error));
-      setRows(res.ok && Array.isArray(res.data?.customers) ? res.data.customers : []);
+      const chunk = res.ok && Array.isArray(res.data?.customers) ? res.data.customers : [];
+      setRows((prev) => {
+        if (replace) return chunk;
+        const seen = new Set(prev.map((c) => c.phone));
+        return [...prev, ...chunk.filter((c) => !seen.has(c.phone))];
+      });
       setTotal(res.data?.total ?? 0);
       setTotalPages(res.data?.totalPages ?? 1);
       setPage(targetPage);
-      setLoading(false);
+      if (replace) setLoading(false);
+      else setLoadingMore(false);
     },
     [salonId]
   );
 
+  /* تایپ فقط یک درخواست می‌زند (دیباونس) — قبلاً onChange و effect هر دو بار می‌زدند */
   useEffect(() => {
-    const id = window.setTimeout(() => void load(1, query), query ? 350 : 0);
+    const id = window.setTimeout(() => void load(1, true, query), query ? 350 : 0);
     return () => window.clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salonId, load]);
+  }, [salonId, query, load]);
+
+  /** بعد از ذخیرهٔ پرونده، همان صفحه‌هایی که باز شده بودند دوباره خوانده می‌شوند */
+  const reloadLoaded = useCallback(async () => {
+    for (let p = 1; p <= page; p++) await load(p, p === 1, query);
+  }, [load, page, query]);
 
   if (denied) return <div className="mini-note">{denied}</div>;
 
@@ -291,10 +308,7 @@ export function CustomersTab({ salonId }: { salonId: string }) {
         label="جست‌وجو"
         name="cust_q"
         value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          void load(1, e.target.value);
-        }}
+        onChange={(e) => setQuery(e.target.value)}
         placeholder="نام یا شمارهٔ موبایل"
       />
       {loading ? (
@@ -326,15 +340,28 @@ export function CustomersTab({ salonId }: { salonId: string }) {
         </div>
       )}
 
-      {page < totalPages ? (
+      {!loading && rows.length > 0 ? (
         <div style={{ marginTop: 12 }}>
-          <button type="button" className="mini-btn soft" onClick={() => void load(page + 1, query)}>
-            مشتری‌های بیشتر
-          </button>
+          {page < totalPages ? (
+            <button
+              type="button"
+              className="mini-btn soft"
+              disabled={loadingMore}
+              onClick={() => void load(page + 1, false, query)}
+            >
+              {loadingMore
+                ? "در حال بارگذاری…"
+                : `مشتری‌های بیشتر (${faDigits(rows.length)} از ${faDigits(total)})`}
+            </button>
+          ) : (
+            <div className="mini-option-sub" style={{ textAlign: "center" }}>
+              {`همهٔ ${faDigits(total)} مشتری نمایش داده شد`}
+            </div>
+          )}
         </div>
       ) : null}
 
-      <CustomerSheet salonId={salonId} row={openRow} onClose={() => setOpenRow(null)} onSaved={() => void load(page, query)} onToast={toast} />
+      <CustomerSheet salonId={salonId} row={openRow} onClose={() => setOpenRow(null)} onSaved={() => void reloadLoaded()} onToast={toast} />
     </>
   );
 }
