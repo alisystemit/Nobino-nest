@@ -9,6 +9,8 @@ import { ThemeProvider } from "@/lib/theme";
 import { currentSalonSlug } from "@/lib/subdomain";
 import GlobalHeader from "@/components/GlobalHeader";
 import PwaInstall from "@/components/PwaInstall";
+import { classicWanted } from "@/dashmini/lib/classic";
+import { miniStylePath } from "@/dashmini/lib/style-route";
 
 import HomePage from "@/pages/HomePage";
 import HelpPage from "@/pages/HelpPage";
@@ -43,6 +45,7 @@ const DashboardSettings = lazy(() => import("@/pages/DashboardSettings"));
 const AdminPage = lazy(() => import("@/pages/AdminPage"));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage"));
 const MiniApp = lazy(() => import("@/mini/MiniApp"));
+const DashMiniApp = lazy(() => import("@/dashmini/DashMiniApp"));
 
 /** جایگزین موقت حین دانلود چانک یک صفحه */
 function RouteFallback() {
@@ -53,6 +56,7 @@ function RouteFallback() {
 
 function RequireAuth({ roles }: { roles?: string[] }) {
   const { me, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-neutral-500">
@@ -62,6 +66,12 @@ function RequireAuth({ roles }: { roles?: string[] }) {
   }
   if (!me) return <Navigate to="/login" replace />;
   if (roles && !roles.includes(me.role)) return <Navigate to="/dashboard" replace />;
+  // اگر سوپرادمین سبک داشبورد این کاربر را «مینی‌اپ» انتخاب کرده باشد، همان مسیر به
+  // پوستهٔ تازه (/dash/*) می‌رود؛ مگر کاربر با میان‌بُر «نسخهٔ وب» از آن خارج شده باشد.
+  if (me.dashboardStyle === "mini" && !classicWanted()) {
+    const miniPath = miniStylePath(location.pathname, location.search);
+    if (miniPath) return <Navigate to={miniPath} replace />;
+  }
   return <Outlet />;
 }
 
@@ -90,9 +100,12 @@ function AppInner() {
   }
   // ماژول مینی‌اپ پیام‌رسان‌ها — تمام‌صفحه، بدون هدر سراسری و مستقل از AuthProvider سایت
   const isMiniApp = location.pathname === "/mini" || location.pathname.startsWith("/mini/");
+  // داشبورد مینی‌استایل (/dash/*) هم پوستهٔ خودش را دارد: هدر سراسری و بنر نصب نشان داده نمی‌شود
+  const isDashApp = location.pathname === "/dash" || location.pathname.startsWith("/dash/");
   // صفحات «راه‌اندازی» و «ساخت سالن جدید» به‌صورت مستقل و تمام‌صفحه نمایش داده می‌شوند (بدون منوی بالا/کنار)
   const hideHeader =
     isMiniApp ||
+    isDashApp ||
     location.pathname.startsWith("/dashboard/setup") ||
     (location.pathname === "/dashboard/salon" && new URLSearchParams(location.search).has("new"));
   return (
@@ -112,6 +125,7 @@ function AppInner() {
           <Route path="/pay/:token" element={<PayPage />} />
           <Route path="/payment/result" element={<PaymentResultPage />} />
           <Route path="/mini/*" element={<MiniApp />} />
+          <Route path="/dash/*" element={<DashMiniApp />} />
 
           <Route element={<RequireAuth />}>
             <Route path="/dashboard" element={<DashboardHome />} />
@@ -150,7 +164,7 @@ function AppInner() {
         </Routes>
       </Suspense>
       {/* بنر «نصب اپ» مخصوص مرورگر است؛ داخل وب‌ویو پیام‌رسان (مینی‌اپ) جایی ندارد */}
-      {!isMiniApp && <PwaInstall />}
+      {!isMiniApp && !isDashApp && <PwaInstall />}
     </div>
   );
 }
