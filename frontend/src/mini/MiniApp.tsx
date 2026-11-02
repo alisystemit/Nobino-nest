@@ -15,6 +15,7 @@ import MiniNotifications from "./pages/MiniNotifications";
 import MiniSupport from "./pages/MiniSupport";
 import MiniFavorites from "./pages/MiniFavorites";
 import { BellButton, Icon, TopBar, type IconName } from "./components/ui";
+import MiniInstallSheet from "./components/install-sheet";
 import { MiniProvider, mapi, useMini } from "./lib/store";
 import { PLATFORM_EMOJI, onNativeBack } from "./lib/bridge";
 import "./mini.css";
@@ -136,6 +137,8 @@ function Shell() {
       )}
       <TabBar />
       {toastNode}
+      {/* شیت نصب اپ — فقط برای بازدیدکنندهٔ مرورگر (بیرون از تلگرام/بله/ایتا/وایتا) */}
+      <MiniInstallSheet />
     </div>
   );
 }
