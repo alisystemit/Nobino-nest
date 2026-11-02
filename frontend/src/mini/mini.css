@@ -1138,4 +1138,95 @@ button.mini-item:active { transform: scale(0.985); }
 .mini-vb-quote b { font-size: 11px; color: var(--m-muted); }
 .mini-vb-quote p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.9; color: var(--m-text); white-space: pre-wrap; word-break: break-word; }
 
+/* ── اسکنر کیو‌آر با دوربین (افزودن سالن) ───────────────────────────── */
+.mini-scan-btn { font-weight: 900; }
+.mini-qr {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  background: #0b0b10;
+  direction: rtl;
+}
+.mini-qr-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mini-qr-canvas { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.mini-qr-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(58% 42% at 50% 47%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.62) 72%);
+}
+.mini-qr-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(68vw, 56vh, 300px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 22px;
+  pointer-events: none;
+  overflow: hidden;
+}
+.mini-qr-frame.is-found { outline: 3px solid rgba(34, 197, 94, 0.9); outline-offset: 4px; }
+.mini-qr-frame > i {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgb(var(--m-rgb));
+  border-radius: 4px;
+}
+.mini-qr-frame > i.c1 { top: 0; left: 0; border-right-color: transparent; border-bottom-color: transparent; border-top-left-radius: 18px; }
+.mini-qr-frame > i.c2 { top: 0; right: 0; border-left-color: transparent; border-bottom-color: transparent; border-top-right-radius: 18px; }
+.mini-qr-frame > i.c3 { bottom: 0; left: 0; border-right-color: transparent; border-top-color: transparent; border-bottom-left-radius: 18px; }
+.mini-qr-frame > i.c4 { bottom: 0; right: 0; border-left-color: transparent; border-top-color: transparent; border-bottom-right-radius: 18px; }
+.mini-qr-line {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(var(--m-rgb), 0), rgb(var(--m-rgb)), rgba(var(--m-rgb), 0));
+  animation: mini-qr-sweep 1.9s ease-in-out infinite;
+}
+@keyframes mini-qr-sweep {
+  0%, 100% { top: 8%; }
+  50% { top: 88%; }
+}
+.mini-qr-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 8px;
+}
+.mini-qr-title { font-size: 14px; font-weight: 900; color: #fff; }
+.mini-qr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+.mini-qr-btn.is-ghost { border: 0; background: none; pointer-events: none; }
+.mini-qr-bottom {
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  padding: 14px 18px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(11, 11, 16, 0), rgba(11, 11, 16, 0.85));
+}
+.mini-qr-msg { margin: 0; font-size: 13px; font-weight: 700; color: rgba(255, 255, 255, 0.86); text-align: center; line-height: 1.9; }
+.mini-qr-msg.is-error { color: #fca5a5; }
 .hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }

@@ -12,9 +12,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AppointmentActions, CancelSheet, RescheduleSheet, ReviewSheet, countdown } from "../components/appt-actions";
 import { FavoriteRow, FavoritesStrip } from "../components/favorites";
 import LoginSheet from "../components/login-sheet";
+import QrScanner, { cameraScanSupported } from "../components/qr-scanner";
 import { Button, EmptyState, Icon, Row, SectionTitle, SkeletonList, StarIcon } from "../components/ui";
 import { duration, faDigits, fullLabel, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
-import { rememberPendingSlug, useFavorites, type FavoriteSalon } from "../lib/favorites";
+import { rememberPendingSlug, slugFromAnything, useFavorites, type FavoriteSalon } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { startDepositPayment } from "../lib/deposit";
 import { mapi, useMini } from "../lib/store";
@@ -67,6 +68,34 @@ export default function MiniHome() {
   const [cancelFor, setCancelFor] = useState<MiniAppointment | null>(null);
   const [reviewFor, setReviewFor] = useState<MiniAppointment | null>(null);
   const [payingDeposit, setPayingDeposit] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+
+  /* ── اسکن کیو‌آر با دوربین داخل وب‌اپ (وقتی هنوز سالنی باز نشده) ───── */
+  const onHomeScan = useCallback(
+    async (text: string) => {
+      setScannerOpen(false);
+      const slug = slugFromAnything(text);
+      if (!slug) {
+        toast("این کیو‌آر به لینک سالن وصل نیست", "error");
+        return;
+      }
+      if (!me) {
+        rememberPendingSlug(slug);
+        toast("سالن یادداشت شد؛ بعد از ورود به علاقه‌مندی‌ها می‌آید", "ok");
+        navigate(`/mini/s/${slug}`);
+        return;
+      }
+      const res = await mapi<{ success: boolean; error?: string; salon?: MiniSalonDetail }>(`/api/salons/${encodeURIComponent(slug)}`);
+      const s = res.ok ? res.data?.salon : undefined;
+      if (!s?.id) {
+        toast(res.data?.error || "سالنی با این نشانی پیدا نشد", "error");
+        return;
+      }
+      if (!favorites.has(s.id)) await favorites.add({ id: s.id, slug: s.slug, name: s.name, city: s.city, coverColor: s.coverColor, bannerUrl: s.bannerUrl });
+      navigate(`/mini/s/${s.slug}`);
+    },
+    [me, favorites, navigate, toast]
+  );
 
   /** پرداخت بیعانهٔ نوبت بعدی → هدایت به درگاه */
   async function payDeposit(appt: MiniAppointment) {
@@ -255,7 +284,11 @@ export default function MiniHome() {
               title="علاقه‌مندی‌های شما"
               hint={`${faDigits(String(favorites.list.length))} سالن`}
               action={
-                <button type="button" className="mini-more" onClick={() => navigate("/mini/favorites")}>
+                <button
+                  type="button"
+                  className="mini-more"
+                  onClick={() => (cameraScanSupported() ? setScannerOpen(true) : navigate("/mini/favorites"))}
+                >
                   افزودن
                 </button>
               }
@@ -272,21 +305,35 @@ export default function MiniHome() {
               ))}
             </div>
             <div className="mini-note" style={{ marginTop: 10 }}>
-              با اسکن کیو‌آرِ یک سالنِ دیگر، آن را هم به همین فهرست اضافه کنید.
+              {cameraScanSupported() ? "با دکمهٔ «افزودن» دوربین باز می‌شود؛ کیو‌آر یک سالن دیگر را جلوی آن بگیرید تا به همین فهرست اضافه شود." : "با اسکن کیو‌آرِ یک سالنِ دیگر، آن را هم به همین فهرست اضافه کنید."}
             </div>
+            {cameraScanSupported() ? (
+              <Button variant="soft" onClick={() => setScannerOpen(true)} style={{ marginTop: 12 }}>
+                <Icon name="camera" size={18} />
+                اسکن کیو‌آر با دوربین
+              </Button>
+            ) : null}
           </>
         ) : (
           <>
             <EmptyState
               text={me ? "هنوز سالنی در علاقه‌مندی‌های شما نیست" : "برای دیدن سالن‌ها وارد شوید"}
               hint={
-                me
-                  ? "کیو‌آر یا لینک سالن را باز کنید تا به علاقه‌مندی‌های شما اضافه شود. اگر مشتری سالنی هستید و قبلاً نوبت گرفته‌اید، با همان شمارهٔ تلفن وارد شوید."
-                  : "کیو‌آر سالن را اسکن کنید؛ بعد از ورود، همان سالن در علاقه‌مندی‌های شما می‌ماند."
+                cameraScanSupported()
+                  ? "دکمهٔ «باز کردن دوربین» را بزنید و کیو‌آر سالن را جلوی دوربین بگیرید؛ لینک خودش خوانده می‌شود و سالن به علاقه‌مندی‌ها اضافه می‌شود."
+                  : me
+                    ? "کیو‌آر یا لینک سالن را باز کنید تا به علاقه‌مندی‌های شما اضافه شود. اگر مشتری سالنی هستید و قبلاً نوبت گرفته‌اید، با همان شمارهٔ تلفن وارد شوید."
+                    : "کیو‌آر سالن را اسکن کنید؛ بعد از ورود، همان سالن در علاقه‌مندی‌های شما می‌ماند."
               }
             />
+            {cameraScanSupported() ? (
+              <Button onClick={() => setScannerOpen(true)}>
+                <Icon name="camera" size={18} />
+                باز کردن دوربین و اسکن کیو‌آر
+              </Button>
+            ) : null}
             {!me ? (
-              <Button onClick={() => setLoginOpen(true)}>
+              <Button variant={cameraScanSupported() ? "ghost" : "primary"} onClick={() => setLoginOpen(true)}>
                 <Icon name="user" size={18} />
                 ورود / ساخت حساب
               </Button>
@@ -305,6 +352,7 @@ export default function MiniHome() {
           </div>
         ) : null}
         <LoginSheet open={loginOpen} onClose={() => setLoginOpen(false)} reason="بعد از ورود، علاقه‌مندی‌ها و نوبت‌های شما در همین صفحه باز می‌شود." />
+        {scannerOpen ? <QrScanner onResult={(t) => void onHomeScan(t)} onClose={() => setScannerOpen(false)} /> : null}
       </div>
     );
   }

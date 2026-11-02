@@ -1,8 +1,10 @@
 /**
  * «علاقه‌مندی‌های من» — فهرست سالن‌هایی که کاربر خودش اضافه کرده است.
  *
- * راه‌های افزودن: اسکن کیو‌آر/باز کردن لینک سالن (خودکار در صفحهٔ خانه)، یا
- * چسباندن لینک/اسلگ سالن در این صفحه. همه از همین سه endpoint سایت می‌گذرند:
+ * راه‌های افزودن: اسکن کیو‌آر با دوربین داخل وب‌اپ (دکمهٔ «باز کردن دوربین»،
+ * متن کیو‌آر محلاً با پردازش تصویر خوانده می‌شود)، باز کردن لینک سالن از
+ * بیرون (خودکار در صفحهٔ خانه)، یا چسباندن لینک/اسلگ سالن در این صفحه.
+ * همه از همین سه endpoint سایت می‌گذرند:
  *   GET /api/salons/:slug (برای گرفتن شناسهٔ سالن) · POST/DELETE /api/favorites/:salonId
  * هیچ سالن پیشنهادی یا نمونه‌ای در این فهرست نمی‌آید.
  */
@@ -10,34 +12,23 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FavoriteRow } from "../components/favorites";
 import LoginSheet from "../components/login-sheet";
+import QrScanner, { cameraScanSupported } from "../components/qr-scanner";
 import { Button, EmptyState, Icon, SectionTitle, SkeletonList } from "../components/ui";
 import { faDigits } from "../lib/format";
-import { MAX_FAVORITES, useFavorites, type FavoriteSalon } from "../lib/favorites";
+import { MAX_FAVORITES, slugFromAnything, useFavorites, type FavoriteSalon } from "../lib/favorites";
 import { mapi, useMini } from "../lib/store";
 import type { MiniSalonDetail } from "../lib/types";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,39}$/;
 
 /**
- * از هر چیزی کاربر می‌چسباند اسلگ در بیاور:
- *   https://mah.example.com/  ·  https://site/s/mah  ·  mah  ·  @mah
+ * خروجی اسکنر دوربین: اگر لینک کامل سالن باشد خودش قابل خواندن است؛ اگر
+ * دوربین رو به یک متن ساده (مثلاً اسلگ) گرفته باشد، همان متن را می‌فرستیم.
  */
-export function slugFromAnything(raw: string): string {
-  const value = raw.trim().toLowerCase().replace(/^@+/, "");
-  if (!value) return "";
-  if (SLUG_RE.test(value)) return value;
-  let url: URL | null = null;
-  try {
-    url = new URL(value.startsWith("http") ? value : `https://${value}`);
-  } catch {
-    url = null;
-  }
-  if (!url) return "";
-  const fromPath = url.pathname.split("/").filter(Boolean).find((p) => SLUG_RE.test(p));
-  if (fromPath) return fromPath;
-  const host = url.hostname.split(".");
-  if (host.length > 2 && SLUG_RE.test(host[0])) return host[0];
-  return "";
+export function scanTextToInput(value: string): string {
+  const text = value.trim();
+  if (/^(https?:\/\/|www\.)|\/s\//i.test(text) || text.includes(".")) return text;
+  return SLUG_RE.test(text.toLowerCase()) ? text : "";
 }
 
 export default function MiniFavorites() {
@@ -48,6 +39,7 @@ export default function MiniFavorites() {
   const [adding, setAdding] = useState(false);
   const [input, setInput] = useState("");
   const [loginOpen, setLoginOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const addBySlug = useCallback(
     async (slug: string) => {
@@ -70,6 +62,26 @@ export default function MiniFavorites() {
       toast(`${s.name} به علاقه‌مندی‌ها اضافه شد`, "ok");
     },
     [favorites, toast]
+  );
+
+  /** کیو‌آر اسکن شد: لینک در کادر می‌نشیند و افزودن خودش اجرا می‌شود */
+  const onScanned = useCallback(
+    (text: string) => {
+      const value = scanTextToInput(text);
+      setScannerOpen(false);
+      if (!value) {
+        toast("متن اسکن‌شده لینک یا اسلگ سالن نبود", "error");
+        return;
+      }
+      setInput(value);
+      const slug = slugFromAnything(value);
+      if (!slug) {
+        toast("این کیو‌آر به سالنی وصل نیست؛ لینک را در کادر بچسبانید", "error");
+        return;
+      }
+      void addBySlug(slug);
+    },
+    [addBySlug, toast]
   );
 
   async function removeOne(id: string) {
@@ -122,10 +134,16 @@ export default function MiniFavorites() {
         />
       )}
 
-      {/* ── افزودن با لینک/اسلگ (برای وقتی که دوربین در دسترس نیست) ──── */}
+      {/* ── افزودن با دوربین / لینک / اسلگ ───────────────────────────── */}
       <div className="mini-card" style={{ marginTop: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 900, marginBottom: 8 }}>افزودن سالن با لینک</div>
-        <div className="mini-slug-row">
+        {cameraScanSupported() ? (
+          <button type="button" className="mini-btn soft mini-scan-btn" onClick={() => setScannerOpen(true)}>
+            <Icon name="camera" size={18} />
+            باز کردن دوربین و اسکن کیو‌آر
+          </button>
+        ) : null}
+        <div className="mini-slug-row" style={{ marginTop: cameraScanSupported() ? 10 : 0 }}>
           <input
             className="mini-input"
             value={input}
@@ -152,9 +170,13 @@ export default function MiniFavorites() {
           </button>
         </div>
         <div className="mini-note" style={{ marginTop: 8 }}>
-          ساده‌ترین راه: کیو‌آرِ روی کارت سالن را اسکن کنید — سالن خودش به این فهرست می‌آید.
+          {cameraScanSupported()
+            ? "سریع‌ترین راه: دکمهٔ بالا را بزنید و کیو‌آرِ روی کارت سالن را جلوی دوربین بگیرید — لینک خودش در کادر می‌نشیند و سالن اضافه می‌شود."
+            : "سریع‌ترین راه: کیو‌آرِ روی کارت سالن را با دوربین گوشی اسکن کنید؛ لینک باز می‌شود و سالن خودش به این فهرست می‌آید."}
         </div>
       </div>
+
+      {scannerOpen ? <QrScanner onResult={onScanned} onClose={() => setScannerOpen(false)} /> : null}
 
       <div style={{ marginTop: 14 }}>
         <Button variant="ghost" onClick={() => navigate("/mini")}>

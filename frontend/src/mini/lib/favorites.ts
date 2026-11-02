@@ -25,6 +25,30 @@ export type FavoriteSalon = {
 /** سقف منطقی برای فهرست علاقه‌مندی — بیشتر از این روی موبایل خوانده نمی‌شود */
 export const MAX_FAVORITES = 20;
 
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,39}$/;
+
+/**
+ * از هر چیزی کاربر می‌چسباند یا دوربین می‌خواند اسلگ در بیاور:
+ *   https://mah.example.com/  ·  https://site/s/mah  ·  mah  ·  @mah
+ */
+export function slugFromAnything(raw: string): string {
+  const value = raw.trim().toLowerCase().replace(/^@+/, "");
+  if (!value) return "";
+  if (SLUG_RE.test(value)) return value;
+  let url: URL | null = null;
+  try {
+    url = new URL(value.startsWith("http") ? value : `https://${value}`);
+  } catch {
+    url = null;
+  }
+  if (!url) return "";
+  const fromPath = url.pathname.split("/").filter(Boolean).find((p) => SLUG_RE.test(p));
+  if (fromPath) return fromPath;
+  const host = url.hostname.split(".");
+  if (host.length > 2 && SLUG_RE.test(host[0])) return host[0];
+  return "";
+}
+
 const PENDING_KEY = "nobino.mini.favorites.pending";
 
 /* ── کش مشترک بین همهٔ صفحه‌ها (♥ و خانه و فهرست یک چیز را ببینند) ─── */
