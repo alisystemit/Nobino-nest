@@ -169,7 +169,7 @@ async function main() {
         role: roles[i % roles.length],
         commissionPercent: rand(0, 30),
         specialties: [pick(["مو", "ناخن", "میکاپ", "پوست"])],
-        schedule: { days: [0, 1, 2, 3, 4, 5, 6], open: "09:00", close: "21:00" },
+        schedule: Array.from({ length: 7 }, (_, day) => ({ day, open: "09:00", close: "21:00", isClosed: false })),
         isActive: true,
       };
     });
