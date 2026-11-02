@@ -1877,15 +1877,43 @@ function ServiceRow({ ctx, service }: { ctx: Ctx; service: Service }) {
 
 /* ─── ردیف کارمند ────────────────────────────────────────────────────── */
 
+/**
+ * برنامهٔ کاری کارمند در دو قالب در دیتابیس هست:
+ *  آرایهٔ {day, open, close, isClosed} که همین پنل می‌نویسد و
+ *  قالب قدیمیِ {days: […], open, close} که اسکریپت‌های seed ساخته‌اند.
+ * هر دو به هفت ردیفِ یکسان تبدیل می‌شوند تا فرم باز شود و با ذخیره، قالب استاندارد نوشته شود.
+ */
+function toScheduleRows(schedule: unknown): { day: number; open: string; close: string; isClosed: boolean }[] {
+  const rows = Array.from({ length: 7 }, (_, day) => ({ day, open: "09:00", close: "21:00", isClosed: false }));
+  if (Array.isArray(schedule)) {
+    for (const s of schedule as { day?: unknown; open?: unknown; close?: unknown; isClosed?: unknown }[]) {
+      const d = Number(s?.day);
+      if (!Number.isInteger(d) || d < 0 || d > 6) continue;
+      rows[d] = {
+        day: d,
+        open: typeof s.open === "string" ? s.open : rows[d].open,
+        close: typeof s.close === "string" ? s.close : rows[d].close,
+        isClosed: s.isClosed === true,
+      };
+    }
+    return rows;
+  }
+  if (schedule && typeof schedule === "object") {
+    const legacy = schedule as { days?: unknown; open?: unknown; close?: unknown };
+    const working = Array.isArray(legacy.days) ? legacy.days.map(Number) : [];
+    if (!working.length || typeof legacy.open !== "string" || typeof legacy.close !== "string") return rows;
+    for (const r of rows) {
+      r.open = legacy.open;
+      r.close = legacy.close;
+      r.isClosed = !working.includes(r.day);
+    }
+  }
+  return rows;
+}
+
 function StaffRow({ ctx, item }: { ctx: Ctx; item: StaffItem }) {
   const [open, setOpen] = useState(false);
-  const [days, setDays] = useState(() => {
-    const source = item.schedule ?? [];
-    return Array.from({ length: 7 }, (_, day) => {
-      const found = source.find((s) => s.day === day);
-      return { day, open: found?.open ?? "09:00", close: found?.close ?? "21:00", isClosed: found?.isClosed ?? false };
-    });
-  });
+  const [days, setDays] = useState(() => toScheduleRows(item.schedule));
   const [serviceIds, setServiceIds] = useState<string[]>(() => (item.services ?? []).map((s) => s.id));
   const [active, setActive] = useState(item.isActive);
   const [avatarUrl, setAvatarUrl] = useState(item.avatarUrl ?? "");
