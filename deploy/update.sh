@@ -78,7 +78,9 @@ elif [[ -f "$APP_DIR/scripts/paas-start.mjs" ]]; then
 fi
 
 say "— بررسی سلامت —"
-PORT="$(awk 'BEGIN{FS="="} $1=="PORT"{v=substr($0,index($0,"=")+1); gsub(/\r|"/,"",v); print v}' "$APP_DIR/.env" 2>/dev/null | tail -1)"
+# اگر .env نبود، awk کد ۲ می‌دهد و با `set -euo pipefail` کل اسکریپت می‌میرد؛
+# این خط آخرین مرحله است و نباید بهروزرسانیِ انجام‌شده را نصفه نشان دهد.
+PORT="$( { awk 'BEGIN{FS="="} $1=="PORT"{v=substr($0,index($0,"=")+1); gsub(/\r|"/,"",v); print v}' "$APP_DIR/.env" || true; } 2>/dev/null | tail -1 || true )"
 PORT="${PORT:-3100}"
 if $DRY_RUN; then
   printf '%s[dry] curl http://127.0.0.1:%s/api/health?db=1%s\n' "$C_DIM" "$PORT" "$C_OFF"

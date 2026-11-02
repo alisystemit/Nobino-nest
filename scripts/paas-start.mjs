@@ -12,7 +12,9 @@
  *   ۴) بعد از بالا آمدن سرور، یک prerender سبک برای صفحات سالن‌ها (خلفی)
  *
  * متغیرهای مؤثر: PORT (پیش‌فرض 3100)، HOST، SERVE_FRONTEND، DB_SETUP،
- * SKIP_BUILD، PRERENDER_ON_BOOT، AUTO_SEED (=1 فقط در محیط تازه، برای دموی توسعه)
+ * SKIP_BUILD، PRERENDER_ON_BOOT،
+ * AUTO_SEED=1 → اجرای prisma/seed.mjs (بذر دیمو). روی production بی‌اثر است
+ * مگر ALLOW_PROD_SEED=1، چون seed کاربر ادمین با رمز پیش‌فرض معلوم می‌سازد.
  */
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -93,14 +95,39 @@ if (mode !== "skip" && envValue("DATABASE_URL")) {
     execFileSync(process.execPath, args, { stdio: "inherit", cwd: ROOT });
   } catch {
     console.error(`⚠️  آماده‌سازی دیتابیس (${mode}) ناموفق بود — سرور باز هم بالا می‌آید و لاگ می‌گیرد.`);
+    if (mode === "migrate") {
+      console.error(
+        "    اگر این دیتابیس قبلاً با db push ساخته شده، یک‌بار baseline را علامت بزنید:\n" +
+          `    node ${prismaCli} migrate resolve --applied 0_init --schema prisma/schema.prisma`,
+      );
+    }
   }
-  if (mode === "push" && !hasMigrations) {
-    console.warn(
-      "ℹ️  پوشهٔ prisma/migrations نیست؛ برای پروداکشنmigration بسازید:  prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script",
-    );
+  if (mode === "migrate" && !hasMigrations) {
+    console.warn("ℹ️  پوشهٔ prisma/migrations نیست؛ baseline بسازید (راهنما: prisma/migrations/README.md).");
   }
 } else {
   log(`آماده‌سازی دیتابیس رد شد (DB_SETUP=${mode})`);
+}
+
+// ── ۲.۵) بذر دیمو — فقط محیط توسعهٔ تازه ────────────────────────────
+// seed.mjs کاربر ادمین با رمز پیش‌فرض معلوم می‌سازد، پس روی production
+// بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود.
+if (/^(1|true|yes)$/i.test(envValue("AUTO_SEED"))) {
+  const isProd = (envValue("NODE_ENV") || "production").toLowerCase() === "production";
+  const allowed = !isProd || /^(1|true|yes)$/i.test(envValue("ALLOW_PROD_SEED"));
+  if (!allowed) {
+    console.warn("⚠️  AUTO_SEED در production رد شد (ادمین پیش‌فرض با رمز معلوم) — برای اطمینان ALLOW_PROD_SEED=1.");
+  } else {
+    const seedScript = join(ROOT, "prisma", "seed.mjs");
+    if (existsSync(seedScript)) {
+      log("AUTO_SEED=1 — اجرای prisma/seed.mjs");
+      try {
+        execFileSync(process.execPath, [seedScript], { stdio: "inherit", cwd: ROOT });
+      } catch {
+        console.warn("⚠️  seed ناموفق بود");
+      }
+    }
+  }
 }
 
 // ── ۳) اجرای سرور ──────────────────────────────────────────────────

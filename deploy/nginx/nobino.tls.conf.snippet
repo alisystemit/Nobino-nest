@@ -42,7 +42,7 @@ server {
 
     root __SPA_DIST__;
     index index.html;
-    client_max_body_size 40m;
+    client_max_body_size 12m;
     charset utf-8;
     server_tokens off;
 
@@ -66,13 +66,14 @@ server {
         proxy_read_timeout 120s;
     }
 
-    location /uploads/ {
+    # ^~ تا regex پایین (`\.(xml|txt)$`) فایل‌های آپلودی را نرباید
+    location ^~ /uploads/ {
         alias __UPLOADS__/;
         try_files $uri @nobino_backend_tls;
         expires 30d;
         add_header Cache-Control "public";
     }
-    location /voice/ {
+    location ^~ /voice/ {
         alias __VOICE__/;
         try_files $uri @nobino_backend_tls;
         expires 7d;
@@ -85,9 +86,15 @@ server {
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
     }
 
-    location /assets/ {
+    location ^~ /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        try_files $uri @nobino_backend_tls;
+    }
+    # فونت‌های یکن: در نسخهٔ TLS هم باید کش شوند (گزارش moshakafi: نسخهٔ TLS
+    # این بلوک را نداشت و در حالت --tls کش فونت می‌مرد)
+    location ^~ /fonts/ {
+        expires 30d;
         try_files $uri @nobino_backend_tls;
     }
     location = /sw.js {

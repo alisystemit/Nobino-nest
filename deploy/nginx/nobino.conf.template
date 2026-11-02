@@ -23,7 +23,9 @@ server {
     error_log  /var/log/nginx/nobino.error.log warn;
 
     # آپلود گالری/صوت و صدای ضبط‌شده
-    client_max_body_size 40m;
+    # سقف واقعی بک‌اند: آواتار ۳م، تصویر/مدیا ۵م و فایل صوتی ۳م (lib/storage +
+    # routes/api/voice__transcribe.ts)؛ ۴۰m فقط درِ باز برای بارهای دور از حد است.
+    client_max_body_size 12m;
 
     charset utf-8;
     server_tokens off;
@@ -48,13 +50,15 @@ server {
     }
 
     # ── فایل‌های آپلودی: اول دیسک، بعد بک‌اند ──
-    location /uploads/ {
+    # ^~ لازم است: وگرنه بلوک regex پایین (`\.(xml|txt)$`) بر /uploads/report.txt
+    # می‌برد و فایل از ریشهٔ اسپا سرو می‌شود (404).
+    location ^~ /uploads/ {
         alias __UPLOADS__/;
         try_files $uri @nobino_backend;
         expires 30d;
         add_header Cache-Control "public";
     }
-    location /voice/ {
+    location ^~ /voice/ {
         alias __VOICE__/;
         try_files $uri @nobino_backend;
         expires 7d;
@@ -68,12 +72,12 @@ server {
     }
 
     # ── استاتیک هَش‌شدهٔ Vite: کش یک‌ساله ──
-    location /assets/ {
+    location ^~ /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         try_files $uri @nobino_backend;
     }
-    location /fonts/ {
+    location ^~ /fonts/ {
         expires 30d;
         try_files $uri @nobino_backend;
     }

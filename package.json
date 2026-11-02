@@ -9,6 +9,7 @@
     "db:migrate": "prisma migrate dev",
     "seed": "node prisma/seed.mjs",
     "seed:stress": "node scripts/seed-stress.mjs",
+    "gen:controllers": "node backend/scripts/gen-controllers.mjs",
     "build:backend": "npm --prefix backend run build",
     "start:backend": "npm --prefix backend start",
     "build:frontend": "npm --prefix frontend run build",

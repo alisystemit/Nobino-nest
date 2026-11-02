@@ -22,6 +22,18 @@ RUN npm ci --no-audit --no-fund \
 
 FROM deps AS build
 WORKDIR /app
+# دامنهٔ بیلد: Vite از envDir ریشه می‌خواند و `.dockerignore` فایل‌های .env را
+# بیرون می‌گذارد، پس این ARGها تنها راه رساندن VITE_* به بیلد SPA هستند (B5).
+# ساخت:  docker build --build-arg SITE_URL=https://nobino.ir --build-arg VITE_ROOT_DOMAIN=nobino.ir -t nobino .
+ARG SITE_URL=""
+ARG VITE_ROOT_DOMAIN=""
+ARG VITE_SITE_URL=""
+ARG VITE_APP_URL=""
+ENV SITE_URL=$SITE_URL \
+    VITE_ROOT_DOMAIN=$VITE_ROOT_DOMAIN \
+    VITE_SITE_URL=${VITE_SITE_URL:-$SITE_URL} \
+    VITE_APP_URL=${VITE_APP_URL:-$SITE_URL} \
+    PRERENDER_API=${VITE_SITE_URL:-$SITE_URL}
 COPY . .
 # Prisma Client + بیلد بک‌اند و SPA (بدون smoke-test؛ دیتابیس در این مرحله نیست)
 RUN node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma \
@@ -44,6 +56,9 @@ COPY --from=build /app/backend/package.json ./backend/
 COPY --from=build /app/backend/node_modules ./backend/node_modules
 COPY --from=build /app/backend/dist ./backend/dist
 COPY --from=build /app/frontend/dist ./frontend/dist
+# prerender.mjs در بوت (PRERENDER_ON_BOOT=1) لازم است؛ بدون آن paas-start
+# ENOENT می‌گیرد و هیچ صفحهٔ سئویی ساخته نمی‌شود (B4)
+COPY --from=build /app/frontend/prerender.mjs ./frontend/
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/scripts ./scripts
 # آپلودهای محلی (اگر BLOB_READ_WRITE_TOKEN نباشد اینجا نوشته می‌شوند)

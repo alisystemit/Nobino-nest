@@ -8,12 +8,12 @@
  *   node scripts/build-release.mjs --no-smoke
  *   node scripts/build-release.mjs --strict    # خطای تایپ = شکست (پیش‌فرض: هشدار)
  *
- * چرا «تolerant»؟ در این مخزن چند فایل تحت ویرایش هم‌زمان/sessionهای دیگر
- * خطای تایپ دارند (مثلاً backend/src/lib/campaign-middleware.ts) که جلوی
- * خروجی گرفتن tsc را نمی‌گیرند ولی `npm run build:backend` را با کد ۲ شکست
- * می‌دهند. برای pipeline استقرار، معیار واقعی «وجود dist معتبر + بوت موفق
+ * چرا «تolerant»؟ این مخزن در چند session هم‌زمان ویرایش می‌شود، پس ممکن است در
+ * لحظهٔ بیلد چند فایلِ کارِ‌در‌ادامه خطای تایپ داشته باشند؛`tsc` با وجود آن‌ها
+ * خروجی می‌گیرد. برای pipeline استقرار، معیار واقعی «وجود dist معتبر + بوت موفق
  * سرور» است؛ خطاهای تایپ چاپ و هشدار داده می‌شوند ولی با `--strict` سخت‌گیرانه
- * رفتار می‌شود.
+ * رفتار می‌شود. (معیار توسعه: `npm run build:backend` که خطا را شکست می‌دهد؛
+ * در حال حاضر بک‌اند بدون خطا بیلد می‌شود.)
  */
 import { spawnSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -160,9 +160,32 @@ function runPrerender(apiBase) {
   return res.status === 0;
 }
 
+/** آیا سروری روی این آدرس پاسخ می‌دهد؟ (برای prerender در حالت --no-smoke) */
+async function apiReachable(apiBase) {
+  try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 2500);
+    const res = await fetch(`${apiBase}/api/health`, { signal: ac.signal }).finally(() => clearTimeout(timer));
+    return res.ok || res.status === 503;
+  } catch {
+    return false;
+  }
+}
+
 if (SKIP_SMOKE) {
   log("smoke test رد شد (--no-smoke)");
-  if (!SKIP_FRONTEND) runPrerender(process.env.PRERENDER_API || `http://127.0.0.1:${SMOKE_PORT}`);
+  // بدون سرورِ در حال اجرا هرگز prerender نمی‌کنیم؛ در غیر این صورت
+  // sitemap/canonical با آدرس لوکالِ smoke-test روی دیسک می‌سوزد (B2).
+  const explicitApi = (process.env.PRERENDER_API || "").trim();
+  if (SKIP_FRONTEND) {
+    log("prerender رد شد (--skip-frontend)");
+  } else if (!explicitApi) {
+    warn("prerender در حالت --no-smoke انجام نشود (سروری در حال اجرا نیست). برای ساخت صفحات سئو از smoke test استفاده کنید یا PRERENDER_API را به سرور زندهٔ خود بچرخانید.");
+  } else if (await apiReachable(explicitApi)) {
+    runPrerender(explicitApi);
+  } else {
+    warn(`PRERENDER_API=${explicitApi} در دسترس نیست — prerender انجام نشد.`);
+  }
 } else {
   log(`بوت سرور روی پورت ${SMOKE_PORT} برای smoke test...`);
   // SMOKE_PRELOAD: یک --require دلخواه (مثلاً stub اتصال Prisma) برای محیطی که

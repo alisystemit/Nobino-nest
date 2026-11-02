@@ -12,6 +12,10 @@ module.exports = {
   apps: [
     {
       name: "nobino-api",
+      // کاربر سرویس — install.sh این را با `--user` جایگزین می‌کند؛ بدون این
+      // فیلد، پس از ریستارت سرور pm2 daemon ریشه اپ را از کاربر سرویس بالا
+      // نمی‌آورد (g18).
+      user: "__USER__",
       // cwd مهم است: مسیر آپلودها و فایل‌های استاتیک نسبت به آن حل می‌شود
       // (public/uploads و frontend/dist).
       cwd: "__APP_DIR__",

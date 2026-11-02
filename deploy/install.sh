@@ -9,7 +9,7 @@
 #   ۲) نصب فقط وابستگی‌های واقعی: Node.js ≥ 20، nginx، PM2 (اگر نباشند)
 #      — به PHP، MySQL/MariaDB، دامنه‌ها یا اعتبارنامهٔ دیتابیس‌های موجود دست نمی‌زند
 #   ۳) npm ci + prisma generate + بیلد بک‌اند و SPA (scripts/build-release.mjs)
-#   ۴) آماده‌سازی schema دیتابیس (migrate deploy اگر migration باشد، وگرنه db push)
+#   ۴) آماده‌سازی schema دیتابیس (DB_SETUP=auto→migrate deploy؛ push→db push؛ skip→دست نمی‌زند)
 #   ۵) سرویس PM2 + autostart
 #   ۶) vhost اِج‌انجی‌اِکس با ساب‌دامین‌های وایلدکارد (mah.nobino.ir و ...)
 #
@@ -81,8 +81,10 @@ fi
 [[ -f "$ENV_FILE" ]] || die "فایل .env نیست. از روى deploy/env.production.example یک .env بسازید و DATABASE_URL، JWT_SECRET و دامنه را پر کنید."
 
 # خواندن مقدار یک کلید از .env (بدون نقل‌قول و CR، با پشتیبانی از مقدار دارای =)
+# نکته: awk در gsub بازگشت \`\\1\` را پشتیبانی نمی‌کند؛ پس نقل‌قول باز/بسته
+# جداگانه حذف می‌شود (الگوی همسان update.sh).
 read_env() {
-  awk -v k="$1" 'BEGIN{FS="="} $1==k { v=substr($0, index($0,"=")+1); gsub(/\r$/,"",v); gsub(/^"(.*)"$/,"\\1",v); print v }' "$ENV_FILE" | tail -1
+  awk -v k="$1" 'BEGIN{FS="="} $1==k { v=substr($0, index($0,"=")+1); gsub(/\r$/,"",v); gsub(/^"/,"",v); gsub(/"$/,"",v); print v }' "$ENV_FILE" | tail -1
 }
 
 DB_URL="$(read_env DATABASE_URL)"; [[ -z "$DB_URL" ]] && DB_URL="${DATABASE_URL:-}"
@@ -102,6 +104,32 @@ SITE_URL="$(read_env SITE_URL)"; [[ -z "$SITE_URL" ]] && SITE_URL="https://$DOMA
 if $ENABLE_TLS || [[ "$SITE_URL" == https* ]]; then SPA_PROTO="https"; else SPA_PROTO="http"; fi
 
 ok "پیش‌بررسی: دامنه=${DOMAIN}  پورت=${PORT}  مسیر=${APP_DIR}  .env=${ENV_FILE}"
+
+# ── ۰.۱) بررسی امنیتی .env (بک‌اند همین بررسی‌ها را در بوت production هم دارد) ──
+JWT_SECRET_VAL="$(read_env JWT_SECRET)"; [[ -z "$JWT_SECRET_VAL" ]] && JWT_SECRET_VAL="${JWT_SECRET:-}"
+case "$JWT_SECRET_VAL" in
+  ""|dev-secret-change-me|super-secret-key)
+    die "JWT_SECRET در .env مقدار پیش‌فرض/خالی دارد. با «openssl rand -hex 32» یک رمز بسازید و در .env بگذارید." ;;
+esac
+[[ ${#JWT_SECRET_VAL} -ge 32 ]] || die "JWT_SECRET باید حداقل ۳۲ کاراکتر باشد (قدیمیش: ${#JWT_SECRET_VAL})."
+
+PLACEHOLDERS="$(grep -n "CHANGE_ME" "$ENV_FILE" 2>/dev/null || true)"
+if [[ -n "$PLACEHOLDERS" ]]; then
+  say "⚠ placeholderهای CHANGE_ME در .env باقی مانده‌اند:"
+  printf '%s\n' "$PLACEHOLDERS" | sed 's/^/    /'
+  die "مقادیر CHANGE_ME را کامل کنید و دوباره اجرا کنید."
+fi
+
+PAYMENT_SANDBOX_VAL="$(read_env PAYMENT_SANDBOX)"
+if [[ "${PAYMENT_SANDBOX_VAL,,}" == "true" ]]; then
+  say "⚠ PAYMENT_SANDBOX=true — پرداخت‌ها شبیه‌سازی می‌شوند؛ برای محیط واقعی آن را false یا خالی بگذارید."
+fi
+if [[ "$SITE_URL" == *localhost* || "$SITE_URL" == *127.0.0.1* ]]; then
+  say "⚠ SITE_URL به آدرس لوکال اشاره می‌کند (${SITE_URL}) — sitemap و لینک‌های پیامک غلط خواهند بود."
+fi
+if [[ -z "$(read_env CRON_SECRET)" ]]; then
+  say "⚠ CRON_SECRET تنظیم نشده؛ کران‌های داخلی (یادآوری/تسویه/نگهدارندهٔ قفل) اجرا نمی‌شوند."
+fi
 
 # ── ۱) وابستگی‌های سیستم (فقط آنچه لازم است) ──────────────────────
 say "— بررسی وابستگی‌های سیستم —"
@@ -177,14 +205,25 @@ fi
 ok "خروجی بیلد آماده است"
 
 # ── ۴) آماده‌سازی schema دیتابیس ───────────────────────────────────
+# DB_SETUP=auto (پیش‌فرض) | push (همیشه db push) | skip (اصلاً دست نزن)
 PRISMA_CLI="${PRISMA_CLI:-$APP_DIR/node_modules/prisma/build/index.js}"
-say "— آماده‌سازی دیتابیس —"
+DB_SETUP="${DB_SETUP:-auto}"
+say "— آماده‌سازی دیتابیس (DB_SETUP=$DB_SETUP) —"
 if [[ ! -f "$PRISMA_CLI" ]]; then
   warn "  prisma CLI نیست؛ آماده‌سازی schema را دستی اجرا کنید (npm run db:push)"
+elif [[ "$DB_SETUP" == "skip" ]]; then
+  warn "  DB_SETUP=skip → schema دیتابیس تغییر نکرد"
+elif [[ "$DB_SETUP" == "push" ]]; then
+  run node "$PRISMA_CLI" db push --skip-generate --schema "$APP_DIR/prisma/schema.prisma" || warn "db push ناموفق بود"
 elif [[ -d "$APP_DIR/prisma/migrations" ]]; then
-  run node "$PRISMA_CLI" migrate deploy --schema "$APP_DIR/prisma/schema.prisma" || warn "migrate deploy ناموفق بود"
+  if ! run node "$PRISMA_CLI" migrate deploy --schema "$APP_DIR/prisma/schema.prisma"; then
+    warn "  migrate deploy ناموفق بود. اگر این دیتابیس قبلاً با db push ساخته شده،"
+    warn "  جدول‌ها از قبل موجودند و baseline فقط باید علامت بزند (داده نمی‌پرد):"
+    warn "    node $PRISMA_CLI migrate resolve --applied 0_init --schema $APP_DIR/prisma/schema.prisma"
+    warn "  یا برای رفتار سابق: DB_SETUP=push  و برای دست نزدن به دیتابیس: DB_SETUP=skip"
+  fi
 else
-  warn "  prisma/migrations نیست → db push (برای پروداکشن migration بسازید؛ راهنما در docs/deploy.md)"
+  warn "  prisma/migrations نیست → db push"
   run node "$PRISMA_CLI" db push --skip-generate --schema "$APP_DIR/prisma/schema.prisma" || warn "db push ناموفق بود"
 fi
 if $DEMO_SEED; then
@@ -194,20 +233,28 @@ fi
 
 # ── ۵) سرویس PM2 ───────────────────────────────────────────────────
 say "— سرویس PM2 —"
-mkdir -p "$APP_DIR/logs"
 ECOSYSTEM="$APP_DIR/deploy/ecosystem.config.cjs"
 TPL="$SCRIPT_DIR/ecosystem.config.cjs.template"
 [[ -f "$TPL" ]] || die "قالب PM2 نیست: $TPL"
-sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__PORT__|$PORT|g" -e "s|__USER__|$SERVICE_USER|g" "$TPL" > "$ECOSYSTEM"
 if $DRY_RUN; then
+  # در dry-run دیسک را تغییر نمی‌دهیم؛ خروجی را به فایل موقت می‌نویسیم و نشان می‌دهیم
+  ECOSYSTEM="$(mktemp /tmp/nobino-ecosystem.XXXXXX.cjs)"
+  sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__PORT__|$PORT|g" -e "s|__USER__|$SERVICE_USER|g" "$TPL" > "$ECOSYSTEM"
   printf '%s[dry] pm2 start %s%s\n' "$C_DIM" "$ECOSYSTEM" "$C_OFF"
 else
+  mkdir -p "$APP_DIR/logs"
+  sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__PORT__|$PORT|g" -e "s|__USER__|$SERVICE_USER|g" "$TPL" > "$ECOSYSTEM"
   pm2 start "$ECOSYSTEM" --update-env
   pm2 save
-  HOME_DIR="$(getent passwd "$SERVICE_USER" | cut -d: -f6)"; [[ -n "$HOME_DIR" ]] || HOME_DIR="/root"
+  # HOME_DIR بدون set -e را بشکند: اگر کاربر سرویس موجود نیست، به daemon ریشه برگرد
+  HOME_DIR="$(getent passwd "$SERVICE_USER" 2>/dev/null | cut -d: -f6 || true)"
+  if [[ -z "$HOME_DIR" ]]; then
+    warn "  کاربر «$SERVICE_USER» در این سرور نیست (یا shell ورودی ندارد) → autostart با daemon ریشه ثبت می‌شود"
+    SERVICE_USER="root"; HOME_DIR="/root"
+  fi
   pm2 startup systemd -u "$SERVICE_USER" --hp "$HOME_DIR" >/dev/null 2>&1 \
     || warn "pm2 startup را دستی اجرا کنید تا سرویس بعد از ریستارت سرور بالا بیاید"
-  ok "سرویس PM2 بالا آمد (نام: nobino-api)"
+  ok "سرویس PM2 بالا آمد (نام: nobino-api، کاربر: $SERVICE_USER)"
 fi
 
 # ── ۶) vhost nginx ─────────────────────────────────────────────────
@@ -232,7 +279,7 @@ if ! $SKIP_NGINX; then
     BODY="$TPL"
   fi
 
-  TMP_CONF="/tmp/nobino-vhost.conf"
+  TMP_CONF="$(mktemp /tmp/nobino-vhost.XXXXXX.conf)"
   { cat "$UP_PART"; cat "$BODY"; } | sed -e "s|__DOMAIN__|$DOMAIN|g" \
       -e "s|__PORT__|$PORT|g" \
       -e "s|__SPA_DIST__|$APP_DIR/frontend/dist|g" \
@@ -240,18 +287,33 @@ if ! $SKIP_NGINX; then
       -e "s|__VOICE__|$APP_DIR/public/voice|g" \
       -e "s|__TLS_CRT__|$CRT|g" \
       -e "s|__TLS_KEY__|$KEY|g" > "$TMP_CONF"
-  ok "  vhost در /tmp/nobino-vhost.conf ساخته شد"
+  ok "  vhost در $TMP_CONF ساخته شد"
 
-  run cp "$TMP_CONF" /etc/nginx/sites-available/nobino.conf
-  run ln -sf /etc/nginx/sites-available/nobino.conf /etc/nginx/sites-enabled/nobino.conf
   if $DRY_RUN; then
-    printf '%s[dry] nginx -t && systemctl reload nginx%s\n' "$C_DIM" "$C_OFF"
-  elif nginx -t 2>/tmp/nobino-nginx-test.log; then
-    run systemctl reload nginx
-    ok "vhost نوبینو فعال شد (نصب‌های دیگر nginx دست نمی‌خورند)"
+    printf '%s[dry] cp %s /etc/nginx/sites-available/nobino.conf && nginx -t && systemctl reload nginx%s\n' \
+      "$C_DIM" "$TMP_CONF" "$C_OFF"
   else
-    cat /tmp/nobino-nginx-test.log >&2
-    die "vhost نوشته شد ولی nginx -t خطا داد؛ /tmp/nobino-vhost.conf را بررسی کنید."
+    # B8: اعتبارسنجی پیش از فعال‌سازی. بلوک symlink موقت فقط برای همین تست است؛
+    # اگر nginx -t خطا داد، همان لحظه پاک می‌شود تا پیکربندی خراب در
+    # sites-enabled نماند (واریز در ریستارت بعدی کل nginx را می‌اندازد).
+    PREEXISTING_SYMLINK=false
+    if [[ -e /etc/nginx/sites-enabled/nobino.conf ]]; then
+      PREEXISTING_SYMLINK=true
+      warn "  nobino.conf از قبل در sites-enabled بود؛ در صورت شکست همان حالت برگردانده می‌شود"
+    fi
+    cp "$TMP_CONF" /etc/nginx/sites-available/nobino.conf
+    ln -sf /etc/nginx/sites-available/nobino.conf /etc/nginx/sites-enabled/nobino.conf
+    if nginx -t 2>/tmp/nobino-nginx-test.log; then
+      systemctl reload nginx
+      ok "vhost نوبینو فعال شد (نصب‌های دیگر nginx دست نمی‌خورند)"
+    else
+      cat /tmp/nobino-nginx-test.log >&2 || true
+      rm -f /etc/nginx/sites-enabled/nobino.conf
+      if [[ "$PREEXISTING_SYMLINK" == "true" ]]; then
+        warn "  symlink قبلی بازیابی نمی‌شود؛ از نسخهٔ backup خود استفاده کنید"
+      fi
+      die "vhost نامعتبر بود و از sites-enabled حذف شد؛ فایل $TMP_CONF را بررسی و دوباره اجرا کنید."
+    fi
   fi
 else
   warn "nginx رد شد (--skip-nginx)"

@@ -30,6 +30,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # دامنهٔ بیلد SPA: VITE_ROOT_DOMAIN/VITE_SITE_URL از همان .env خوانده
+      # می‌شوند (خلاف آن .dockerignore اجازهٔ رسیدن .env به vite build را نمی‌دهد).
+      args:
+        SITE_URL: ${SITE_URL:-}
+        VITE_ROOT_DOMAIN: ${ROOT_DOMAIN:-}
+        VITE_SITE_URL: ${SITE_URL:-}
     restart: unless-stopped
     depends_on:
       db:
@@ -37,8 +43,10 @@ services:
     env_file:
       - .env
     environment:
-      # داخل کانتینر، دیتابیس با نام سرویس «db» شناخته می‌شود
-      DATABASE_URL: postgresql://${POSTGRES_USER:-nobino}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-nobino}?schema=public
+      # داخل کانتینر، دیتابیس با نام سرویس «db» شناخته می‌شود.
+      # اگر DATABASE_URL را خودتان در .env گذاشته‌اید (دیتابیس managed)، همان
+      # مقدار برنده است و این پیش‌فرض فقط وقتی .env خالی است ساخته می‌شود (e5).
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-nobino}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-nobino}?schema=public}
       PORT: "3100"
       HOST: 0.0.0.0
       SERVE_FRONTEND: "1"

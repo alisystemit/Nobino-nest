@@ -27,9 +27,7 @@ public/voice/*
 
 # فایل‌های توسعه/تست محلی
 coverage
-test-banner.mjs
-setup-preview.html
-salon-preview.html
-create-salon-preview.html
+temp-patches/
+*.patch
 *.png
 !frontend/public/**/*.png

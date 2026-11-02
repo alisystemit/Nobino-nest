@@ -39,9 +39,14 @@ curl "http://127.0.0.1:3100/api/health?db=1"
 **PaaS فقط با Dockerfile (Railway / Render / اَبر آراس / Fly.io):**
 ```
 Dockerfile:  Dockerfile           پورت: 3100 (PORT را پلتفرم ست می‌کند)
-Build command:  npm run build
+Build command:  npm ci && npm run build:release
 Start command:  npm start
 ```
+> اگر پلتفرم **فقط `Dockerfile`** را می‌سازد و Build command اجرا نمی‌کند، نیازی به
+> `npm run build` نیست. اگر اجرای Build را انتخاب می‌کنید، `npm run build` خودش
+> `--skip-install` دارد؛ پس فرمان کامل باید `npm ci && npm run build` باشد و در
+> ایمیج/CI که فقط `npm ci` ریشه انجام شده، `tsc` و `vite` نصب نیستند و بیلد می‌شکند.
+> فرمان امن: `npm ci && npm run build:release` یا همان `npm ci && node scripts/build-release.mjs --skip-install --no-smoke`.
 
 **خشک‌کردن install.sh قبل از اجرا روی سرور واقعی:**
 ```bash
@@ -91,7 +96,7 @@ sudo bash deploy/install.sh --domain nobino.ir --dry-run
 | `DB_SETUP` | `auto` / `migrate` / `push` / `skip` | `auto` |
 | `VITE_ROOT_DOMAIN`، `VITE_SITE_URL` | فقط موقع `vite build` داخل باندل می‌نشیند | `nobino.ir`، `https://nobino.ir` |
 | `PAYMENT_CALLBACK_BASE` | آدرس بازگشت درگاه | `https://nobino.ir/api/payments/callback` |
-| `SMS_PROVIDER` + کلید | پیامک یادآوری | `kavenegar` / `smsdotir` |
+| `SMS_PROVIDER` + کلید | پیامک یادآوری | `kavenegar` / `smsdotir` / `arpano` / `farazsms` / `ghasedak` / `melipayamak` / `iransms` / `payamresan` / `nakalaya` / `mobilesms` / `mock` — کلیدهای هر سرویس در `deploy/env.production.example` بخش ۶ آمده است |
 | `BLOB_READ_WRITE_TOKEN` | ذخیرهٔ ابری صوت/گالری | خالی = دیسک (`public/uploads`) |
 
 دو نکتهٔ مهم:
@@ -111,19 +116,27 @@ sudo bash deploy/install.sh --domain nobino.ir \
 
 کارهایی که انجام می‌دهد (و کارهایی که **انجام نمی‌دهد**):
 
-1. پیش‌بررسی روت، فایل `.env`، و `DATABASE_URL` (اگر `postgresql://` نباشد می‌ایستد).
+1. پیش‌بررسی روت، فایل `.env`، `DATABASE_URL` (اگر `postgresql://` نباشد می‌ایستد) و
+   سه بررسی امنیتی: `JWT_SECRET` نه خالی نه پیش‌فرض (`dev-secret-change-me` /
+   `super-secret-key`، حداقل ۳۲ کاراکتر)، نبود placeholderهای `CHANGE_ME` در `.env`،
+   و هشدار دربارهٔ `PAYMENT_SANDBOX=true`، `SITE_URL` لوکال و `CRON_SECRET` تنظیم‌نشده.
 2. نصب **فقط** آنچه لازم است: `curl ca-certificates gnupg git rsync`، Node.js ≥ 20
    (اگر نسخهٔ موجود کمتر از 20 باشد از NodeSource)، nginx و PM2.
    به PHP، MySQL/MariaDB، سرویس‌های دیگر، `/var/www/html`، DNS یا اعتبارنامهٔ
    دیتابیس‌های موجود **دست نمی‌زند**.
-3. `npm ci` در ریشه/backend/frontend → `prisma generate` → `scripts/build-release.mjs`.
-4. هم‌راستایی schema: اگر `prisma/migrations` باشد `migrate deploy`، وگرنه
-   `db push` (پروژهٔ فعلی migration ندارد؛ دربارهٔ ساختش در بخش ۷).
+3. `npm ci` در ریشه/backend/frontend → `prisma generate` → `scripts/build-release.mjs`
+   (در حالت `--no-smoke` عمداً prerender نمی‌کند؛ برای ساخت صفحات سئو روی سرور زنده
+   `PRERENDER_API=https://دامنه‌شما` را از قبل export کنید).
+4. هم‌راستایی schema: `prisma/migrations/0_init` در مخزن است، پس `migrate deploy`
+   اجرا می‌شود. روی دیتابیسی که قبلاً با `db push` ساخته شده، یک‌بار
+   `npx prisma migrate resolve --applied 0_init` بزنید (راهنما: `prisma/migrations/README.md`).
 5. سرویس PM2 با نام `nobino-api` از روى `deploy/ecosystem.config.cjs` (تولیدشده از
-   قالب `deploy/ecosystem.config.cjs.template`) + `pm2 save` + `pm2 startup`.
+   قالب `deploy/ecosystem.config.cjs.template`؛ فیلد `user:` هم از `--user` پر می‌شود
+   تا پس از ریستارت سرور، اپ از همان daemon بالا بیاید) + `pm2 save` + `pm2 startup`.
 6. vhost اِج‌انجی‌اِکس در `/etc/nginx/sites-available/nobino.conf` با
    `server_name nobino.ir *.nobino.ir` (فایل‌های دیگر و `default` حذف/تغییر نمی‌شوند)؛
-   `nginx -t` و بعد `systemctl reload nginx`.
+   symlink موقت ساخته و **پیش از reload** با `nginx -t` تست می‌شود — اگر خطا بدهد
+   همان لحظه از `sites-enabled` پاک می‌شود تا پیکربندی خراب روی سرور نماند.
 7. بررسی سلامت با `curl http://127.0.0.1:PORT/api/health?db=1`.
 
 **پس از نصب:**
@@ -155,7 +168,7 @@ docker run --rm -p 3100:3100 --env-file .env nobino
 
 | تنظیم | مقدار |
 |---|---|
-| Build command | `npm ci && npm run build` (یا فقط `npm run build` اگر پلتفرم خودش `npm ci` می‌کند) |
+| Build command | `npm ci && npm run build:release` (فرمان `npm run build` تنها کافی نیست؛ آن اسکریپت `--skip-install` دارد و `tsc`/`vite` را نصب نمی‌کند) |
 | Start command | `npm start` → `node scripts/paas-start.mjs` |
 | Port | از env `PORT` می‌خواند (پیش‌فرض 3100) |
 | Healthcheck | `GET /api/health` (و `?db=1` برای readyness با دیتابیس) |
@@ -170,8 +183,13 @@ docker run --rm -p 3100:3100 --env-file .env nobino
 Next جای خود را به nginx + میدل‌ور Nest داده‌اند.
 
 **دیتابیس:** `docker-compose.yml` یک `postgres:16-alpine` با volume
-`pgdata` می‌سازد و `DATABASE_URL` را خودش می‌چسباند. اگر دیتابیس جدا/managed است،
-فقط `DATABASE_URL` را در `.env` بدهید و سرویس `db` را در compose اجرا نکنید.
+`pgdata` می‌سازد. اگر دیتابیس جدا/managed است، فقط `DATABASE_URL` را در `.env` بدهید
+و سرویس `db` را در compose اجرا نکنید — compose حالا `${DATABASE_URL:-…}` می‌خواند،
+پس مقدار `.env` دیگر بی‌صدا override نمی‌شود (قبلاً بلوک `environment:` همیشه برنده بود).
+**دامنهٔ بیلد SPA در داکر:** `.dockerignore` فایل‌های `.env*` را از context بیرون
+می‌گذارد، پس `VITE_*` تنها از راه build-arg به `vite build` می‌رسند:
+`docker build --build-arg SITE_URL=https://nobino.ir --build-arg VITE_ROOT_DOMAIN=nobino.ir -t nobino .`
+در compose همین‌ها از `SITE_URL`/`ROOT_DOMAIN` همان `.env` برداشته می‌شوند.
 **volume آپلود:** `uploads` و `voice` در compose واریز شده‌اند؛ روی پلتفرم‌هایی
 که filesystem دائمی ندارند یا `BLOB_READ_WRITE_TOKEN` بدهید یا volume مانده بگذارید،
 وگرنه با هر deploy فایل‌های گالری پاک می‌شوند.
@@ -232,28 +250,31 @@ rsync -a public/uploads/ /backups/uploads/
 
 ## ۷) محدودیت‌ها و نکات شناخته‌شده
 
-1. **`prisma/migrations` در مخزن نیست** (تا امروز با `db push` ساخته شده). مسیر
-   `auto` همان `db push` را انتخاب می‌کند که برای راه‌اندازی بی‌خطر است ولی برای
-   پروداکشن قابل‌تکرار نیست. برای تبدیل به migration:
-   ```bash
-   npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/init.sql
-   mkdir -p prisma/migrations/0_init && cp /tmp/init.sql prisma/migrations/0_init/migration.sql
-   printf 'provider = "postgresql"\n' > prisma/migrations/migration_lock.toml
-   # روی دیتابیس موجود (بدون از دست دادن داده):
-   npx prisma migrate resolve --applied 0_init
-   ```
-   از آن به بعد `DB_SETUP=auto` همان `migrate deploy` را انتخاب می‌کند.
+1. **مسیر دیتابیس دو حالت دارد و هر دو مستنداند.** مخزن حالا baseline دارد:
+   `prisma/migrations/0_init/migration.sql` (کل schema، بدون هیچ `DROP`) +
+   `migration_lock.toml` + توضیح `prisma/migrations/README.md`.
+   - دیتابیس تازه: `npx prisma migrate deploy` (یا `DB_SETUP=auto` در `install.sh`).
+   - دیتابیسی که با `db push` ساخته شده (همهٔ نصب‌های قبلی): برای اینکه migrate
+     از اول اجرا نشود و داده نپرد، فقط baseline را علامت بزنید:
+     ```bash
+     npx prisma migrate resolve --applied 0_init
+     ```
+     بعد از آن تغییرات جدید را با `npx prisma migrate dev --name <نام>` بسازید.
 2. **اگر دیتابیس بالا نباشد، Nest در `onModuleInit` کرش می‌کند**
    (`PrismaClientInitializationError: Can't reach database server`). پس DB باید
    قبل از اپ آماده باشد (compose با `depends_on: service_healthy` این را انجام می‌دهد؛
    PM2 با autorestart تلاش مجدد می‌کند).
-3. **بیلد با یک خطای تایپ بیرونی مواجه است**: `backend/src/lib/campaign-middleware.ts`
-   (خط ۱۰ و ۱۵، `let gd = gd + …` → Duplicate identifier). این فایل import نشده و
-   خروجی tsc را مختل نمی‌کند، ولی `npm run build:backend` را با کد ۲ می‌بندد.
-   `scripts/build-release.mjs` برای همین خطاهای تایپ را «هشدار» می‌گیرد و معتبر بودن
-   بیلد را با «وجود dist + بوت موفق سرور» می‌سنجد (با `--strict` سخت می‌گیرید).
-   اصلاح یک‌خطی پیشنهادی: `let gd2 = gd + (gm > 2 ? (leap ? 1 : 0) : 0);`
-   (در session دیگری باز است؛ دست نزده‌ایم.)
+3. **route جدید = دو کار، نه ویرایش کنترلر.** هندلر را در
+   `backend/src/routes/api/<name>.ts` بگذارید، یک ورودی به
+   `backend/src/routes/manifest.json` اضافه کنید، سپس:
+   ```bash
+   node backend/scripts/gen-controllers.mjs
+   ```
+   یادتان باشد از **ریشهٔ مخزن** اجرا می‌شود (مسیر `scripts/…` در `package.json` ریشه
+   `gen:controllers` همین را انجام می‌دهد). فایل‌های `backend/src/controllers/*.controller.ts`
+   که در فهرست ژنراتورند بازتولید می‌شوند و **دستی ویرایششان نکنید**؛ کنترلرهای
+   زیر `backend/src/controllers/*/*.controller.ts` دست‌نویس‌اند و ژنراتور بهشان کار
+   ندارد. `app.module.ts` هم باید controller جدید را در `controllers:` ثبت کند.
 4. **دسترسی ادمین**: در محیط توسعه نام‌کاربری/رمز super-admin وجود ندارد؛ پنل ادمین
    فقط تا guard احراز هویت قابل آزمودن است. روی سرور باید کاربر ادمین را با
    `prisma` یا مسیر ثبت‌نام و ارتقای نقش بسازید.
