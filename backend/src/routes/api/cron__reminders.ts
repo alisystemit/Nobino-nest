@@ -3,12 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { requireCronAuth } from "@/lib/auth/cron-guard";
 import { enqueueSms, processPendingNotifications } from "@/lib/notifications/queue";
 import { renderSmsTemplate } from "@/lib/notifications/templates";
+import { sendDueScheduledCampaigns } from "@/lib/notifications/campaign-send";
 import { json } from "@/lib/utils";
 
 /**
  * Cron یادآوری نوبت (Vercel Cron - هر ساعت).
  * پنجره‌های یادآوری: ۲۴ ساعت قبل، ۲ ساعت قبل و کمتر از ۱ ساعت مانده.
  * پیام‌ها با uniqueKey تکراری ارسال نمی‌شوند.
+ * در همان اجرا کمپین‌های «زمان‌بندی‌شده» که موعدشان رسیده هم ارسال می‌شوند.
  */
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   const denied = await requireCronAuth(req);
@@ -52,7 +54,15 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
     }
   }
 
+  // کمپین‌های زمان‌بندی‌شده که موعدشان رسیده (خطای این بخش نباید یادآوری‌ها را بخورد)
+  let campaigns: { due: number; results: { campaignId: string; sent: number; blocked: number; error?: string }[] } = { due: 0, results: [] };
+  try {
+    campaigns = await sendDueScheduledCampaigns(now);
+  } catch (err) {
+    console.error("cron/reminders: ارسال کمپین زمان‌بندی‌شده ناموفق بود", err);
+  }
+
   const result = await processPendingNotifications(20);
 
-  return json({ success: true, candidates, queued, ...result });
+  return json({ success: true, candidates, queued, scheduledCampaigns: campaigns.due, campaignResults: campaigns.results, ...result });
 }

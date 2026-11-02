@@ -3,11 +3,11 @@ import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from "@nestjs/com
 import type { Request, Response } from "express";
 import { runRoute } from "@/common/run-route";
 import * as R0 from "@/routes/api/account__reviews";
-import * as R82 from "@/routes/api/favorites";
-import * as R83 from "@/routes/api/favorites__salonId";
-import * as R92 from "@/routes/api/notifications";
-import * as R110 from "@/routes/api/support";
-import * as R111 from "@/routes/api/upload__avatar";
+import * as R85 from "@/routes/api/favorites";
+import * as R86 from "@/routes/api/favorites__salonId";
+import * as R96 from "@/routes/api/notifications";
+import * as R115 from "@/routes/api/support";
+import * as R116 from "@/routes/api/upload__avatar";
 
 @Controller()
 export class EngagementController {
@@ -19,41 +19,41 @@ export class EngagementController {
 
   @Get("/api/favorites")
   async getFavoritesRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R82.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R85.GET(r as never, c as never));
   }
 
   @Post("/api/favorites/:salonId")
   async postFavoritesSalonIdRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R83.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R86.POST(r as never, c as never));
   }
 
   @Delete("/api/favorites/:salonId")
   async deleteFavoritesSalonIdRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R83.DELETE(r as never, c as never));
+    await runRoute(req, res, (r, c) => R86.DELETE(r as never, c as never));
   }
 
   @Get("/api/notifications")
   async getNotificationsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R92.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R96.GET(r as never, c as never));
   }
 
   @Patch("/api/notifications")
   async patchNotificationsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R92.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R96.PATCH(r as never, c as never));
   }
 
   @Post("/api/support")
   async postSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R110.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R115.POST(r as never, c as never));
   }
 
   @Get("/api/support")
   async getSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R110.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R115.GET(r as never, c as never));
   }
 
   @Post("/api/upload/avatar")
   async postUploadAvatarRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R111.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R116.POST(r as never, c as never));
   }
 }

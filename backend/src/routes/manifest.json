@@ -95,6 +95,22 @@
     ]
   },
   {
+    "path": "admin/payouts",
+    "url": "/api/admin/payouts",
+    "module": "@/routes/api/admin__payouts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/payouts/[id]",
+    "url": "/api/admin/payouts/:id",
+    "module": "@/routes/api/admin__payouts__id",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
     "path": "admin/reviews",
     "url": "/api/admin/reviews",
     "module": "@/routes/api/admin__reviews",
@@ -379,6 +395,14 @@
     "path": "cron/waitlist",
     "url": "/api/cron/waitlist",
     "module": "@/routes/api/cron__waitlist",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "dashboard/customers",
+    "url": "/api/dashboard/customers",
+    "module": "@/routes/api/dashboard__customers",
     "methods": [
       "GET"
     ]
@@ -727,6 +751,14 @@
     ]
   },
   {
+    "path": "health/db",
+    "url": "/api/health/db",
+    "module": "@/routes/api/health__db",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
     "path": "loyalty/redeem",
     "url": "/api/loyalty/redeem",
     "module": "@/routes/api/loyalty__redeem",
@@ -920,6 +952,14 @@
     "path": "salons/[slug]/banner.svg",
     "url": "/api/salons/:slug/banner.svg",
     "module": "@/routes/api/salons__slug__banner",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "sms/report",
+    "url": "/api/sms/report",
+    "module": "@/routes/api/sms__report",
     "methods": [
       "GET"
     ]

@@ -12,15 +12,17 @@ import * as R7 from "@/routes/api/admin__invoices";
 import * as R8 from "@/routes/api/admin__limits";
 import * as R9 from "@/routes/api/admin__notifications";
 import * as R10 from "@/routes/api/admin__packages";
-import * as R11 from "@/routes/api/admin__reviews";
-import * as R12 from "@/routes/api/admin__saas-metrics";
-import * as R13 from "@/routes/api/admin__salons__id";
-import * as R14 from "@/routes/api/admin__salons__id__status";
-import * as R15 from "@/routes/api/admin__settings";
-import * as R16 from "@/routes/api/admin__sms__test";
-import * as R17 from "@/routes/api/admin__subscriptions";
-import * as R18 from "@/routes/api/admin__support";
-import * as R19 from "@/routes/api/admin__users";
+import * as R11 from "@/routes/api/admin__payouts";
+import * as R12 from "@/routes/api/admin__payouts__id";
+import * as R13 from "@/routes/api/admin__reviews";
+import * as R14 from "@/routes/api/admin__saas-metrics";
+import * as R15 from "@/routes/api/admin__salons__id";
+import * as R16 from "@/routes/api/admin__salons__id__status";
+import * as R17 from "@/routes/api/admin__settings";
+import * as R18 from "@/routes/api/admin__sms__test";
+import * as R19 from "@/routes/api/admin__subscriptions";
+import * as R20 from "@/routes/api/admin__support";
+import * as R21 from "@/routes/api/admin__users";
 
 @Controller()
 export class AdminController {
@@ -110,78 +112,88 @@ export class AdminController {
     await runRoute(req, res, (r, c) => R10.DELETE(r as never, c as never));
   }
 
+  @Get("/api/admin/payouts")
+  async getAdminPayoutsRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R11.GET(r as never, c as never));
+  }
+
+  @Patch("/api/admin/payouts/:id")
+  async patchAdminPayoutsIdRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R12.PATCH(r as never, c as never));
+  }
+
   @Get("/api/admin/reviews")
   async getAdminReviewsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R11.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R13.GET(r as never, c as never));
   }
 
   @Delete("/api/admin/reviews")
   async deleteAdminReviewsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R11.DELETE(r as never, c as never));
+    await runRoute(req, res, (r, c) => R13.DELETE(r as never, c as never));
   }
 
   @Get("/api/admin/saas-metrics")
   async getAdminSaasMetricsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R12.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R14.GET(r as never, c as never));
   }
 
   @Get("/api/admin/salons/:id")
   async getAdminSalonsIdRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R13.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R15.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/salons/:id")
   async patchAdminSalonsIdRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R13.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R15.PATCH(r as never, c as never));
   }
 
   @Patch("/api/admin/salons/:id/status")
   async patchAdminSalonsIdStatusRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R14.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R16.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/settings")
   async getAdminSettingsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R15.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R17.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/settings")
   async patchAdminSettingsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R15.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R17.PATCH(r as never, c as never));
   }
 
   @Post("/api/admin/sms/test")
   async postAdminSmsTestRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R16.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R18.POST(r as never, c as never));
   }
 
   @Get("/api/admin/subscriptions")
   async getAdminSubscriptionsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R17.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R19.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/subscriptions")
   async patchAdminSubscriptionsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R17.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R19.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/support")
   async getAdminSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R18.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R20.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/support")
   async patchAdminSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R18.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R20.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/users")
   async getAdminUsersRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R19.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R21.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/users")
   async patchAdminUsersRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R19.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R21.PATCH(r as never, c as never));
   }
 }

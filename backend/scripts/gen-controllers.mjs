@@ -1,6 +1,6 @@
 /**
  * تولید controllerهای Nest از manifest پورت‌شده.
- * اجرا بعد از port-routes.mjs:  node scripts/gen-controllers.mjs
+ * اجرا بعد از port-routes.mjs:  node backend/scripts/gen-controllers.mjs
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -76,7 +76,7 @@ for (const [, { group, entries }] of byGroup) {
     )
     .join("\n");
 
-  const code = `/** خودکار — تولیدشده توسط scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
+  const code = `/** خودکار — تولیدشده توسط backend/scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
 import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { runRoute } from "@/common/run-route";

@@ -9,6 +9,8 @@
  * سه کار انجام می‌دهد (به همین ترتیب اولویت):
  *  ۱) `GET /api/health` و `GET /healthz` — بررسی سلامت (برای healthcheck داکر،
  *     PM2، load-balancer و cronitor). با `?db=1` یک ping واقعی به PostgreSQL هم می‌زند.
+ *     این بلوک قبل از روتر Nest جواب می‌دهد؛ بازرسی عمیق‌تر (نوع خطای دیتابیس و
+ *     وجود جدول‌ها) در `routes/api/health__db.ts` روی `GET /api/health/db` است.
  *  ۲) سرو فایل‌های استاتیک build فرانت (اسکریپت/سبک/آیکون/sw.js) با کش درست.
  *  ۳) fallback اسپا: مسیرهای GET که فایل ندارند، صفحهٔ prerender شده‌اش اگر
  *     وجود دارد (`/s/mah/index.html`) و در غیر این صورت `index.html` می‌گیرد.

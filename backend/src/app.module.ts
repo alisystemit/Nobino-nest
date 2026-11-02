@@ -29,10 +29,6 @@ import { CronJobsService } from '@/cron/cron-jobs.service';
 
 import { AiStatusController } from '@/controllers/admin/ai/status.controller';
 import { AiTestController } from '@/controllers/admin/ai/test.controller';
-import { AiChatController } from '@/controllers/ai/chat.controller';
-import { AiGenerateContentController } from '@/controllers/ai/generate-content.controller';
-import { SalonsAiSuggestController } from '@/controllers/salons/[slug]/ai/suggest.controller';
-import { AdminSubscriptionsController } from '@/controllers/admin/subscriptions.controller';
 
 @Module({
   imports: [
@@ -64,10 +60,6 @@ import { AdminSubscriptionsController } from '@/controllers/admin/subscriptions.
     AiController,
     AiStatusController,
     AiTestController,
-    AiChatController,
-    AiGenerateContentController,
-    SalonsAiSuggestController,
-    AdminSubscriptionsController,
   ],
   providers: [CronJobsService],
 })

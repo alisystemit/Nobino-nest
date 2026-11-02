@@ -1,6 +1,6 @@
 // خودکار: پورت‌شده از src/app/api/packages/route.ts — بدون تغییر منطق
 import { prisma } from "@/lib/prisma";
-import { json } from "@/lib/utils";
+import { json, getPagination } from "@/lib/utils";
 import { normalizePlan, getPlanLimitsForPlan } from "@/lib/plans/limits";
 import { resolveFeatures } from "@/lib/plans/modules";
 
@@ -10,15 +10,25 @@ import { resolveFeatures } from "@/lib/plans/modules";
  * (کارمند/شعبه) از تنظیمات زندهٔ پلن خوانده می‌شود، نه متن ثابت.
  */
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
-  const packages = await prisma.package.findMany({
-    where: { isActive: true },
-    orderBy: { price: "asc" },
-  });
+  const { page, limit, skip, take } = getPagination(_req.url, 6, 50);
+
+  const where = { isActive: true };
+  const [packages, total] = await Promise.all([
+    prisma.package.findMany({
+      where,
+      orderBy: [{ price: "asc" }, { id: "asc" }],
+      skip,
+      take,
+    }),
+    prisma.package.count({ where }),
+  ]);
 
   const plans = [...new Set(packages.map((p) => normalizePlan(p.plan)))];
   const limitsByPlan = Object.fromEntries(
     await Promise.all(plans.map(async (plan) => [plan, await getPlanLimitsForPlan(plan)] as const))
   );
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return json({
     success: true,
@@ -35,5 +45,9 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
         features: resolveFeatures(p.features, limitsByPlan[plan]),
       };
     }),
+    total,
+    page,
+    limit,
+    totalPages,
   });
 }

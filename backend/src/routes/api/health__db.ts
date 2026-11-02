@@ -1,15 +1,15 @@
-// خودکار: پورت‌شده از src/app/api/health/route.ts — بدون تغییر منطق
+// بازرسی عمیق سلامت: اتصال واقعی + وجود جدول‌ها.
+// مسیر /api/health (و /healthz) را `common/ops-middleware.ts` پاسخ می‌دهد تا
+// healthcheck داکر/PM2 بدون روتر Nest کار کند؛ این هندلر روی /api/health/db
+// ثبت شده تا همان بررسی با تشخیص نوع خطا در دسترس باشد.
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { json, apiError } from "@/lib/utils";
 
 /**
- * بازرسی سلامت برای PaaS (health check) و مانیتورینگ.
  * فقط وضعیت و «نوع» مشکل را برمی‌گرداند — هیچ رشتهٔ اتصال، host یا secret ای
  * در پاسخ نیست؛ این اطلاعات برای صفحهٔ خطا و تشخیص از راه دور استفاده می‌شود.
  */
-export const instant = false;
-
 /** نگاشت کد خطای Prisma به راهنمای فارسی (بدون جزئیات حساس) */
 function explain(errCode: string, errMessage: string): { reason: string; hint: string } {
   if (!errCode.startsWith("P") && /can'?t reach|ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(errMessage)) {
@@ -55,7 +55,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
         db: "up",
         schema: notFound ? "missing" : "error",
         hint: notFound
-          ? "جدول‌ها ساخته نشده‌اند — Start command را روی `npm run start:paas` بگذارید تا prisma db push خودکار اجرا شود."
+          ? "جدول‌ها ساخته نشده‌اند — `npx prisma migrate deploy` (یا `npm run db:push`) را اجرا کنید؛ راهنما: docs/deploy.md."
           : "اتصال برقرار است اما بررسی جدول‌ها خطا داد.",
       },
       { status: 503 },
