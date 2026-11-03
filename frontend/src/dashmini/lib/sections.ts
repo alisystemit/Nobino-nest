@@ -21,7 +21,7 @@ export type Section = {
 
 export const SECTIONS: Section[] = [
   { to: "/appointments", label: "نوبت‌ها", sub: "تأیید، انجام شد، جابه‌جایی و لغو", icon: "calendar", classic: "/dashboard/appointments", roles: ["SALON_OWNER", "ADMIN", "AGENT", "CUSTOMER"], built: true },
-  { to: "/booking", label: "رزرو دستی", sub: "ثبت نوبت تلفنی یا حضوری", icon: "edit", classic: "/dashboard/new-appointment", roles: ["SALON_OWNER", "ADMIN"] },
+  { to: "/booking", label: "رزرو دستی", sub: "ثبت نوبت تلفنی یا حضوری", icon: "edit", classic: "/dashboard/new-appointment", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/voice-booking", label: "رزرو صوتی", sub: "صدای فارسی را هوش مصنوعی ثبت می‌کند", icon: "mic", classic: "/dashboard/voice-booking", roles: ["SALON_OWNER", "ADMIN"] },
   { to: "/customers", label: "مشتریان", sub: "کارت مشتری، یادداشت و فایل", icon: "users", classic: "/dashboard/customers", roles: ["SALON_OWNER", "ADMIN"] },
   { to: "/staff", label: "کارکنان", sub: "آرایشگران، کمیسیون و شیفت", icon: "scissors", classic: "/dashboard/staff", roles: ["SALON_OWNER", "ADMIN"] },

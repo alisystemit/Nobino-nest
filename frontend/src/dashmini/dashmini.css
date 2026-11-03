@@ -246,3 +246,37 @@
   margin-top: 12px;
   background: linear-gradient(180deg, rgba(var(--m-rgb), 0), var(--m-bg) 38%);
 }
+
+/* فیلدهای چپ‌چین: موبایل، ساعت، دامنه */
+.mini-input.is-ltr {
+  direction: ltr;
+  text-align: center;
+  letter-spacing: 0.4px;
+}
+
+/* پیام نتیجهٔ فرم (موفق/ناموفق) */
+.dash-note-ok {
+  background: rgba(16, 185, 129, 0.14);
+  color: #0b7a55;
+  font-weight: 700;
+}
+
+.mini-root.dark .dash-note-ok {
+  color: #6ee7b7;
+}
+
+.dash-note-bad {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.mini-root.dark .dash-note-bad {
+  color: #fca5a5;
+}
+
+/* دکمهٔ principal تمام‌عرض در ردیف شناور */
+.dash-sticky .dash-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}

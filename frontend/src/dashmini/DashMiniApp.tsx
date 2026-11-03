@@ -12,6 +12,7 @@ import { DashProvider, canRoleManage, leaveClassic, requestClassic, useDash } fr
 import { visibleSections } from "./lib/sections";
 import DashHome from "./pages/DashHome";
 import DashAgenda from "./pages/DashAgenda";
+import DashBooking from "./pages/DashBooking";
 import DashAccount from "./pages/DashAccount";
 import DashNotifications from "./pages/DashNotifications";
 import DashSoon from "./pages/DashSoon";
@@ -142,7 +143,7 @@ function Shell() {
         <Route path="/appointments" element={<DashAgenda />} />
         <Route path="/notifications" element={<DashNotifications />} />
         <Route path="/account" element={<DashAccount />} />
-        <Route path="/booking" element={<DashSoon />} />
+        <Route path="/booking" element={<DashBooking />} />
         <Route path="/voice-booking" element={<DashSoon />} />
         <Route path="/customers" element={<DashSoon />} />
         <Route path="/staff" element={<DashSoon />} />
