@@ -280,3 +280,12 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* لینک تماس در کنار دکمهٔ پیامک، داخل ردیف Row */
+.dash-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
