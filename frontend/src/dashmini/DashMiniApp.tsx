@@ -22,6 +22,7 @@ import DashManagement from "./pages/DashManagement";
 import DashFinance from "./pages/DashFinance";
 import DashWallet from "./pages/DashWallet";
 import DashCommission from "./pages/DashCommission";
+import DashVoiceBooking from "./pages/DashVoiceBooking";
 import DashAccount from "./pages/DashAccount";
 import DashNotifications from "./pages/DashNotifications";
 import DashSoon from "./pages/DashSoon";
@@ -153,7 +154,7 @@ function Shell() {
         <Route path="/notifications" element={<DashNotifications />} />
         <Route path="/account" element={<DashAccount />} />
         <Route path="/booking" element={<DashBooking />} />
-        <Route path="/voice-booking" element={<DashSoon />} />
+        <Route path="/voice-booking" element={<DashVoiceBooking />} />
         <Route path="/customers" element={<DashCustomers />} />
         <Route path="/staff" element={<DashStaff />} />
         <Route path="/services" element={<DashServices />} />
