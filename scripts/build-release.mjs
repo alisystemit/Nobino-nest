@@ -6,9 +6,13 @@
  *   node scripts/build-release.mjs            # نصب + generate + build هر دو سمت + smoke-test
  *   node scripts/build-release.mjs --skip-install
  *   node scripts/build-release.mjs --no-smoke
+ *   node scripts/build-release.mjs --no-frontend   # فقط بک‌اند (بیلد و prerender فرانت انجام نمی‌شود)
  *   node scripts/build-release.mjs --strict    # خطای تایپ = شکست (پیش‌فرض: هشدار)
  *
- * چرا «تolerant»؟ این مخزن در چند session هم‌زمان ویرایش می‌شود، پس ممکن است در
+ * prerender فقط وقتی sitemap.xml/robots.txt می‌نویسد که مبنا (VITE_SITE_URL یا
+ * SITE_URL) دامنهٔ عمومی باشد؛ در غیر آن نشانی لوکال روی دیسک نمی‌سوزد.
+ *
+ * چرا «آشتی‌جو»؟ این مخزن در چند session هم‌زمان ویرایش می‌شود، پس ممکن است در
  * لحظهٔ بیلد چند فایلِ کارِ‌در‌ادامه خطای تایپ داشته باشند؛`tsc` با وجود آن‌ها
  * خروجی می‌گیرد. برای pipeline استقرار، معیار واقعی «وجود dist معتبر + بوت موفق
  * سرور» است؛ خطاهای تایپ چاپ و هشدار داده می‌شوند ولی با `--strict` سخت‌گیرانه
@@ -144,12 +148,16 @@ ok("backend/dist/main.js موجود است");
 if (!SKIP_FRONTEND && !existsSync(distIndex)) fail("frontend/dist/index.html ساخته نشد");
 
 // ── ۶) smoke test: بوت واقعی سرور ──────────────────────────────────
-/** prerender صفحات سئو: به سرورِ در حال اجرا نیاز دارد */
+/** prerender صفحات سئو: به سرورِ در حال اجرا نیاز دارد.
+ *  مبنا فقط از VITE_SITE_URL/SITE_URL گرفته می‌شود؛ هرگز آدرس خودِ سرور smoke
+ *  (۱۲۷.۰.۰.۱:پورت) جانشین دامنه نمی‌شود — prerender در آن حالت canonical
+ *  نسبی می‌نویسد و sitemap را روی دیسک نمی‌سوزاند. */
 function runPrerender(apiBase) {
+  const site = (process.env.VITE_SITE_URL || process.env.SITE_URL || "").trim();
   const res = run("node", ["prerender.mjs"], {
     cwd: join(ROOT, "frontend"),
     capture: true,
-    env: { PRERENDER_API: apiBase, VITE_SITE_URL: process.env.VITE_SITE_URL || process.env.SITE_URL || apiBase },
+    env: { PRERENDER_API: apiBase, ...(site ? { VITE_SITE_URL: site } : {}) },
   });
   const out = `${res.stdout || ""}${res.stderr || ""}`.trim();
   if (res.status === 0) {
@@ -178,7 +186,7 @@ if (SKIP_SMOKE) {
   // sitemap/canonical با آدرس لوکالِ smoke-test روی دیسک می‌سوزد (B2).
   const explicitApi = (process.env.PRERENDER_API || "").trim();
   if (SKIP_FRONTEND) {
-    log("prerender رد شد (--skip-frontend)");
+    log("prerender رد شد (--no-frontend)");
   } else if (!explicitApi) {
     warn("prerender در حالت --no-smoke انجام نشود (سروری در حال اجرا نیست). برای ساخت صفحات سئو از smoke test استفاده کنید یا PRERENDER_API را به سرور زندهٔ خود بچرخانید.");
   } else if (await apiReachable(explicitApi)) {

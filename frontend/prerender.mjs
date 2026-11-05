@@ -14,7 +14,7 @@
  *   PRERENDER_API  (پیش‌فرض VITE_API_PROXY یا http://localhost:3100)
  *   VITE_SITE_URL / VITE_APP_URL — دامنهٔ نهایی برای canonical/sitemap
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +22,27 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, "dist");
 const API = (process.env.PRERENDER_API || process.env.VITE_API_PROXY || "http://localhost:3100").replace(/\/+$/, "");
 const SITE = (process.env.VITE_SITE_URL || process.env.VITE_APP_URL || API).replace(/\/+$/, "");
+
+/**
+ * نشانی حلقهٔ باز نباید به‌عنوان «دامنهٔ نهایی» در canonical/og:sitemap سوخته شود؛
+ * اگر خروجی dist بعداً روی سرور واقعی سرو شود، همهٔ آن نشانی‌ها غلط می‌مانند.
+ * با PRERENDER_ALLOW_LOCAL=1 می‌توان عمداً (برای دیدن نتیجه در لوکال) رد کرد.
+ */
+const isLoopback = (u) => {
+  try {
+    const h = new URL(u.startsWith("http") ? u : `http://${u}`).hostname;
+    return h === "localhost" || h.endsWith(".localhost") || h === "::1" || h === "0.0.0.0" || /^127\./.test(h);
+  } catch {
+    return false;
+  }
+};
+const ALLOW_LOCAL = /^(1|true)$/i.test(String(process.env.PRERENDER_ALLOW_LOCAL || ""));
+const SITE_IS_PUBLIC = !isLoopback(SITE) || ALLOW_LOCAL;
+/** پیشوند مطلقِ لینک‌ها؛ در مبنا لوکال خالی می‌ماند تا رلتیو بنویسیم */
+const ABS = SITE_IS_PUBLIC ? SITE : "";
+if (!SITE_IS_PUBLIC) {
+  console.warn(`prerender هشدار: مبنا «${SITE}» لوکال است → canonical/og با نشانی نسبی و بدون sitemap نوشته می‌شود. برای خروجی سئو VITE_SITE_URL (یا PRERENDER_ALLOW_LOCAL=1) بگذارید.`);
+}
 
 /** متادیتای صفحات استاتیک — همان مقدارهای نسخهٔ Next */
 const STATIC_PAGES = [
@@ -70,8 +91,8 @@ function headBlock({ title, description, canonical, noindex, images = [] }) {
     `<meta property="og:site_name" content="نوبینو"/>`,
     `<meta property="og:title" content="${esc(title)}"/>`,
     `<meta property="og:description" content="${esc(description)}"/>`,
-    `<meta property="og:url" content="${esc(SITE + canonical)}"/>`,
-    ...images.map((u) => `<meta property="og:image" content="${esc(u.startsWith("http") ? u : SITE + u)}"/>`),
+    `<meta property="og:url" content="${esc(ABS + canonical)}"/>`,
+    ...images.map((u) => `<meta property="og:image" content="${esc(/^https?:\/\//i.test(u) ? u : ABS + u)}"/>`),
     `<meta name="twitter:card" content="summary_large_image"/>`,
     `<meta name="twitter:title" content="${esc(title)}"/>`,
     `<meta name="twitter:description" content="${esc(description)}"/>`,
@@ -79,7 +100,7 @@ function headBlock({ title, description, canonical, noindex, images = [] }) {
   return [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(description)}"/>`,
-    `<link rel="canonical" href="${esc(SITE + canonical)}"/>`,
+    `<link rel="canonical" href="${esc(ABS + canonical)}"/>`,
     noindex ? `<meta name="robots" content="noindex,nofollow"/>` : `<meta name="robots" content="index,follow"/>`,
     og,
   ].join("\n");
@@ -163,18 +184,27 @@ async function main() {
   /* sitemap.xml و robots.txt — معادل src/app/sitemap.ts و robots.ts */
   const today = new Date().toISOString().slice(0, 10);
   const urls = ["/", "/login", "/packages", "/wa", "/help", "/salons", ...salonEntries, ...salonEntries.map((p) => p.replace(/^\/s/, "/wa/salon"))];
-  const sitemap =
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.map((u) => `  <url><loc>${SITE}${u}</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq></url>`).join("\n") +
-    `\n</urlset>\n`;
-  writeFileSync(join(DIST, "sitemap.xml"), sitemap, "utf8");
-  writeFileSync(
-    join(DIST, "robots.txt"),
-    `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /dashboard/\nDisallow: /payment/result\n\nSitemap: ${SITE}/sitemap.xml\n`,
-    "utf8",
-  );
-
-  console.log("prerender: sitemap.xml + robots.txt نوشته شدند");
+  if (SITE_IS_PUBLIC) {
+    const sitemap =
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      urls.map((u) => `  <url><loc>${SITE}${u}</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq></url>`).join("\n") +
+      `\n</urlset>\n`;
+    writeFileSync(join(DIST, "sitemap.xml"), sitemap, "utf8");
+    writeFileSync(
+      join(DIST, "robots.txt"),
+      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /dashboard/\nDisallow: /payment/result\n\nSitemap: ${SITE}/sitemap.xml\n`,
+      "utf8",
+    );
+    console.log("prerender: sitemap.xml + robots.txt نوشته شدند");
+  } else {
+    // نوشتن نشانی لوکال در sitemap یعنی سوختن آدرس غلط روی دیسک؛ اگر بیلد
+    // قبلی همین کار را کرده باشد، همان فایل‌ها را دور می‌ریزیم.
+    for (const f of ["sitemap.xml", "robots.txt"]) {
+      const p = join(DIST, f);
+      if (existsSync(p) && readFileSync(p, "utf8").includes(SITE)) rmSync(p);
+    }
+    console.warn("prerender: sitemap.xml/robots.txt نوشته نشد (مبنا لوکال) — با VITE_SITE_URL دوباره اجرا کنید.");
+  }
 }
 
 main().catch((err) => {
