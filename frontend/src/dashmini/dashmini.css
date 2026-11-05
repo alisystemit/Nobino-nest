@@ -816,14 +816,7 @@ label.mini-btn {
   color: var(--m-muted);
 }
 
-/* رقم شمارش همان رنگ چیپ را به‌ارث می‌برد؛ opacity کنتراست را زیر ۴.۵ می‌برد */
-.seg-count {
-  margin-inline-start: 6px;
-  font-size: 11px;
-  font-weight: 900;
-  color: inherit;
-}
-
+/* رقم شمارش داخل خودِ برچسب چیپ می‌نشیند («همهٔ مشتریان · ۴») */
 .seg-toggle,
 .seg-reset {
   width: 100%;

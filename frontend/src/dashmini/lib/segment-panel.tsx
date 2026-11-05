@@ -63,8 +63,7 @@ export function SegmentPanel({ seg }: { seg: SegmentBuilder }) {
             label={`بخش ${SEGMENT_LABEL[key]}، ${faDigits(counts[key] ?? 0)} مشتری`}
             onClick={() => seg.setSegment(key)}
           >
-            {SEGMENT_LABEL[key]}
-            {typeof counts[key] === "number" ? <span className="seg-count">{faDigits(counts[key])}</span> : null}
+            {counts[key] === undefined ? SEGMENT_LABEL[key] : `${SEGMENT_LABEL[key]} · ${faDigits(counts[key])}`}
           </ToggleChip>
         ))}
       </div>
