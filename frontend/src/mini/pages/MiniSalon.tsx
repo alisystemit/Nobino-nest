@@ -9,7 +9,7 @@ import LoginSheet from "../components/login-sheet";
 import { BookingSummary, DayStrip, ServicePicker, SlotGrid, StaffPicker, WaitlistSheet, eligibleStaff, upcomingDays } from "../components/booking";
 import { Button, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList, StarIcon } from "../components/ui";
 import { closeMiniApp, haptic } from "../lib/bridge";
-import { dayLabel, faDigits, faText, isPhone, locationLine, normalizePhone, ratingText, timeLabel, toman } from "../lib/format";
+import { dayLabel, faDigits, faText, isPhone, locationLine, normalizePhone, ratingText, salonTypeLabel, timeLabel, toman } from "../lib/format";
 import { useFavorites } from "../lib/favorites";
 import { mapi, useMini } from "../lib/store";
 import type { AvailabilityResponse, MiniReview, MiniSalonDetail, MiniService, MiniStaff } from "../lib/types";
@@ -319,7 +319,7 @@ export default function MiniSalon() {
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="mini-salon-name">{faText(salon.name)}</div>
-            <div className="mini-salon-meta">{faText(locationLine(salon.city, salon.address)) || "—"}</div>
+            <div className="mini-salon-meta">{[faText(locationLine(salon.city, salon.address)), salonTypeLabel(salon.salonType)].filter(Boolean).join(" · ") || "—"}</div>
           </div>
           <button
             type="button"

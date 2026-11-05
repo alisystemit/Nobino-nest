@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { Area, Button, Field, Icon, SectionTitle, SkeletonList, Tabs } from "@/mini/components/ui";
 import { faDigits } from "@/mini/lib/format";
 import { displayUrl } from "@/lib/site";
+import { SALON_TYPE_OPTIONS, salonTypeLabel } from "@/lib/utils";
 import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import { dapi, qs } from "../lib/api";
 import { PlanMeters, SalonSwitcher, StatGrid } from "../lib/parts";
@@ -37,6 +38,7 @@ type Form = {
   instagram: string;
   website: string;
   coverColor: string;
+  salonType: string;
   latitude: string;
   longitude: string;
   mapUrl: string;
@@ -73,6 +75,7 @@ function emptyForm(): Form {
     instagram: "",
     website: "",
     coverColor: "#1c2434",
+    salonType: "WOMEN",
     latitude: "",
     longitude: "",
     mapUrl: "",
@@ -93,6 +96,7 @@ function formFromSalon(s: any): Form {
     instagram: s?.instagram ?? "",
     website: s?.website ?? "",
     coverColor: s?.coverColor ?? "#1c2434",
+    salonType: s?.salonType ?? "WOMEN",
     latitude: s?.latitude === null || s?.latitude === undefined ? "" : String(s.latitude),
     longitude: s?.longitude === null || s?.longitude === undefined ? "" : String(s.longitude),
     mapUrl: s?.mapUrl ?? "",
@@ -197,6 +201,7 @@ export default function DashSalon() {
         instagram: form.instagram.trim() || null,
         website: form.website.trim() || null,
         coverColor: form.coverColor.trim() || "#1c2434",
+        salonType: form.salonType,
         latitude: form.latitude.trim() === "" ? null : Number(form.latitude),
         longitude: form.longitude.trim() === "" ? null : Number(form.longitude),
         mapUrl: form.mapUrl.trim() || null,
@@ -375,6 +380,21 @@ export default function DashSalon() {
           </div>
           <div style={{ marginTop: 10 }}>
             <Field label="آدرس" name="salAddress" value={form.address} onChange={set("address")} placeholder="خیابان، کوچه، پلاک" />
+          </div>
+          <div className="dash-subhead" style={{ marginTop: 14 }}>
+            <SectionTitle title="نوع سالن" hint="در کارت‌ها و جست‌وجوی عمومی فیلتر می‌شود" />
+          </div>
+          <div className="mini-chips" style={{ marginTop: 0 }}>
+            {SALON_TYPE_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                className={`mini-chip${form.salonType === o.value ? " is-on" : ""}`}
+                onClick={() => setForm((f) => ({ ...f, salonType: o.value }))}
+              >
+                {salonTypeLabel(o.value)}
+              </button>
+            ))}
           </div>
           <div style={{ marginTop: 10 }}>
             <Area

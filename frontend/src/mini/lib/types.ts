@@ -27,6 +27,7 @@ export type MiniSalonDetail = {
   logoUrl: string | null;
   bannerUrl: string | null;
   coverColor: string | null;
+  salonType?: string | null;
   timezone?: string | null;
   whatsapp?: string | null;
   instagram?: string | null;

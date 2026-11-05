@@ -15,7 +15,7 @@ import { FavoriteRow, FavoritesStrip } from "../components/favorites";
 import LoginSheet from "../components/login-sheet";
 import QrScanner, { cameraScanSupported } from "../components/qr-scanner";
 import { Button, EmptyState, Icon, Row, SectionTitle, SkeletonList, StarIcon } from "../components/ui";
-import { duration, faDigits, faText, fullLabel, locationLine, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
+import { duration, faDigits, faText, fullLabel, locationLine, ratingText, salonTypeLabel, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
 import { rememberPendingSlug, slugFromAnything, useFavorites, type FavoriteSalon } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { startDepositPayment } from "../lib/deposit";
@@ -46,7 +46,7 @@ function instagramHref(value: string): string {
   return `https://instagram.com/${v.replace(/^@+/, "")}`;
 }
 
-type BrowseSalon = { id: string; slug: string; name: string; city?: string | null; rating?: number | null };
+type BrowseSalon = { id: string; slug: string; name: string; city?: string | null; rating?: number | null; salonType?: string | null };
 
 /**
  * جست‌وجوی سالن برای حالت «هنوز سالنی نداری» (U4).
@@ -106,7 +106,7 @@ function SalonSearchPanel({ onOpen }: { onOpen: (slug: string) => void }) {
             <div key={s.id} className="mini-item">
               <button type="button" className="mini-item-main mini-fav-open" onClick={() => onOpen(s.slug)}>
                 <span className="mini-item-title">{faText(s.name)}</span>
-                <span className="mini-item-sub">{faText(s.city) || "—"}</span>
+                <span className="mini-item-sub">{[faText(s.city), salonTypeLabel(s.salonType)].filter(Boolean).join(" · ") || "—"}</span>
               </button>
               <span className="mini-item-side">
                 <button type="button" className="mini-btn tiny" onClick={() => onOpen(s.slug)}>

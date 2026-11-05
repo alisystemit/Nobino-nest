@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Link, useSearchParams } from "@/router-shim";
 import { subdomainUrl } from "@/lib/subdomain";
-import { toPersianDigits } from "@/lib/utils";
+import { SALON_TYPE_OPTIONS, toPersianDigits } from "@/lib/utils";
 import { useAuth } from "@/auth";
 
 type SalonLite = {
@@ -25,6 +25,7 @@ type SalonLite = {
   mapUrl?: string | null;
   baladUrl?: string | null;
   neshanUrl?: string | null;
+  salonType?: string | null;
   minNoticeMinutes?: number;
   maxAdvanceDays?: number;
   cancelDeadlineHours?: number;
@@ -93,7 +94,7 @@ export default function DashboardSetup() {
   const [step, setStep] = useState(0);
 
   // ساخت سالن (وقتی سالنی نیست)
-  const [create, setCreate] = useState({ name: "", phone: "", city: "", address: "" });
+  const [create, setCreate] = useState({ name: "", phone: "", city: "", address: "", salonType: "WOMEN" });
   const [creating, setCreating] = useState(false);
 
   // پروفایل + آنلاین + موقعیت
@@ -109,6 +110,7 @@ export default function DashboardSetup() {
     mapUrl: "",
     baladUrl: "",
     neshanUrl: "",
+    salonType: "WOMEN",
   });
 
   const [hours, setHours] = useState<HourRow[]>([]);
@@ -181,6 +183,7 @@ export default function DashboardSetup() {
         mapUrl: salon.mapUrl ?? "",
         baladUrl: salon.baladUrl ?? "",
         neshanUrl: salon.neshanUrl ?? "",
+        salonType: salon.salonType ?? "WOMEN",
       });
       setRules({
         minNoticeMinutes: salon.minNoticeMinutes ?? 60,
@@ -221,6 +224,7 @@ export default function DashboardSetup() {
       phone: create.phone.trim(),
       city: create.city.trim(),
       address: create.address.trim(),
+      salonType: create.salonType,
       // اسلاگ به‌صورت خودکار از نام ساخته می‌شود (برای سازگاری با بکاند)
       slug: makeSlug(create.name),
     });
@@ -289,6 +293,7 @@ export default function DashboardSetup() {
         mapUrl: base.mapUrl.trim(),
         baladUrl: base.baladUrl.trim(),
         neshanUrl: base.neshanUrl.trim(),
+        salonType: base.salonType,
         minNoticeMinutes: Number(rules.minNoticeMinutes),
         maxAdvanceDays: Number(rules.maxAdvanceDays),
         cancelDeadlineHours: Number(rules.cancelDeadlineHours),
@@ -356,6 +361,14 @@ export default function DashboardSetup() {
               <div>
                 <span className={label}>نام سالن *</span>
                 <input className={input} placeholder="مثلاً آرایشگاه مهرازا" value={create.name} onChange={(e) => setCreate((c) => ({ ...c, name: e.target.value }))} />
+              </div>
+              <div>
+                <span className={label}>نوع سالن</span>
+                <select className={input} value={create.salonType} onChange={(e) => setCreate((c) => ({ ...c, salonType: e.target.value }))}>
+                  {SALON_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -438,6 +451,14 @@ export default function DashboardSetup() {
               <div className="sm:col-span-2">
                 <span className={label}>آدرس کامل</span>
                 <input className={input} value={base.address} onChange={(e) => setBase((b) => ({ ...b, address: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2">
+                <span className={label}>نوع سالن</span>
+                <select className={input} value={base.salonType} onChange={(e) => setBase((b) => ({ ...b, salonType: e.target.value }))}>
+                  {SALON_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="sm:col-span-2">
                 <span className={label}>معرفی سالن</span>

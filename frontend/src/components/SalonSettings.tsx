@@ -7,6 +7,7 @@ import TimeField from "@/components/ui/TimeField";
 import Pagination from "@/components/ui/Pagination";
 import { toPersianDigits } from "@/lib/time/jalali";
 import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
+import { SALON_TYPE_OPTIONS } from "@/lib/utils";
 
 /** اندازهٔ صفحهٔ گالری — هم‌راستا با پیش‌فرض سرور */
 const IMAGES_LIMIT = 100;
@@ -41,6 +42,7 @@ type Salon = {
   address: string | null;
   description: string | null;
   coverColor: string;
+  salonType?: string;
   isActive: boolean;
   logoUrl?: string | null;
   bannerUrl?: string | null;
@@ -76,6 +78,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
     address: salon.address ?? "",
     description: salon.description ?? "",
     coverColor: salon.coverColor,
+    salonType: salon.salonType ?? "WOMEN",
     timezone: "Asia/Tehran",
     instagram: salon.instagram ?? "",
     latitude: salon.latitude ?? "",
@@ -203,8 +206,10 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
     })();
   }, [salon.id]);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set =
+    (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
 
   function setHour(day: number, patch: Partial<Hour>) {
     setHours((hs) => hs.map((h) => (h.dayOfWeek === day ? { ...h, ...patch } : h)));
@@ -227,6 +232,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
           address: form.address,
           description: form.description,
           coverColor: form.coverColor,
+          salonType: form.salonType,
           timezone: form.timezone,
           instagram: form.instagram || null,
           latitude: form.latitude === "" ? null : Number(form.latitude),
@@ -388,6 +394,14 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
       <div>
         <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">آدرس</label>
         <input className={input} value={form.address} onChange={set("address")} />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">نوع سالن</label>
+        <select className={input} value={form.salonType} onChange={set("salonType")}>
+          {SALON_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">توضیحات</label>

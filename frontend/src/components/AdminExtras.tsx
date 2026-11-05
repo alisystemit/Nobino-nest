@@ -8,13 +8,14 @@ import SalonIcon from "@/components/icons/SalonIcon";
 import { MODULES, findModule, moduleIcon, moduleLabel, normalizeFeatures, type StoredFeature } from "@/lib/plans/modules";
 import Pagination from "@/components/ui/Pagination";
 import AdminBackups from "@/components/AdminBackups";
+import { SALON_TYPE_OPTIONS, salonTypeLabel } from "@/lib/utils";
 
 /* ─── تایپ‌ها ────────────────────────────────────────────────────────── */
 
 type ApiRes<T = Record<string, unknown>> = { success: boolean; error?: string } & T;
 
 type Discount = { id: string; code: string; percent: number; maxUses: number | null; usedCount: number; isActive: boolean; expiresAt?: string | null; createdAt?: string };
-type Salon = { id: string; name: string; slug: string; owner: { phone: string } | null; isApproved: boolean; isActive: boolean; instagram?: string | null; city?: string | null; plan?: string; customDomain?: string | null; domainStatus?: string; trialEndsAt?: string | null; subscriptionEndsAt?: string | null; createdAt?: string; _count?: { appointments: number } };
+type Salon = { id: string; name: string; slug: string; owner: { phone: string } | null; isApproved: boolean; isActive: boolean; instagram?: string | null; city?: string | null; plan?: string; salonType?: string; customDomain?: string | null; domainStatus?: string; trialEndsAt?: string | null; subscriptionEndsAt?: string | null; createdAt?: string; _count?: { appointments: number } };
 type SalonDetail = {
   id: string;
   name: string;
@@ -23,6 +24,7 @@ type SalonDetail = {
   city?: string | null;
   address?: string | null;
   description?: string | null;
+  salonType?: string | null;
   isApproved: boolean;
   isActive: boolean;
   createdAt: string;
@@ -765,6 +767,7 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending" | "inactive">("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"new" | "busy" | "name">("new");
 
   // صفحه‌بندی سمت سرور: GET /api/salons?page=&limit=&q=&sort=
@@ -786,6 +789,7 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
       const params = new URLSearchParams();
       if (term) params.set("q", term);
       params.set("sort", sortBy);
+      if (typeFilter !== "all") params.set("type", typeFilter);
       params.set("page", String(page));
       params.set("limit", String(SALONS_PAGE_SIZE));
       const r = await fetch(`/api/salons?${params}`);
@@ -799,7 +803,7 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
       ctx.setMsg({ ok: false, text: "خطا در ارتباط با سرور" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term, sortBy, page]);
+  }, [term, sortBy, page, typeFilter]);
 
   useEffect(() => {
     void load();
@@ -808,7 +812,7 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
   // تغییر جستجو یا مرتب‌سازی → بازنشانی صفحه به ۱
   useEffect(() => {
     setPage(1);
-  }, [term, sortBy]);
+  }, [term, sortBy, typeFilter]);
 
   // فیلترهای وضعیت/پلن در سرور پشتیبانی نمی‌شوند؛ روی ردیف‌های همین صفحه اعمال می‌شوند
   const visible = useMemo(() => {
@@ -848,6 +852,22 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
     }
     setIgEditing(false);
     setIgSaving(false);
+  }
+
+  /** نوع سالن (مردانه/بانوان/مشترک) — روی همان PATCH جزئی ادمین سوار است */
+  async function saveSalonType(value: string) {
+    if (!detail) return;
+    const r = await ctx.api<{ success: boolean; salon?: { salonType?: string } }>(
+      `/api/admin/salons/${detail.id}`,
+      "PATCH",
+      { salonType: value },
+      `نوع سالن به «${salonTypeLabel(value)}» تغییر کرد ✅`
+    );
+    if (r) {
+      setDetail({ ...detail, salonType: r.salon?.salonType ?? value });
+      refresh();
+      setVersion((v) => v + 1);
+    }
   }
 
   async function open(salonId: string) {
@@ -924,6 +944,16 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
                   {detail.isActive ? "فعال" : "غیرفعال"}
                 </span>
                 <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${planBadgeCls(detail.plan)}`}>💠 {planLabel(detail.plan)}</span>
+                <select
+                  className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-neutral-600 shadow-sm dark:bg-neutral-800 dark:text-neutral-300"
+                  value={detail.salonType ?? "WOMEN"}
+                  onChange={(e) => void saveSalonType(e.target.value)}
+                  aria-label="نوع سالن"
+                >
+                  {SALON_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{salonTypeLabel(o.value)}</option>
+                  ))}
+                </select>
                 <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${domainBadgeCls(detail.domainStatus)}`}>🌐 {domainLabel(detail.domainStatus)}</span>
                 {detail.publicUrl && (
                   <a href={detail.publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-bold text-pink-600 shadow-sm hover:underline dark:bg-neutral-800">
@@ -1243,6 +1273,12 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
           <option value="PRO">حرفه‌ای</option>
           <option value="ENTERPRISE">سازمانی</option>
         </select>
+        <select className={`${input} w-auto text-xs`} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="فیلتر نوع سالن">
+          <option value="all">همهٔ نوع‌ها</option>
+          <option value="WOMEN">بانوان</option>
+          <option value="MEN">مردانه</option>
+          <option value="COUPLE">مشترک</option>
+        </select>
         <select className={`${input} w-auto text-xs`} value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} aria-label="مرتب‌سازی">
           <option value="new">جدیدترین</option>
           <option value="busy">پرنوبت‌ترین</option>
@@ -1280,6 +1316,9 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
               if (dl <= 7) return <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">⏳ {label} {dl.toLocaleString("fa-IR")} روز</span>;
               return null;
             })()}
+            {salonTypeLabel(s.salonType) && (
+              <span className="shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{salonTypeLabel(s.salonType)}</span>
+            )}
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${planBadgeCls(s.plan)}`}>💠 {planLabel(s.plan)}</span>
             {s.domainStatus && s.domainStatus !== "NONE" && (
               <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${domainBadgeCls(s.domainStatus)}`}>🌐 {s.domainStatus === "VERIFIED" ? "دامنه ✓" : "دامنه…"}</span>

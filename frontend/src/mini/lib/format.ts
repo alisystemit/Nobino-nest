@@ -50,6 +50,20 @@ export function locationLine(city?: string | null, address?: string | null, sep 
   return rest ? `${c}${sep}${rest}` : c;
 }
 
+/** برچسب فارسی نوع سالن؛ مقدار ناشناس رشتهٔ خالی می‌دهد تا بج نمایش داده نشود */
+export function salonTypeLabel(type?: string | null): string {
+  switch ((type ?? "").toUpperCase()) {
+    case "MEN":
+      return "مردانه";
+    case "COUPLE":
+      return "مشترک";
+    case "WOMEN":
+      return "بانوان";
+    default:
+      return "";
+  }
+}
+
 /** ۱۲۵۰۰۰ → «۱۲۵٬۰۰۰ تومان» */
 export function toman(amount: number | null | undefined): string {
   if (amount == null || !Number.isFinite(amount)) return "—";

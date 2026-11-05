@@ -11,7 +11,7 @@ import { MapPin, Search, Star } from "lucide-react";
 import Pagination from "@/components/ui/Pagination";
 import SafeImage from "@/components/SafeImage";
 import SalonIcon from "@/components/icons/SalonIcon";
-import { formatToman, joinLocation, toPersianDigits } from "@/lib/utils";
+import { formatToman, joinLocation, salonTypeLabel, SALON_TYPE_OPTIONS, toPersianDigits } from "@/lib/utils";
 import { subdomainUrl } from "@/lib/subdomain";
 
 /** هم‌راستا با پیش‌فرض سرور (getPagination: 50) — اینجا فهرست فشرده‌تر نمایش داده می‌شود */
@@ -25,6 +25,7 @@ type SearchSalon = {
   address: string | null;
   description: string | null;
   coverColor: string | null;
+  salonType?: string | null;
   bannerUrl: string | null;
   logoUrl: string | null;
   rating: number | null;
@@ -43,6 +44,7 @@ export default function SalonsPage() {
   const [city, setCity] = useState("");
   const [service, setService] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [type, setType] = useState("");
 
   // تایپ آزاد را debounce می‌کنیم تا هر کلید یک درخواست نزند
   const debounced = useMemo(() => q.trim(), [q]);
@@ -57,6 +59,7 @@ export default function SalonsPage() {
       if (debounced) params.set("q", debounced);
       if (city.trim()) params.set("city", city.trim());
       if (service.trim()) params.set("service", service.trim());
+      if (type) params.set("type", type);
       const price = Number(maxPrice);
       if (Number.isFinite(price) && price > 0) params.set("maxPrice", String(Math.round(price)));
       const res = await fetch(`/api/salons/search?${params.toString()}`);
@@ -70,7 +73,7 @@ export default function SalonsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debounced, city, service, maxPrice]);
+  }, [page, debounced, city, service, maxPrice, type]);
 
   useEffect(() => {
     const id = setTimeout(() => void load(), page === 1 ? 0 : 250);
@@ -80,7 +83,7 @@ export default function SalonsPage() {
   // هر فیلتر جدید باید فهرست را به صفحهٔ اول برگرداند
   useEffect(() => {
     setPage(1);
-  }, [debounced, city, service, maxPrice]);
+  }, [debounced, city, service, maxPrice, type]);
 
   const inputCls =
     "h-11 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm outline-none transition focus:border-pink-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100";
@@ -88,7 +91,7 @@ export default function SalonsPage() {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-100 sm:text-3xl">جستجوی سالن‌های زیبایی</h1>
+        <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-100 sm:text-3xl">جستجوی آرایشگاه‌ها و سالن‌های زیبایی</h1>
         <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
           بر اساس نام سالن، شهر، خدمت یا سقف قیمت بگردید؛ {toPersianDigits(total)} سالن یافت شد.
         </p>
@@ -116,6 +119,25 @@ export default function SalonsPage() {
             className={inputCls}
             dir="ltr"
           />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setType("")}
+            className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${type === "" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"}`}
+          >
+            همهٔ سالن‌ها
+          </button>
+          {SALON_TYPE_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setType(type === o.value.toLowerCase() ? "" : o.value.toLowerCase())}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${type === o.value.toLowerCase() ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"}`}
+            >
+              {salonTypeLabel(o.value)}
+            </button>
+          ))}
         </div>
       </section>
 
@@ -154,6 +176,11 @@ export default function SalonsPage() {
                 <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-neutral-700 backdrop-blur">
                   <MapPin className="h-3 w-3" /> {s.city ?? "سالن زیبایی"}
                 </span>
+                {salonTypeLabel(s.salonType) && (
+                  <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-neutral-900/80 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+                    {salonTypeLabel(s.salonType)}
+                  </span>
+                )}
               </div>
               <div className="p-5">
                 <div className="flex items-start justify-between gap-2">

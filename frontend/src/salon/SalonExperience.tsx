@@ -24,7 +24,7 @@ import { siteHref, siteHomeHref } from "./site-url";
 import { localizeTexts } from "./text";
 import { usePageData } from "@/lib/page-data";
 import { useTheme } from "@/lib/theme";
-import { joinLocation } from "@/lib/utils";
+import { joinLocation, salonTypeLabel } from "@/lib/utils";
 import { useMeta } from "@/lib/use-meta";
 import LoginSheet from "@/mini/components/login-sheet";
 import { Button, EmptyState, Icon, Row, SectionTitle, Sheet, SkeletonList, StarIcon } from "@/mini/components/ui";
@@ -72,6 +72,7 @@ type SalonRow = {
   logoUrl: string | null;
   bannerUrl: string | null;
   coverColor: string | null;
+  salonType?: string | null;
   timezone: string;
   whatsapp: string | null;
   instagram: string | null;
@@ -372,6 +373,7 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
               ) : (
                 <span className="mini-hero-chip">هنوز نظری ثبت نشده</span>
               )}
+              {salonTypeLabel(salon.salonType) ? <span className="mini-hero-chip">{salonTypeLabel(salon.salonType)}</span> : null}
               <span className="mini-hero-chip">{faDigits(salon.services.length)} پکیج</span>
               {staff.length ? <span className="mini-hero-chip">{faDigits(staff.length)} آرایشگر</span> : null}
               <span className={`sm-open-chip${status.open ? " is-open" : " is-closed"}`}>

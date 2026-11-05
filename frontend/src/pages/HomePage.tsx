@@ -8,7 +8,7 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import HomeHero from "@/components/HomeHero";
 import SafeImage from "@/components/SafeImage";
 import SalonIcon from "@/components/icons/SalonIcon";
-import { formatToman, joinLocation, toPersianDigits } from "@/lib/utils";
+import { formatToman, joinLocation, salonTypeLabel, toPersianDigits } from "@/lib/utils";
 import { subdomainUrl } from "@/lib/subdomain";
 import { usePageData } from "@/lib/page-data";
 
@@ -21,6 +21,7 @@ type HomeData = {
     address: string | null;
     description: string | null;
     coverColor: string | null;
+    salonType?: string | null;
     bannerUrl: string | null;
     services: { name: string; price: number }[];
   }[];
@@ -144,6 +145,9 @@ export default function HomePage() {
                   <div className="relative h-36 overflow-hidden" style={{ background: `linear-gradient(135deg, ${s.coverColor}, #7c3aed)` }}>
                     <SafeImage src={s.bannerUrl ?? "/seed/hero.svg"} alt={s.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" fallback={<SalonIcon className="h-10 w-10 opacity-60" />} fallbackClassName="absolute inset-0 !bg-transparent" />
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-neutral-700 backdrop-blur">📍 {s.city ?? "سالن زیبایی"}</span>
+                    {salonTypeLabel(s.salonType) && (
+                      <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-neutral-900/80 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">{salonTypeLabel(s.salonType)}</span>
+                    )}
                   </div>
                   <div className="p-5">
                     <div className="flex items-start justify-between gap-2">

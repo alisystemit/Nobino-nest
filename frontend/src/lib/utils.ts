@@ -23,6 +23,27 @@ export function joinLocation(city?: string | null, address?: string | null, sep 
   return rest ? `${c}${sep}${rest}` : c;
 }
 
+/** نوع سالن — همان سه مقدار `Salon.salonType`؛ کلید کوچک برای پارامتر آدرس (`?type=men`) */
+export const SALON_TYPE_OPTIONS = [
+  { value: "WOMEN", label: "سالن زیبایی بانوان" },
+  { value: "MEN", label: "آرایشگاه مردانه" },
+  { value: "COUPLE", label: "مجموعه مشترک (مردان و زنان)" },
+] as const;
+
+/** برچسب کوتاه برای بج و چیپ؛ مقدار ناشناس رشتهٔ خالی می‌دهد تا بج نمایش داده نشود */
+export function salonTypeLabel(type?: string | null): string {
+  switch ((type ?? "").toUpperCase()) {
+    case "MEN":
+      return "مردانه";
+    case "COUPLE":
+      return "مشترک";
+    case "WOMEN":
+      return "بانوان";
+    default:
+      return "";
+  }
+}
+
 /** تبدیل عدد به فرمت تومان با جداکننده هزارگان */
 export function formatToman(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " تومان";
