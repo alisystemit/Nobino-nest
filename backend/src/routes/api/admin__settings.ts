@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { getAllSettings, updateSetting, deleteSetting, invalidateSettings } from "@/lib/settings";
 import { smsProviderMeta, resolveActiveSmsProviderId } from "@/lib/sms/providers";
-import { catalogFields, catalogMetaFor, settingsSections, type CatalogFieldType } from "@/lib/settings-catalog";
+import { catalogFields, catalogMetaFor, isKnownSettingKey, settingsSections, type CatalogFieldType } from "@/lib/settings-catalog";
 import { json, apiError } from "@/lib/utils";
 import { KEEP_SECRET } from "@/lib/markers";
 
@@ -35,6 +35,22 @@ export interface CatalogValue {
 }
 
 const envValue = (name?: string): string => (name ? (process.env[name] ?? "").trim() : "");
+
+/**
+ * ستون `options` رشتهٔ JSON است و ممکن است از SQL مستقیم/ دادهٔ قدیمی خراب باشد.
+ * یافتهٔ A20: یک `JSON.parse` بی‌محافظ باعث می‌شد کل `GET /api/admin/settings` با
+ * 500 و پیام خام SyntaxError بشکند — یعنی پنل تنظیمات تماماً از دسترس خارج شود.
+ */
+function safeOptions(raw: string | null | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed.filter((x): x is string => typeof x === "string");
+  } catch {
+    return undefined;
+  }
+}
 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
@@ -79,7 +95,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
         key: s.key,
         group: s.group,
         type: s.type,
-        options: s.options ? (JSON.parse(s.options) as string[]) : undefined,
+        options: safeOptions(s.options),
         label: s.description ?? s.key,
         isSecret: s.isSecret,
         hasDbValue: Boolean(s.value),
@@ -98,7 +114,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
         key: s.key,
         group: s.group,
         type: s.type,
-        options: s.options ? JSON.parse(s.options) : undefined,
+        options: safeOptions(s.options),
         description: s.description,
         isSecret: s.isSecret,
         hasValue: s.isSecret ? Boolean(s.value) : true,
@@ -131,6 +147,22 @@ export async function PATCH(req: Request, _ctx: { params: Record<string, string>
     const rows = await getAllSettings();
     const rowMap = new Map(rows.map((s) => [s.key, s]));
     const skipped: { key: string; reason: string }[] = [];
+
+    // یافتهٔ A1: هر کلید دلخواهی نوشته می‌شد و بعد در هیچ صفحه‌ای دیده نمی‌شد
+    // (تنظیم یتیم). پس فقط کلیدهای کاتالوگ یا کلیدهایی که از قبل ردیف دیتابیسی
+    // دارند مجازند — تا ردیف‌های یتیمِ موجود همچنان قابل ویرایش/حذف بمانند.
+    const orphanKeys = [...new Set(body.updates.filter((u) => !isKnownSettingKey(u.key) && !rowMap.has(u.key)).map((u) => u.key))];
+    if (orphanKeys.length > 0) {
+      return json(
+        {
+          success: false,
+          error:
+            `این کلیدها در کاتالوگ تنظیمات نیستند و از قبل هم ذخیره نشده‌اند: ${orphanKeys.join("، ")}. ` +
+            "اگر تنظیم تازه‌ای لازم است، اول در «کاتالوگ تنظیمات» تعریف شود تا در پنل هم نمایش داده شود.",
+        },
+        { status: 400 }
+      );
+    }
 
     for (const u of body.updates) {
       const meta = catalogMetaFor(u.key);

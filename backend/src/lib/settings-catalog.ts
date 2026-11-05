@@ -108,6 +108,13 @@ const smsSection = (): CatalogSection => ({
       title: "گزینه‌های پیامک",
       fields: [
         { key: "sms.cost_per_message", label: "هزینهٔ هر پیامک (تومان)", type: "number", hint: "برای برآورد هزینه در گزارش پیامک پنل." },
+        {
+          key: "broadcast.daily_max_recipients",
+          label: "سقف روزانهٔ گیرندهٔ پیامک سراسری",
+          type: "number",
+          hint: "پیامک سراسری سوپرادمین حداکثر این تعداد گیرنده در روز دارد (پیش‌فرض 1000؛ صفر = بی‌سقف).",
+          defaultValue: "1000",
+        },
         boolField("sms.show_sent_codes", "نمایش کد OTP ارسال‌شده در محیط توسعه", {
           hint: "فقط برای تست؛ در پروداکش خاموش بماند.",
         }),

@@ -23,15 +23,19 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
         prisma.user.count(),
       ]);
 
-    // درآمد ماهانه تکرارشونده: جمع درآمدِ اشتراک‌های فعال (ماهانه معادل)
-    const activeSubsData = await prisma.subscription.findMany({
-      where: { status: "ACTIVE" },
-      include: { package: true },
-    });
-    const mrr = activeSubsData.reduce((sum, s) => {
-      const p = s.package.price;
-      return sum + (s.period === "YEARLY" ? Math.round(p / 12) : p);
-    }, 0);
+    // درآمد ماهانه تکرارشونده: جمع در دیتابیس (یافتهٔ A19) — نسخهٔ قبلی همهٔ
+    // اشتراک‌های ACTIVE را با `include: { package: true }` در RAM می‌آورد.
+    // اشتراک بدون پکیج (relation اجباری است ولی ردیف یتیم ممکن است) در JOIN حذف
+    // می‌شود، دقیقاً مثل `s.package.price` در نسخهٔ قبل.
+    const mrrRows = await prisma.$queryRaw<Array<{ mrr: bigint }>>`
+      SELECT COALESCE(
+        SUM(CASE WHEN s."period" = 'YEARLY' THEN ROUND(p."price" / 12.0)::bigint ELSE p."price"::bigint END),
+        0
+      )::bigint AS mrr
+      FROM "Subscription" s
+      JOIN "Package" p ON p."id" = s."packageId"
+      WHERE s."status" = 'ACTIVE'`;
+    const mrr = Number(mrrRows[0]?.mrr ?? 0);
 
     // ریزش: اشتراک‌های لغو/منقضی در ۳۰ روز گذشته
     const thirtyDaysAgo = new Date(Date.now() - 30 * 864e5);

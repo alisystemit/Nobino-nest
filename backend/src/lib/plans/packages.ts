@@ -11,12 +11,66 @@
  */
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { getPlanLimitsForPlan, normalizePlan } from "@/lib/plans/limits";
+import { getPlanLimitsForPlan, normalizePlan, PLAN_ORDER } from "@/lib/plans/limits";
 import { resolveFeatures, type StoredFeature } from "@/lib/plans/modules";
 
 /** خطای کنترلی؛ `apiError` مقدار `status` را به کد HTTP تبدیل می‌کند */
 export class PackageConflictError extends Error {
   status = 409;
+}
+
+/** خطای اعتبارسنجی ورودی پکیج → 400 فارسی */
+export class PackageValidationError extends Error {
+  status = 400;
+}
+
+/** سالانه حداکثر ۱۳ برابر ماهانه (۱۲ قسط + یک ماه تلورانس) */
+const MAX_YEARLY_MULTIPLIER = 13;
+
+/**
+ * پلن باید دقیقاً یکی از پلن‌های شناخته‌شده باشد.
+ *
+ * چرا لازم است: `normalizePlan()` هر رشتهٔ ناشناخته‌ای را **بی‌صدا** «FREE» می‌کند،
+ * پس پکیج پولی با سطح دسترسی رایگان ساخته می‌شد و سقف‌های FREE روی مشتری فعال
+ * می‌گشت (یافتهٔ A21).
+ */
+export function assertKnownPlan(value: string) {
+  const raw = String(value ?? "").trim();
+  if (!(PLAN_ORDER as readonly string[]).includes(raw.toUpperCase())) {
+    throw new PackageValidationError(
+      `پلن «${raw || "(خالی)"}» در فهرست پلن‌ها نیست (مجاز: ${PLAN_ORDER.join("، ")}).`
+    );
+  }
+}
+
+/**
+ * سازگاری قیمت‌ها:
+ * - قیمت صفر فقط برای پلن FREE (وگرنه همان مسیر «خرید رایگان» C2 بدون callback).
+ * - قیمت سالانه باید بین «یک ماه» و ۱۳ برابر ماهانه باشد؛ کمتر از ماهانه یعنی
+ *   تخفیف منطقی/بیشتر یعنی دادهٔ غلط (نمونهٔ زنده: price 504607 با yearly 13702244).
+ */
+export function assertPackagePricing(plan: string, price: number, yearlyPrice: number | null | undefined) {
+  const planName = normalizePlan(plan);
+  if (!Number.isInteger(price) || price < 0) {
+    throw new PackageValidationError("قیمت باید عدد صحیح و غیرمنفی باشد.");
+  }
+  if (price === 0 && planName !== "FREE") {
+    throw new PackageValidationError(
+      `پکیج پولی (پلن ${planName}) نمی‌تواند رایگان باشد؛ اگر واقعاً رایگان است پلن را FREE قرار دهید.`
+    );
+  }
+  if (yearlyPrice == null) return;
+  if (!Number.isInteger(yearlyPrice) || yearlyPrice < 0) {
+    throw new PackageValidationError("قیمت سالانه باید عدد صحیح و غیرمنفی باشد.");
+  }
+  if (price > 0 && yearlyPrice < price) {
+    throw new PackageValidationError("قیمت سالانه نمی‌تواند از قیمت ماهانه کمتر باشد.");
+  }
+  if (price > 0 && yearlyPrice > price * MAX_YEARLY_MULTIPLIER) {
+    throw new PackageValidationError(
+      `قیمت سالانه (${yearlyPrice.toLocaleString("fa-IR")}) بیش از ${MAX_YEARLY_MULTIPLIER} برابر ماهانه است — احتمالاً اشتباه وارد شده.`
+    );
+  }
 }
 
 export type Actor = { id?: string; phone?: string };
@@ -40,8 +94,13 @@ export async function assertPackageNameAvailable(name: string, exceptId?: string
   if (clash) throw new PackageConflictError(`پکیژی با نام «${name}» از قبل وجود دارد.`);
 }
 
-/** پکیج‌ها برای پنل ادمین، برچسب ماژول‌ها با محدودیت زندهٔ پلن + شمارندۀ اشتراک/سفارش */
-export async function listPackagesForAdmin() {
+/**
+ * پکیج‌ها برای پنل ادمین، برچسب ماژول‌ها با محدودیت زندهٔ پلن + شمارندۀ اشتراک/سفارش.
+ *
+ * فیلتر `plan` روی مقدار **نرمال‌شده** انجام می‌شود، نه رشتهٔ خام دیتابیس؛
+ * وگرنه ردیف‌های قدیمی/با حروف کوچک در هیچ فیلتری دیده نمی‌شدند.
+ */
+export async function listPackagesForAdmin(filter?: { plan?: string }) {
   const packages = await prisma.package.findMany({
     orderBy: [{ isActive: "desc" }, { price: "asc" }],
     include: {
@@ -49,13 +108,15 @@ export async function listPackagesForAdmin() {
       orders: { where: { status: "PAID" }, select: { id: true } },
     },
   });
+  const wanted = filter?.plan ? normalizePlan(filter.plan) : null;
+  const visible = wanted ? packages.filter((p) => normalizePlan(p.plan) === wanted) : packages;
 
-  const plans = [...new Set(packages.map((p) => normalizePlan(p.plan)))];
+  const plans = [...new Set(visible.map((p) => normalizePlan(p.plan)))];
   const limitsByPlan = Object.fromEntries(
     await Promise.all(plans.map(async (plan) => [plan, await getPlanLimitsForPlan(plan)] as const))
   );
 
-  return packages.map((p) => {
+  return visible.map((p) => {
     const plan = normalizePlan(p.plan);
     const { _count, orders, ...rest } = p;
     return {
@@ -70,6 +131,8 @@ export async function listPackagesForAdmin() {
 }
 
 export async function createPackage(input: PackageInput, actor: Actor) {
+  assertKnownPlan(input.plan);
+  assertPackagePricing(input.plan, input.price, input.yearlyPrice);
   await assertPackageNameAvailable(input.name);
   const pkg = await prisma.package.create({
     data: {
@@ -98,6 +161,20 @@ export async function updatePackage(id: string, patch: Partial<PackageInput>, ac
   if (!before) return null;
 
   if (patch.name && patch.name !== before.name) await assertPackageNameAvailable(patch.name, id);
+
+  // اعتبارسنجی فقط وقتی که patch واقعاً به پلن/قیمت دست می‌زند؛ وگرنه ردیف‌های قدیمی
+  // با دادهٔ ناسازگار (یافتهٔ A21) حتی با «خاموش/روشن‌کردن» هم ویرایش‌ناپذیر می‌شدند.
+  if (patch.plan != null) assertKnownPlan(patch.plan);
+  const touchesYearly = patch.yearlyPrice !== undefined;
+  if (patch.plan != null || patch.price != null || touchesYearly) {
+    assertPackagePricing(
+      patch.plan ?? before.plan,
+      patch.price ?? before.price,
+      // نسبت سالانه/ماهانه فقط وقتی سنجیده می‌شود که خودِ قیمت سالانه در این ویرایش
+      // باشد؛ وگرنه یک ردیف قدیمیِ ناسازگار اجازهٔ اصلاح قیمت ماهانه را نمی‌داد.
+      touchesYearly ? patch.yearlyPrice : undefined
+    );
+  }
 
   const updated = await prisma.package.update({
     where: { id },

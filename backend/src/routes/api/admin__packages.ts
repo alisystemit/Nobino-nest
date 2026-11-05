@@ -4,7 +4,8 @@
 import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { createPackage, deletePackage, listPackagesForAdmin, updatePackage } from "@/lib/plans/packages";
-import { json, apiError } from "@/lib/utils";
+import { PLAN_ORDER } from "@/lib/plans/limits";
+import { json, apiError, enumQueryParam, assertKnownQueryParams } from "@/lib/utils";
 
 /** ماژول پکیج: یا کلید کاتالوگ (اختیاری: سقف عددی) یا متن دلخواه */
 const featureSchema = z.union([
@@ -15,10 +16,33 @@ const featureSchema = z.union([
   }),
 ]);
 
-export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
+/**
+ * پلن باید از فهرست پلن‌ها باشد.
+ * شکل ورودی این‌جا و قاعدهٔ تجاری (قیمت صفر برای پلن پولی، نسبت سالانه/ماهانه) در
+ * `lib/plans/packages.ts` چک می‌شود؛ دلیلش این است که `normalizePlan()` هر رشتهٔ
+ * ناشناخته‌ای را بی‌صدا «FREE» می‌کند و ردیف ناسازگارِ قدیمی نباید با یک
+ * «خاموش/روشن‌کردن» ساده ویرایش‌ناپذیر شود (یافتهٔ A21).
+ */
+const planSchema = z
+  .string()
+  .trim()
+  .refine((v) => (PLAN_ORDER as string[]).includes(v.toUpperCase()), {
+    message: `پلن انتخابی معتبر نیست. مجاز: ${PLAN_ORDER.join("، ")}`,
+  })
+  .transform((v) => v.toUpperCase());
+
+/** سقف منطقی قیمت (تومان) — از عدد تایپی اشتباه و «پکیج رایگانِ پولی» جلوگیری می‌کند */
+const PRICE_MAX = 100_000_000;
+
+const priceSchema = z.number().int({ message: "قیمت باید عدد صحیح باشد" });
+
+export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     await requireRole(["ADMIN"]);
-    return json({ success: true, packages: await listPackagesForAdmin() });
+    // فیلتر برنامه‌ریزی‌شدهٔ پنل؛ پارامتر یا مقدار ناشناخته باید 400 بگیرد نه «همهٔ پکیج‌ها»
+    assertKnownQueryParams(req.url, ["plan"]);
+    const plan = enumQueryParam(req.url, "plan", PLAN_ORDER as unknown as string[], { label: "پلن" });
+    return json({ success: true, packages: await listPackagesForAdmin(plan ? { plan } : undefined) });
   } catch (err) {
     return apiError(err);
   }
@@ -26,22 +50,22 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
 
 const patchSchema = z.object({
   id: z.string(),
-  name: z.string().min(1).max(80).optional(),
-  plan: z.string().optional(),
-  price: z.number().int().min(0).optional(),
-  yearlyPrice: z.number().int().min(0).nullable().optional(),
-  durationDays: z.number().int().positive().optional(),
-  features: z.array(featureSchema).optional(),
+  name: z.string().trim().min(1).max(80).optional(),
+  plan: planSchema.optional(),
+  price: priceSchema.min(0).max(PRICE_MAX).optional(),
+  yearlyPrice: priceSchema.min(0).max(PRICE_MAX).nullable().optional(),
+  durationDays: z.number().int().min(1).max(3650).optional(),
+  features: z.array(featureSchema).max(60).optional(),
   isActive: z.boolean().optional(),
 });
 
 const createSchema = z.object({
-  name: z.string().min(1).max(80),
-  plan: z.string().default("BASIC"),
-  price: z.number().int().min(0),
-  yearlyPrice: z.number().int().min(0).nullable().optional(),
-  durationDays: z.number().int().positive().default(30),
-  features: z.array(featureSchema).default([]),
+  name: z.string().trim().min(1).max(80),
+  plan: planSchema.default("BASIC"),
+  price: priceSchema.min(0).max(PRICE_MAX),
+  yearlyPrice: priceSchema.min(0).max(PRICE_MAX).nullable().optional(),
+  durationDays: z.number().int().min(1).max(3650).default(30),
+  features: z.array(featureSchema).max(60).default([]),
   isActive: z.boolean().default(true),
 });
 

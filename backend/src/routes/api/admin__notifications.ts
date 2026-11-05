@@ -7,15 +7,18 @@ import { requireRole } from "@/lib/auth/guards";
 import { processPendingNotifications } from "@/lib/notifications/queue";
 import { getSetting } from "@/lib/settings";
 import { logAudit } from "@/lib/audit";
-import { json, apiError, getPagination } from "@/lib/utils";
+import { json, apiError, getPagination, enumQueryParam } from "@/lib/utils";
+
+const NOTIFY_STATUS = ["PENDING", "SENT", "FAILED", "DROPPED"] as const;
+const NOTIFY_CHANNEL = ["SMS", "IN_APP", "EMAIL"] as const;
 
 /** گزارش ارسال پیامک/ایمیل: وضعیت، خطاها، تلاش مجدد و هزینه تخمینی */
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     await requireRole(["ADMIN"]);
     const url = new URL(req.url);
-    const status = url.searchParams.get("status") ?? "";
-    const channel = url.searchParams.get("channel") ?? "";
+    const status = enumQueryParam(url, "status", NOTIFY_STATUS, { label: "وضعیت ارسال" });
+    const channel = enumQueryParam(url, "channel", NOTIFY_CHANNEL, { label: "کانال" });
     const { page, limit, skip, take } = getPagination(req.url, 25, 200);
 
     const where: Record<string, unknown> = {};

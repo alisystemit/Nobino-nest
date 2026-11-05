@@ -9,6 +9,7 @@
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { deleteSetting, updateSetting } from "@/lib/settings";
+import { toAsciiDigits } from "@/lib/utils";
 import { UNLIMITED_FROM, type LimitDef } from "./limit-defs";
 import { INPUT_LIMIT_DEFS, PLAN_DEFAULTS, PLAN_LABELS, PLAN_ORDER, findInputLimitDef, getPlanLimitsForPlan, normalizePlan, type PlanName } from "./limits";
 
@@ -84,7 +85,11 @@ function coerceValue(def: LimitDef, raw: string | number | boolean | null): stri
     if (v === false || v === "false") return "false";
     throw new LimitConfigError(`مقدار «${def.label}» باید true یا false باشد.`);
   }
-  const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[^\d.-]/g, ""));
+  // ارقام فارسی/عربی ابتدا به لاتین تبدیل می‌شوند تا «۵» یا «۱۲۳۴۵» به‌جای ۰
+  // درست خوانده شوند؛ رشتهٔ خالی بعد از پاک‌سازی هم خطا است (Number("")===0).
+  const cleaned = typeof raw === "number" ? String(raw) : toAsciiDigits(raw as string | number).replace(/[^\d.-]/g, "");
+  if (cleaned.trim() === "") throw new LimitConfigError(`مقدار «${def.label}» باید عددی نامنفی باشد.`);
+  const n = Number(cleaned);
   if (!Number.isFinite(n) || n < 0) throw new LimitConfigError(`مقدار «${def.label}» باید عددی نامنفی باشد.`);
   if (n > def.max) throw new LimitConfigError(`مقدار «${def.label}» نباید بیشتر از ${def.max.toLocaleString("en-US")} باشد.`);
   return String(Math.floor(n));

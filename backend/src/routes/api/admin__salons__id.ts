@@ -1,43 +1,120 @@
 // جزئیات کامل یک سالن برای سوپرادمین (مالک، تماس، شبکه‌های اجتماعی، نقشه، نوبت، درآمد، اشتراک، کارکنان، وضعیت)
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { json, apiError } from "@/lib/utils";
+import { json, apiError, httpError } from "@/lib/utils";
 import { salonPublicUrl } from "@/lib/salon-url";
 
-const socialPatchSchema = z
+/** اسلاگ =ساب‌دامین عمومی سالن؛ همان قاعدهٔ برچسب DNS در `lib/salon-url.ts` */
+const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * A23: ویرایش جزئی سالن در پنل ادمین.
+ * نسخهٔ قبلی فقط `instagram` را می‌پذیرفت و `salon.update` همان یک ستون را می‌نوشت؛
+ * یعنی «ویرایش سالن» برای نام، آدرس، تلفن یا منطقهٔ زمانی بی‌صدا هیچ کاری نمی‌کرد.
+ * سازگاری عقب‌رو: `{ instagram }` تنها همچنان معتبر است (پنل فعلی همین را می‌فرستد).
+ */
+const patchSchema = z
   .object({
-    instagram: z.string().trim().max(300).optional().nullable(),
+    name: z.string().trim().min(1).max(80),
+    slug: z.string().trim().min(1).max(63),
+    phone: z.string().trim().min(6).max(20),
+    city: z.string().trim().max(60),
+    address: z.string().trim().max(300),
+    description: z.string().trim().max(1000),
+    timezone: z.string().trim().min(1).max(64),
+    instagram: z.string().trim().max(300).nullable(),
+    isActive: z.boolean(),
+    isApproved: z.boolean(),
   })
-  .refine((b) => Object.prototype.hasOwnProperty.call(b, "instagram"), {
-    message: "instagram required",
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, {
+    message: "حداقل یک فیلد برای ویرایش لازم است",
   });
 
-/** سوپرادمین: تنظیم سریع لینک اینستاگرام یک سالن */
+const FIELD_LABELS: Record<string, string> = {
+  name: "نام سالن",
+  slug: "آدرس اختصاصی",
+  phone: "تلفن",
+  city: "شهر",
+  address: "آدرس",
+  description: "توضیحات",
+  timezone: "منطقهٔ زمانی",
+  instagram: "اینستاگرام",
+  isActive: "فعال بودن",
+  isApproved: "تأیید شده",
+};
+
+/** منطقهٔ زمانی باید IANA معتبر باشد؛ `Intl` با مقدار نامعتبر RangeError می‌دهد */
+function assertTimezone(tz: string) {
+  try {
+    new Intl.DateTimeFormat("fa-IR", { timeZone: tz });
+  } catch {
+    throw httpError("منطقهٔ زمانی انتخابی معتبر نیست (مثال: Asia/Tehran).", 400);
+  }
+}
+
 export async function PATCH(req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {
   try {
     const user = await requireRole(["ADMIN"]);
     const { id } = await params;
-    const body = socialPatchSchema.parse(await req.json());
+    const body = patchSchema.parse(await req.json());
 
     const before = await prisma.salon.findUnique({ where: { id } });
     if (!before) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
 
-    const salon = await prisma.salon.update({ where: { id }, data: { instagram: body.instagram ?? null } });
+    const data: Prisma.SalonUpdateInput = {
+      ...(body.name != null ? { name: body.name } : {}),
+      ...(body.phone != null ? { phone: body.phone } : {}),
+      ...(body.city != null ? { city: body.city } : {}),
+      ...(body.address != null ? { address: body.address } : {}),
+      ...(body.description != null ? { description: body.description } : {}),
+      ...(body.instagram !== undefined ? { instagram: body.instagram || null } : {}),
+      ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      ...(body.isApproved !== undefined ? { isApproved: body.isApproved } : {}),
+      ...(body.timezone != null ? { timezone: body.timezone } : {}),
+      ...(body.slug != null ? { slug: body.slug.toLowerCase() } : {}),
+    };
+
+    if (body.timezone != null) assertTimezone(body.timezone);
+
+    // اسلاگ: قالب برچسب DNS و یکتا بودن (به‌جز خودِ همین سالن)
+    if (body.slug != null) {
+      const slug = body.slug.toLowerCase();
+      if (!SLUG_RE.test(slug)) {
+        throw httpError("آدرس اختصاصی فقط می‌تواند شامل حروف کوچک لاتین، رقم و خط تیره باشد و با حرف یا رقم شروع/تمام شود.", 400);
+      }
+      if (slug !== before.slug) {
+        const taken = await prisma.salon.findFirst({ where: { slug, id: { not: id } }, select: { name: true } });
+        if (taken) throw httpError(`آدرس «${slug}» قبلاً توسط سالن «${taken.name}» استفاده شده است.`, 409);
+      }
+    }
+
+    const salon = await prisma.salon.update({ where: { id }, data });
     await logAudit({
       actorId: user.id,
       actorPhone: user.phone,
-      action: "update_salon_instagram",
+      action: "update_salon",
       entityType: "Salon",
       entityId: id,
-      before: { instagram: before.instagram },
-      after: { instagram: salon.instagram },
+      before: Object.fromEntries(Object.keys(data).map((k) => [k, (before as unknown as Record<string, unknown>)[k]])),
+      after: Object.fromEntries(Object.keys(data).map((k) => [k, (salon as unknown as Record<string, unknown>)[k]])),
     });
 
-    return json({ success: true, salon: { id: salon.id, instagram: salon.instagram } });
+    const { domainToken: _omit, ...safe } = salon;
+    return json({ success: true, salon: { ...safe, publicUrl: salonPublicUrl(salon) } });
   } catch (err) {
-    if (err instanceof z.ZodError) return json({ success: false, error: "فیلد instagram لازم است" }, { status: 400 });
+    if (err instanceof z.ZodError) {
+      const first = err.issues[0];
+      const field = String(first?.path?.[0] ?? "");
+      const label = FIELD_LABELS[field];
+      return json(
+        { success: false, error: label ? `مقدار «${label}» معتبر نیست (طول یا نوع ورودی را بررسی کنید).` : "حداقل یک فیلد معتبر برای ویرایش لازم است." },
+        { status: 400 }
+      );
+    }
     return apiError(err);
   }
 }

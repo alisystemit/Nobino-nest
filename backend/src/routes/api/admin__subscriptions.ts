@@ -5,16 +5,19 @@ import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { cancelSubscription } from "@/lib/subscriptions";
 import { z } from "zod";
-import { json, apiError, getPagination } from "@/lib/utils";
+import { json, apiError, getPagination, enumQueryParam, assertKnownQueryParams } from "@/lib/utils";
+
+const SUB_STATUSES = ["ACTIVE", "SUSPENDED", "CANCELLED", "EXPIRED"] as const;
+const SUB_FILTERS = ["page", "limit", "status"] as const;
 
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     await requireRole(["ADMIN"]);
+    assertKnownQueryParams(req.url, SUB_FILTERS);
     const { page, limit, skip, take } = getPagination(req.url, 25, 200);
-    const statusFilter = new URL(req.url).searchParams.get("status") ?? "";
-    const where = statusFilter === "ACTIVE" || statusFilter === "SUSPENDED" || statusFilter === "CANCELLED" || statusFilter === "EXPIRED"
-      ? { status: statusFilter }
-      : {};
+    // مقدار نامعتبر باید 400 بگیرد، نه اینکه بی‌صدا «همه» را برگرداند
+    const statusFilter = enumQueryParam(req.url, "status", SUB_STATUSES, { label: "وضعیت اشتراک" });
+    const where = statusFilter ? { status: statusFilter } : {};
     const [subscriptions, total, statusCounts] = await Promise.all([
       prisma.subscription.findMany({
         where,

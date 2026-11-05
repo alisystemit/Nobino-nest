@@ -1,74 +1,102 @@
-// خودکار: پورت‌شده از src/app/api/admin/charts/route.ts — بدون تغییر منطق
+// خودکار: پورت‌شده از src/app/api/admin/charts/route.ts
+// سطل‌بندی ماه در دیتابیس و به وقت تهران انجام می‌شود (یافتهٔ A19 + O8):
+// نسخهٔ قبلی چهار `findMany` بی‌سقف می‌زد و در RAM جمع می‌زد، ضمناً ماه را با
+// `toISOString()` (یعنی UTC) برچسب می‌زد؛ برای کسب‌وکار ایرانی یعنی نیمی از
+// رویدادهای اولِ ماه در ماه اشتباه می‌نشینند.
 
 
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { localMidnightUTC, localParts } from "@/lib/timezone";
 import { json, apiError } from "@/lib/utils";
+
+const TZ = "Asia/Tehran";
+
+/** کلید ماه‌های تهران (`YYYY-MM`) برای `count` ماه اخیر، از قدیمی به جدید */
+function recentMonthKeys(count = 12): string[] {
+  const { dayISO } = localParts(new Date(), TZ);
+  const parts = dayISO.split("-");
+  let year = Number(parts[0]);
+  let month = Number(parts[1]);
+  const keys: string[] = [];
+  for (let i = 0; i < count; i++) {
+    keys.unshift(`${year}-${String(month).padStart(2, "0")}`);
+    month -= 1;
+    if (month === 0) {
+      month = 12;
+      year -= 1;
+    }
+  }
+  return keys;
+}
+
+/** نگاشت ردیف‌های `{ m, … }` به آرایه‌ای هم‌تراز با `months` (ماه‌های بی‌داده صفر) */
+function series(rows: Array<Record<string, unknown>>, months: string[], pick: (row: Record<string, unknown>) => number): number[] {
+  const byMonth = new Map<string, number>();
+  for (const r of rows) {
+    const key = String(r["m"] ?? "");
+    byMonth.set(key, (byMonth.get(key) ?? 0) + pick(r));
+  }
+  return months.map((m) => byMonth.get(m) ?? 0);
+}
 
 /** داده نمودارهای سوپرادمین: درآمد ماهانه، رشد کاربران، نوبت‌ها، ریزش */
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
   try {
     await requireRole(["ADMIN"]);
-    const now = new Date();
 
-    // ۱۲ ماه اخیر
-    const months: string[] = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push(d.toISOString().slice(0, 7));
-    }
+    const months = recentMonthKeys(12);
+    // از = نیم‌شب اولِ نخستین ماه displayed به وقت تهران
+    const from = localMidnightUTC(`${months[0]}-01`, TZ);
 
-    const monthStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const [revenueRows, userRows, apptRows, churnRows] = await Promise.all([
+      prisma.$queryRaw<Array<{ m: string; total: bigint }>>`
+        SELECT to_char("createdAt" AT TIME ZONE 'Asia/Tehran', 'YYYY-MM') AS m,
+               COALESCE(SUM("amount"), 0)::bigint AS total
+        FROM "Order"
+        WHERE "status" = 'PAID' AND "createdAt" >= ${from}
+        GROUP BY 1`,
+      prisma.$queryRaw<Array<{ m: string; total: bigint }>>`
+        SELECT to_char("createdAt" AT TIME ZONE 'Asia/Tehran', 'YYYY-MM') AS m,
+               COUNT(*)::bigint AS total
+        FROM "User"
+        WHERE "createdAt" >= ${from}
+        GROUP BY 1`,
+      prisma.$queryRaw<Array<{ m: string; total: bigint; cancelled: bigint }>>`
+        SELECT to_char("createdAt" AT TIME ZONE 'Asia/Tehran', 'YYYY-MM') AS m,
+               COUNT(*)::bigint AS total,
+               COUNT(*) FILTER (WHERE "status" IN ('CANCELLED', 'NO_SHOW'))::bigint AS cancelled
+        FROM "Appointment"
+        WHERE "createdAt" >= ${from}
+        GROUP BY 1`,
+      prisma.$queryRaw<Array<{ m: string; total: bigint }>>`
+        SELECT to_char("createdAt" AT TIME ZONE 'Asia/Tehran', 'YYYY-MM') AS m,
+               COUNT(*)::bigint AS total
+        FROM "Subscription"
+        WHERE "createdAt" >= ${from} AND "status" IN ('CANCELLED', 'EXPIRED')
+        GROUP BY 1`,
+    ]);
 
-    const paidOrders = await prisma.order.findMany({
-      where: { status: "PAID", createdAt: { gte: monthStart } },
-      select: { amount: true, createdAt: true },
-    });
-    const users = await prisma.user.findMany({
-      where: { createdAt: { gte: monthStart } },
-      select: { createdAt: true },
-    });
-    const appointments = await prisma.appointment.findMany({
-      where: { createdAt: { gte: monthStart } },
-      select: { createdAt: true, status: true },
-    });
-    const subscriptions = await prisma.subscription.findMany({
-      where: { createdAt: { gte: monthStart } },
-      select: { createdAt: true, status: true },
-    });
+    const amountOf = (r: Record<string, unknown>) => Number(r["total"] ?? 0);
+    const cancelledOf = (r: Record<string, unknown>) => Number(r["cancelled"] ?? 0);
 
-    const key = (d: Date) => d.toISOString().slice(0, 7);
-    const revenue = {} as Record<string, number>;
-    const userGrowth = {} as Record<string, number>;
-    const apptCount = {} as Record<string, number>;
-    const cancelledCount = {} as Record<string, number>;
-    const churn = {} as Record<string, number>;
-    months.forEach((m) => { revenue[m] = 0; userGrowth[m] = 0; apptCount[m] = 0; cancelledCount[m] = 0; churn[m] = 0; });
-
-    for (const o of paidOrders) revenue[key(o.createdAt)] = (revenue[key(o.createdAt)] ?? 0) + o.amount;
-    for (const u of users) userGrowth[key(u.createdAt)] = (userGrowth[key(u.createdAt)] ?? 0) + 1;
-    for (const a of appointments) {
-      apptCount[key(a.createdAt)] = (apptCount[key(a.createdAt)] ?? 0) + 1;
-      if (a.status === "CANCELLED" || a.status === "NO_SHOW") cancelledCount[key(a.createdAt)] = (cancelledCount[key(a.createdAt)] ?? 0) + 1;
-    }
-    for (const s of subscriptions) if (s.status === "CANCELLED" || s.status === "EXPIRED") churn[key(s.createdAt)] = (churn[key(s.createdAt)] ?? 0) + 1;
-
-    // برچسب ماه‌ها به فارسی (مثلاً «آبان ۱۴۰۵»)
+    // برچسب ماه‌ها به فارسی (مثلاً «آبان ۱۴۰۵») — از کلیدِ ماه تا ساعت ۱۲ ظهر تا
+    // جابه‌جایی منطقهٔ زمانی برچسب را عوض نکند
     const monthLabels = months.map((m) =>
-      new Intl.DateTimeFormat("fa-IR", { month: "long", year: "numeric" }).format(new Date(`${m}-01T12:00:00`))
+      new Intl.DateTimeFormat("fa-IR", { month: "long", year: "numeric", timeZone: TZ }).format(new Date(`${m}-01T12:00:00Z`))
     );
 
     return json({
       success: true,
+      timezone: TZ,
       months: monthLabels,
-      revenue: months.map((m) => revenue[m]),
-      userGrowth: months.map((m) => userGrowth[m]),
-      appointments: months.map((m) => apptCount[m]),
-      cancelled: months.map((m) => cancelledCount[m]),
-      churn: months.map((m) => churn[m]),
+      revenue: series(revenueRows, months, amountOf),
+      userGrowth: series(userRows, months, amountOf),
+      appointments: series(apptRows, months, amountOf),
+      cancelled: series(apptRows, months, cancelledOf),
+      churn: series(churnRows, months, amountOf),
     });
   } catch (err) {
     return apiError(err);
   }
 }
-
