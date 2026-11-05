@@ -162,6 +162,9 @@ model Salon {
   autoRenew          Boolean   @default(false)
   plan               String    @default("FREE") // FREE | BASIC | PRO | ENTERPRISE
 
+  // نوع سالن — فهرست عمومی و جست‌وجو بر اساس این فیلد فیلتر می‌شود، نه نام سالن
+  salonType          String    @default("WOMEN") // WOMEN | MEN | COUPLE
+
   // ┘é┘ê╪º┘å█î┘å ╪▒╪▓╪▒┘ê
   minNoticeMinutes    Int @default(60)
   maxAdvanceDays      Int @default(30)
