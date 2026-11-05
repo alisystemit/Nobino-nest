@@ -5,7 +5,8 @@
  * سالی که کاربر خودش مدیرش است، آخرین سالی که از آن نوبت گرفته، یا سالن‌هایی که با
  * اسکن کیو‌آر / لینک در «علاقه‌مندی‌ها»اش ثبت شده (زنجیرهٔ تشخیص در ./lib/resolve.ts).
  * با یک علاقه‌مندی مستقیم به همان سالن می‌رود؛ با دو تا یا بیشتر، نوار علاقه‌مندی‌ها
- * خانه را می‌سازد. اگر هم هیچ‌کدام نباشد، صفحهٔ راهنمای اسکن نشان می‌دهد.
+ * خانه را می‌سازد. اگر هم هیچ‌کدام نباشد، راهنمای اسکن + جست‌وجوی سالن (فقط با درخواست
+ * کاربر) نشان می‌دهد — نه بن‌بست «اول وارد شوید».
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -43,6 +44,82 @@ function instagramHref(value: string): string {
   if (!v) return "";
   if (/^https?:\/\//i.test(v)) return v;
   return `https://instagram.com/${v.replace(/^@+/, "")}`;
+}
+
+type BrowseSalon = { id: string; slug: string; name: string; city?: string | null; rating?: number | null };
+
+/**
+ * جست‌وجوی سالن برای حالت «هنوز سالنی نداری» (U4).
+ *
+ * خانهٔ مینی‌اپ عمداً سالن‌محور است و فهرست عمومی سالن‌ها را نشان نمی‌دهد؛ ولی وقتی
+ * کاربر (بخصوص مهمانِ ناوارد) هیچ کیو‌آر یا لینکی نداشته باشد، صفحه فقط «وارد شوید»
+ * می‌گفت و بن‌بست می‌شد — درحالی‌که رزرو مهمان اصلاً ورود لازم ندارد. این پنل همان
+ * راهِ پیدا کردن سالن است: جست‌وجو فقط با درخواست کاربر اجرا می‌شود (پس خانه هنوز
+ * «دایرکتوری» نیست) و نتیجه مستقیم به صفحهٔ همان سالن می‌رود.
+ */
+function SalonSearchPanel({ onOpen }: { onOpen: (slug: string) => void }) {
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState<BrowseSalon[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function run(term: string) {
+    const value = term.trim();
+    if (value.length < 2) {
+      setRows([]);
+      return;
+    }
+    setBusy(true);
+    const res = await mapi<{ success: boolean; salons?: BrowseSalon[] }>(
+      `/api/salons/search?limit=6&q=${encodeURIComponent(value)}`,
+    );
+    setRows(res.ok && Array.isArray(res.data?.salons) ? res.data.salons : []);
+    setBusy(false);
+  }
+
+  return (
+    <div className="mini-card" style={{ marginTop: 14 }}>
+      <div style={{ fontWeight: 900, marginBottom: 8 }}>جست‌وجوی سالن</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <input
+            className="mini-input"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void run(q);
+            }}
+            placeholder="نام سالن یا شهر"
+            aria-label="نام سالن یا شهر"
+          />
+        </div>
+        <Button variant="soft" onClick={() => void run(q)} disabled={busy}>
+          <Icon name="search" size={17} />
+          {busy ? "…" : "جست‌وجو"}
+        </Button>
+      </div>
+      {rows && rows.length === 0 && !busy ? (
+        <div className="mini-note" style={{ marginTop: 10 }}>سالنی با این نام پیدا نشد؛ نام کامل‌تر یا شهر را بنویسید.</div>
+      ) : null}
+      {rows && rows.length > 0 ? (
+        <div style={{ marginTop: 10 }}>
+          {rows.map((s) => (
+            <div key={s.id} className="mini-item">
+              <button type="button" className="mini-item-main mini-fav-open" onClick={() => onOpen(s.slug)}>
+                <span className="mini-item-title">{faText(s.name)}</span>
+                <span className="mini-item-sub">{faText(s.city) || "—"}</span>
+              </button>
+              <span className="mini-item-side">
+                <button type="button" className="mini-btn tiny" onClick={() => onOpen(s.slug)}>
+                  <Icon name="calendar" size={14} />
+                  باز کردن
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function MiniHome() {
@@ -319,13 +396,13 @@ export default function MiniHome() {
         ) : (
           <>
             <EmptyState
-              text={me ? "هنوز سالنی در علاقه‌مندی‌های شما نیست" : "برای دیدن سالن‌ها وارد شوید"}
+              text={me ? "هنوز سالنی در علاقه‌مندی‌های شما نیست" : "سالن خودت را پیدا کن"}
               hint={
                 cameraScanSupported()
                   ? "دکمهٔ «باز کردن دوربین» را بزنید و کیو‌آر سالن را جلوی دوربین بگیرید؛ لینک خودش خوانده می‌شود و سالن به علاقه‌مندی‌ها اضافه می‌شود."
                   : me
                     ? "کیو‌آر یا لینک سالن را باز کنید تا به علاقه‌مندی‌های شما اضافه شود. اگر مشتری سالنی هستید و قبلاً نوبت گرفته‌اید، با همان شمارهٔ تلفن وارد شوید."
-                    : "کیو‌آر سالن را اسکن کنید؛ بعد از ورود، همان سالن در علاقه‌مندی‌های شما می‌ماند."
+                    : "نام یا شهر سالن را جست‌وجو کنید یا کیو‌آر آن را اسکن کنید؛ برای رزرو نیازی به ورود نیست."
               }
             />
             {cameraScanSupported() ? (
@@ -335,9 +412,9 @@ export default function MiniHome() {
               </Button>
             ) : null}
             {!me ? (
-              <Button variant={cameraScanSupported() ? "ghost" : "primary"} onClick={() => setLoginOpen(true)}>
+              <Button variant="ghost" onClick={() => setLoginOpen(true)}>
                 <Icon name="user" size={18} />
-                ورود / ساخت حساب
+                ورود / ساخت حساب (اختیاری)
               </Button>
             ) : (
               <Button variant="ghost" onClick={() => navigate("/mini/favorites")}>
@@ -345,6 +422,7 @@ export default function MiniHome() {
                 افزودن سالن به علاقه‌مندی‌ها
               </Button>
             )}
+            <SalonSearchPanel onOpen={(slug) => navigate(`/mini/s/${slug}`)} />
           </>
         )}
 

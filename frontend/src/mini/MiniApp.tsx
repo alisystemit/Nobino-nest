@@ -14,7 +14,7 @@ import MiniMe from "./pages/MiniMe";
 import MiniNotifications from "./pages/MiniNotifications";
 import MiniSupport from "./pages/MiniSupport";
 import MiniFavorites from "./pages/MiniFavorites";
-import { BellButton, Icon, TopBar, type IconName } from "./components/ui";
+import { BellButton, Button, Icon, TopBar, type IconName } from "./components/ui";
 import MiniInstallSheet from "./components/install-sheet";
 import { MiniProvider, mapi, useMini } from "./lib/store";
 import { PLATFORM_EMOJI, onNativeBack } from "./lib/bridge";
@@ -61,10 +61,11 @@ function TabBar() {
 function Shell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { config, platform, configReady, configError, me, messengerName, toastNode } = useMini();
+  const { config, platform, configReady, configError, reloadConfig, me, messengerName, toastNode } = useMini();
 
   const isHome = location.pathname === "/mini" || location.pathname === "/mini/";
   const [unread, setUnread] = useState(0);
+  const [retrying, setRetrying] = useState(false);
 
   /* شمارۀ ناخوانده‌ها: با هر جابه‌جایی صفحه تازه می‌شود (سبک: فقط عدد) */
   const refreshUnread = useCallback(async () => {
@@ -110,30 +111,42 @@ function Shell() {
           <div style={{ height: 8 }} />
           <div className="mini-skeleton" style={{ height: 74 }} />
         </div>
-      ) : configError ? (
-        <div className="mini-fade">
-          <div className="mini-card">
-            <div style={{ fontWeight: 900, marginBottom: 6 }}>مینی‌اپ آماده نیست</div>
-            <div className="mini-option-sub" style={{ lineHeight: 1.9 }}>
-              {configError}
-              <br />
-              اگر تازه تنظیمات را تغییر دادید، چند لحظه دیگر دوباره باز کنید.
-            </div>
-          </div>
-        </div>
       ) : (
-        <Routes>
-          <Route path="/" element={<MiniHome />} />
-          <Route path="/s/:slug" element={<MiniSalon />} />
-          <Route path="/appointments" element={<MiniBookings />} />
-          <Route path="/voice-booking" element={<MiniVoiceBooking />} />
-          <Route path="/notifications" element={<MiniNotifications />} />
-          <Route path="/support" element={<MiniSupport />} />
-          <Route path="/favorites" element={<MiniFavorites />} />
-          <Route path="/manage" element={<MiniManage />} />
-          <Route path="/me" element={<MiniMe />} />
-          <Route path="*" element={<Navigate to="/mini" replace />} />
-        </Routes>
+        <div className="mini-fade">
+          {/* خطای کانفیگ دیگر اپ را قفل نمی‌کند: نسخهٔ پیش‌فرض جاری است و همین نوار
+              هشدار با دکمهٔ «تلاش دوباره» ماجرا را به کاربر می‌گوید (U1). */}
+          {configError ? (
+            <div className="mini-card" style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 900, marginBottom: 4 }}>نمایش تنظیمات پنل ممکن نشد</div>
+              <div className="mini-option-sub" style={{ lineHeight: 1.9 }}>
+                {configError} — مینی‌اپ با تنظیمات پیش‌فرض باز است و نوبت‌گیری کار می‌کند.
+              </div>
+              <Button
+                variant="soft"
+                style={{ marginTop: 10 }}
+                onClick={() => {
+                  setRetrying(true);
+                  void reloadConfig().finally(() => setRetrying(false));
+                }}
+              >
+                <Icon name="refresh" size={17} />
+                {retrying ? "در حال تلاش…" : "تلاش دوباره"}
+              </Button>
+            </div>
+          ) : null}
+          <Routes>
+            <Route path="/" element={<MiniHome />} />
+            <Route path="/s/:slug" element={<MiniSalon />} />
+            <Route path="/appointments" element={<MiniBookings />} />
+            <Route path="/voice-booking" element={<MiniVoiceBooking />} />
+            <Route path="/notifications" element={<MiniNotifications />} />
+            <Route path="/support" element={<MiniSupport />} />
+            <Route path="/favorites" element={<MiniFavorites />} />
+            <Route path="/manage" element={<MiniManage />} />
+            <Route path="/me" element={<MiniMe />} />
+            <Route path="*" element={<Navigate to="/mini" replace />} />
+          </Routes>
+        </div>
       )}
       <TabBar />
       {toastNode}

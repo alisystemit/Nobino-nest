@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Area, Button, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList } from "./ui";
 import { compactToman, dayLabel, duration, faDigits, fromNow, initials, shortPrice, toman, toNumber, ymd } from "../lib/format";
 import { mapi, useMini } from "../lib/store";
+import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import type {
   CashTotals,
   CustomerMediaRow,
@@ -412,7 +413,14 @@ function CustomerSheet({
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<number | null>(null);
   /** سقف ثانیه‌های ضبط، هم‌راستا با حجم مجاز ویسی که سوپرادمین ست کرده است */
-  const recCapSeconds = voiceMaxSeconds(profile?.voiceMaxMb ?? 10);
+  const recCapSeconds = voiceMaxSeconds(profile?.voiceMaxMb ?? uploadLimitsSync().crm.voiceMaxMb);
+
+  /** سقف حجم فایل پرونده (مگابایت) — اول همان پرونده، بعد کش تنظیمات سوپرادمین */
+  function mediaMaxMb(kind: "photo" | "voice"): number {
+    const fromProfile = kind === "voice" ? profile?.voiceMaxMb : profile?.photoMaxMb;
+    const fromPanel = uploadLimitsSync().crm[kind === "voice" ? "voiceMaxMb" : "photoMaxMb"];
+    return Number(fromProfile ?? fromPanel) || Number(fromPanel) || (kind === "voice" ? 10 : 5);
+  }
 
   /** میکروفون و تایمر ضبط را آزاد می‌کند (بستن شیت یا unmount) */
   function releaseRecorder() {
@@ -521,6 +529,12 @@ function CustomerSheet({
 
   async function uploadMedia(file: File) {
     if (!customerId) return;
+    const isVoice = (file.type || "").startsWith("audio/");
+    const maxMb = mediaMaxMb(isVoice ? "voice" : "photo");
+    if (file.size > mbToBytes(maxMb)) {
+      onToast(`حجم ${isVoice ? "ویس" : "عکس"} ${sizeHintFa(maxMb)}`, "error");
+      return;
+    }
     setUploading(true);
     const form = new FormData();
     form.append("file", file);
@@ -592,6 +606,11 @@ function CustomerSheet({
       }
       setRecording(false);
       if (blob.size === 0) return;
+      const maxVoiceMb = mediaMaxMb("voice");
+      if (blob.size > mbToBytes(maxVoiceMb)) {
+        onToast(`حجم ویس ${sizeHintFa(maxVoiceMb)} — ضبط را کوتاه‌تر کنید`, "error");
+        return;
+      }
       const target = customerId;
       setUploading(true);
       const form = new FormData();
@@ -776,7 +795,7 @@ function CustomerSheet({
                 )}
                 {mediaFull ? <div className="mini-cust-empty">سقف {faDigits(mediaLimit)} فایل این پرونده پر است؛ برای افزودن، یکی را حذف کنید.</div> : null}
                 <div className="mini-cust-hint">
-                  حجم مجاز: عکس تا {faDigits(profile?.photoMaxMb ?? 5)} مگابایت و ویس تا {faDigits(profile?.voiceMaxMb ?? 10)} مگابایت · ضبط ویس تا{" "}
+                  حجم مجاز: عکس تا {faDigits(mediaMaxMb("photo"))} مگابایت و ویس تا {faDigits(mediaMaxMb("voice"))} مگابایت · ضبط ویس تا{" "}
                   {faDigits(recCapSeconds)} ثانیه. این فایل‌ها فقط در همین سالن دیده می‌شوند.
                 </div>
               </>

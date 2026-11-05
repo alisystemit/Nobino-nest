@@ -100,11 +100,16 @@ export function RescheduleSheet({
     setLoading(true);
     const params = new URLSearchParams({ date: day, serviceIds: appt.serviceId });
     if (appt.employeeId) params.set("employeeId", appt.employeeId);
+    // C12: سرور هنگام جابه‌جایی، مدتِ خودِ نوبت را حفظ می‌کند. اگر اسلات را با
+    // مدتِ خدمت (کوتاه‌تر از نوبت‌های چندخدمتی) حساب کنیم، ساعت‌های ردشده
+    // سبز می‌مانند و کاربر در انتها 409 می‌گیرد.
+    const dur = Math.round((new Date(appt.endAt).getTime() - new Date(appt.startAt).getTime()) / 60000);
+    if (Number.isFinite(dur) && dur > 0) params.set("durationMin", String(dur));
     const res = await mapi<AvailabilityResponse>(`/api/salons/${slug}/availability?${params.toString()}`);
     setAvailability(res.ok ? res.data : null);
     setLoading(false);
     if (!res.ok) toast(res.data?.error || "ساعت‌های خالی محاسبه نشد", "error");
-  }, [slug, day, appt?.serviceId, appt?.employeeId, toast]);
+  }, [slug, day, appt?.serviceId, appt?.employeeId, appt?.startAt, appt?.endAt, toast]);
 
   useEffect(() => {
     void loadSlots();

@@ -80,6 +80,14 @@ function clockInSalonTz(iso: string, timezone: string): string {
   }
 }
 
+/** `HH:MM` → دقیقه از نیمه‌شب؛ برای پیدا کردن «نزدیک‌ترین» وقتِ آزاد (C13) */
+function clockToMinutes(clock: string): number {
+  const m = /(\d{1,2}):(\d{1,2})/.exec(latinDigits(clock));
+  if (!m) return NaN;
+  const hour = Number(m[1]) % 24; // «en-GB» گاه نیمه‌شب را ۲۴:۰۰ می‌دهد
+  return hour * 60 + Number(m[2]);
+}
+
 /** تطبیق نام خدمتِ گفته‌شده با خدمات واقعی سالن (دوطرفه، بی‌توجه به فاصله‌های اضافه) */
 function matchServiceId(salon: MiniSalonDetail | null, spoken: string): string {
   if (!salon || !spoken.trim()) return "";
@@ -421,26 +429,41 @@ export default function MiniVoiceBooking() {
       setMsg(`در ${dayLabel(dateKey, timezone)} وقت خالی‌ای نیست. یک روز دیگر را انتخاب کنید.`);
       return;
     }
-    const exact = slots.find((s) => clockInSalonTz(s.startAt, av?.timezone || timezone) === clock);
-    const chosen = exact ?? slots[0];
-    setStartAt(chosen.startAt);
+    const slotsTz = av?.timezone || timezone;
+    const exact = slots.find((s) => clockInSalonTz(s.startAt, slotsTz) === clock);
+
+    // C13: اگر ساعتِ گفته‌شده آزاد نبود، دیگر بی‌صدا «اولین وقتِ روز» جایش نمی‌نشیند
+    // و ثبت/پیامک نمی‌شود. نزدیک‌ترین وقتِ آزاد واقعاً محاسبه و در فرم نشسته می‌شود،
+    // ولی ثبت فقط با دکمهٔ «ثبت نوبت» (تأیید صریح مشتری) انجام می‌شود.
     if (!exact) {
-      // ساعت گفته‌شده پر است: نزدیک‌ترین وقتِ آزاد ثبت می‌شود و همان‌جا به مشتری گفته می‌شود
-      setAdjusted(`ساعت ${faDigits(clock)} در ${dayLabel(dateKey, timezone)} آزاد نبود؛ نزدیک‌ترین وقت (${timeLabel(chosen.startAt, timezone)}) ثبت شد.`);
+      const wantMin = clockToMinutes(clock);
+      const nearest = [...slots].sort(
+        (a, b) =>
+          Math.abs(clockToMinutes(clockInSalonTz(a.startAt, slotsTz)) - wantMin) -
+          Math.abs(clockToMinutes(clockInSalonTz(b.startAt, slotsTz)) - wantMin)
+      )[0];
+      setStartAt(nearest.startAt);
+      setStage("needs");
+      setAdjusted(
+        `ساعت ${faDigits(clock)} در ${dayLabel(dateKey, timezone)} آزاد نبود؛ نزدیک‌ترین وقتِ آزاد (${timeLabel(nearest.startAt, timezone)}) انتخاب شد.`
+      );
+      setMsg("اگر این ساعت را می‌خواهید، دکمهٔ «ثبت نوبت» را بزنید — یا از فهرست ساعت دیگری انتخاب کنید.");
+      return;
     }
+
+    setStartAt(exact.startAt);
     // مقادیر استخراج‌شده مستقیم پاس می‌شوند (state هنوز در همین تیک تازه نشده است)
     const ok = await submit("ai", {
       serviceId: ids[0],
-      startAtIso: chosen.startAt,
+      startAtIso: exact.startAt,
       name: ex.name,
       phone: normalizePhone(String(ex.phone ?? "")),
       voiceCallId: callId,
     });
     if (ok) {
-      if (exact) autoBookedRef.current = true;
+      autoBookedRef.current = true;
       return;
     }
-    if (!exact) setMsg(`ساعت ${faDigits(clock)} آن روز آزاد نبود؛ نزدیک‌ترین وقت (${timeLabel(chosen.startAt, timezone)}) انتخاب شد — از فرم پایین تأیید کنید.`);
   }
 
   /* ── ضبط ویس ─────────────────────────────────────────────────────── */

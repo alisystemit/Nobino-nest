@@ -87,6 +87,9 @@ export const DEFAULT_CONFIG: MiniConfig = {
   featured: [],
 };
 
+/** فاصلهٔ میلی‌ثانیه‌ای تلاش‌های خواندن کانفیگ (تعداد تلاش = طول این آرایه) */
+const CONFIG_RETRY_MS = [0, 500, 1500];
+
 export type Draft = {
   salonId: string;
   slug: string;
@@ -264,17 +267,36 @@ export function MiniProvider({ children }: { children: ReactNode }) {
     root.style.setProperty("--mini-accent", hex);
   }, []);
 
+  /**
+   * خواندن کانفیگ با تلاش دوبارهٔ خودکار.
+   *
+   * پیش‌تر یک `500` گذرا (مثلاً لحظهٔ استارت یا بازسازی سرور) کل مینی‌اپ را در
+   * «مینی‌اپ آماده نیست» قفل می‌کرد — بدون دکمه، بدون راه خروج. حالا:
+   *  ۱) تا سه بار با فاصلهٔ `CONFIG_RETRY_MS` تلاش می‌شود؛
+   *  ۲) اگر باز هم نگرفت، `DEFAULT_CONFIG` جای آن را می‌گیرد و اپ **باز می‌ماند**
+   *     (رزرو و نمایش سالن به کانفیگ وابسته نیست)؛
+   *  ۳) `configError` فقط یک هشدار بالاسری با دکمهٔ «تلاش دوباره» است.
+   */
   const loadConfig = useCallback(async () => {
-    const res = await mapi<MiniConfig>("/api/mini/config");
-    if (res.ok && res.data?.brand) {
-      setConfig(res.data);
-      setAccent(res.data.brand.accent);
-      setConfigError("");
-    } else {
-      setConfigError(res.data?.error || "کانفیگ مینی‌اپ خوانده نشد");
+    let lastError = "";
+    for (const wait of CONFIG_RETRY_MS) {
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      const res = await mapi<MiniConfig>("/api/mini/config");
+      if (res.ok && res.data?.brand) {
+        setConfig(res.data);
+        setAccent(res.data.brand.accent);
+        setConfigError("");
+        setConfigReady(true);
+        bootWebApp(res.data.brand.accent);
+        return;
+      }
+      lastError = res.data?.error || "کانفیگ مینی‌اپ خوانده نشد";
     }
+    setConfig(DEFAULT_CONFIG);
+    setAccent(DEFAULT_CONFIG.brand.accent);
+    setConfigError(lastError);
     setConfigReady(true);
-    bootWebApp(res.data?.brand?.accent ?? DEFAULT_CONFIG.brand.accent);
+    bootWebApp(DEFAULT_CONFIG.brand.accent);
   }, [setAccent]);
 
   const refreshMe = useCallback(async () => {

@@ -59,6 +59,8 @@ export type AvailabilityResponse = {
   error?: string;
   day: string;
   timezone: string;
+  /** C14: بیعانهٔ نوبت با همین خدمات (null یعنی بیعانه‌ای گرفته نمی‌شود) */
+  depositAmount?: number | null;
   services: MiniService[];
   totals: { durationMin: number; bufferMin: number; price: number };
   slots: MiniSlot[];
