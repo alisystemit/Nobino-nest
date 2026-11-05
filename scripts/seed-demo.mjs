@@ -8,7 +8,9 @@
  *  - با seed اصلی (prisma/seed.mjs) سازگار است و آن را تغییر نمی‌دهد.
  *  - از upsert / top-up استفاده می‌کند تا اجرای دوباره امن باشد.
  *
- * اجرا:  node scripts/seed-demo.mjs
+ * اجرا:  node scripts/seed-demo.mjs   (یا: npm run seed:demo)
+ * گارد:  روی NODE_ENV=production بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود، چون
+ *        کاربرهای نمونه با رمز معلوم (Demo@1234) می‌سازد.
  */
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, scryptSync, randomInt } from "node:crypto";
@@ -583,6 +585,16 @@ async function seedCashAndVoice(salons) {
 
 // ═══ اجرا ══════════════════════════════════════════════════════════════
 async function main() {
+  // ⚠️ گارد پروداکشن: این اسکریپت کاربرهای نمونه با رمز معلوم «Demo@1234» و
+  // سالن‌های نمونه می‌سازد و home.sample_salons را بازنویسی می‌کند. روی
+  // NODE_ENV=production بدون ALLOW_PROD_SEED=1 هیچ چیزی نمی‌نویسد.
+  const isProd = (process.env.NODE_ENV || "").trim().toLowerCase() === "production";
+  const allowed = !isProd || /^(1|true|yes)$/i.test(process.env.ALLOW_PROD_SEED || "");
+  if (!allowed) {
+    console.error("❌ دیتای نمونه روی production اجرا نمی‌شود (رمز پیش‌فرض Demo@1234).");
+    console.error("   اگر واقعاً می‌خواهید: ALLOW_PROD_SEED=1 node scripts/seed-demo.mjs");
+    process.exit(1);
+  }
   console.log("🚀 شروع تزریق دیتای نمونه...");
   const users = await seedUsers();
   console.log(`   ✅ کاربران: ${users.owners.length} مالک + ۱ نماینده + ${users.customers.length} مشتری`);

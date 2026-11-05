@@ -8,6 +8,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "seed": "node prisma/seed.mjs",
+    "seed:demo": "node scripts/seed-demo.mjs",
     "seed:stress": "node scripts/seed-stress.mjs",
     "gen:controllers": "node backend/scripts/gen-controllers.mjs",
     "build:backend": "npm --prefix backend run build",
