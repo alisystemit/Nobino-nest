@@ -21,6 +21,7 @@ import SalonAnimations from "@/components/SalonAnimations";
 import SalonInstallBanner from "@/components/SalonInstallBanner";
 import SalonQrCard from "@/components/SalonQrCard";
 import { siteHref, siteHomeHref } from "./site-url";
+import { localizeTexts } from "./text";
 import { usePageData } from "@/lib/page-data";
 import { useTheme } from "@/lib/theme";
 import { useMeta } from "@/lib/use-meta";
@@ -155,7 +156,9 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
     slug,
     reviewsPage: String(reviewsPage),
   });
-  const salon = data?.found ? data.salon : undefined;
+  /* رقم‌های متن‌های دیتابیس (نام خدمت/شعبه/گالری/نظر) یک‌دست فارسی می‌شوند؛
+     Yekan رقم لاتین ندارد وگرنه در یک خط دو فونت و دو وزن می‌سازد. ر.ک salon/text.ts */
+  const salon = useMemo(() => (data?.found ? localizeTexts(data.salon) : undefined), [data]);
   useMeta(data?.meta?.title, data?.meta?.description);
 
   const [loginOpen, setLoginOpen] = useState(false);
@@ -229,7 +232,7 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
   const staff = useMemo(() => toMiniStaff(salon?.staff ?? []), [salon]);
   const hours = useMemo(() => [...(salon?.openingHours ?? [])].sort((a, b) => a.dayOfWeek - b.dayOfWeek), [salon]);
   const gallery = useMemo(() => salon?.galleryItems ?? [], [salon]);
-  const reviews = useMemo(() => salon && Array.isArray(data?.reviews) ? data.reviews : [], [data, salon]);
+  const reviews = useMemo(() => (salon && Array.isArray(data?.reviews) ? localizeTexts(data.reviews) : []), [data, salon]);
   const timezone = salon?.timezone || "Asia/Tehran";
   const status = useMemo(() => openStatus(hours, timezone), [hours, timezone]);
   const today = todayWeekdayIndex(timezone);

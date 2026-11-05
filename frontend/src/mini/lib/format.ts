@@ -10,23 +10,57 @@ export function faDigits(input: string | number): string {
   return String(input).replace(/[0-9]/g, (d) => FA[Number(d)]);
 }
 
+/**
+ * رقم‌های یک «متن فارسی» به ارقام فارسی تبدیل می‌شوند — برای نمایش نام‌ها و
+ * توضیح‌هایی که مستقیم از دیتابیس می‌آیند (مثلاً «لمینت مژه 2-1»).
+ *
+ * چرا لازم است؟ فونت Yekan که کل صفحه با آن ست می‌شود هیچ رقم و حرف لاتینی
+ * ندارد؛ پس «2-1» وسط یک رشتهٔ فارسی از فونت بعدی (Vazirmatn) و با وزن مصنوعی
+ * رندر می‌شود: قد و ضخامتش با بقیهٔ رشته فرق می‌کند و چون رقم‌های لاتین (EN)
+ * کنار رقم‌های فارسی (AN) می‌نشینند، ترتیب نمایش (bidi) کل خط به‌هم می‌ریزد.
+ *
+ * ایمنی: رشته‌ای که هیچ حرف فارسی ندارد دست‌نخورده می‌ماند، پس نشانی
+ * (rose.localhost:3100)، شمارهٔ تماس، کد و متن انگلیسی خراب نمی‌شوند.
+ * داخل متن فارسی هم تکه‌های فنی (پیوند، دامنه، @یوزرنیم) شناسایی و
+ * دست‌نخورده می‌مانند — فقط رقم‌های بخش فارسی تبدیل می‌شوند.
+ * روی رشته‌های از قبل فارسی بی‌اثر و قابل تکرار است.
+ */
+
+/** تکه‌های «فنی» که رقم‌هایشان باید لاتین بمانند (پیوند، دامنه، هندل، شمارهٔ بین‌المللی، توکن حرف+رقم مثل C13) */
+const TECHNICAL = /(https?:\/\/\S+|www\.\S+|[\w-]+\.(?:ir|com|net|org|io|dev|app|site|shop)\b\S*|@[A-Za-z0-9_.]{3,}|\+\d[\d\s().-]{7,}|[A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*|\d[A-Za-z0-9_-]*[A-Za-z])/gi;
+
+export function faText(input: string | null | undefined): string {
+  const s = input == null ? "" : String(input);
+  if (!s || !/[0-9\u0660-\u0669]/.test(s)) return s;
+  // حرف‌های خط فارسی/عربی: U+0621..U+06FF («پ/چ/ژ/ک/گ/ی» و ارقام فارسی در انتهای این بلوک‌اند)
+  if (!/[\u0621-\u06FF]/.test(s)) return s;
+  const toFa = (part: string) =>
+    part.replace(/[\u0660-\u0669]/g, (d) => FA[d.charCodeAt(0) - 0x0660]).replace(/[0-9]/g, (d) => FA[Number(d)]);
+  // split با capture group: جای‌نمای فرد همان تکهٔ فنی است و دست نمی‌خورد
+  return s.split(TECHNICAL).map((part, i) => (i % 2 ? part : toFa(part))).join("");
+}
+
 /** ۱۲۵۰۰۰ → «۱۲۵٬۰۰۰ تومان» */
 export function toman(amount: number | null | undefined): string {
   if (amount == null || !Number.isFinite(amount)) return "—";
   return new Intl.NumberFormat("fa-IR").format(Math.round(amount)) + " تومان";
 }
 
-/** قیمت فشرده برای کارت‌ها: «از ۱۲۰ هزار» */
+/**
+ * قیمت فشرده برای کارت‌ها: «۵۰۰ هزار».
+ * تا پیش از این هر مبلغی بر حسب «هزار» نوشته می‌شد و ۲۲۰۰۰۰۰ می‌شد
+ * «۲۲۰۰ هزار» — عددی که در فارسی خوانده نمی‌شود. از ۱ میلیون به بالا همان
+ * compactToman به کار می‌رود: «۲/۲ میلیون».
+ */
 export function shortPrice(amount: number): string {
   if (!Number.isFinite(amount) || amount <= 0) return "رایگان";
   if (amount < 1000) return faDigits(amount) + " تومان";
-  const k = Math.round(amount / 1000);
-  return faDigits(k) + " هزار";
+  return compactToman(amount);
 }
 
 /**
- * عدد فشردهٔ تومان برای جا شدن در یک خط: ۲٬۸۵۱٬۰۰۰ → «۲/۹ میلیون».
- * برخلاف shortPrice برای مبالغ بزرگ هم خوانا می‌ماند.
+ * عدد فشردهٔ تومان برای جا شدن در یک خط: 2٬851٬000 → «2/9 میلیون».
+ * shortPrice هم از همین‌جا می‌گذرد، پس هر دو یک شکل خوانا دارند.
  */
 export function compactToman(amount: number): string {
   const n = Math.round(Number(amount) || 0);
