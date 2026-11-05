@@ -1,6 +1,13 @@
 // خودکار: پورت‌شده از src/app/api/payments/callback/[gateway]/route.ts — بدون تغییر منطق
 import { handlePaymentCallback } from "@/lib/payments/engine";
 import { getGateway } from "@/lib/payments/registry";
+import { sandboxModeAllowed } from "@/lib/payments/gateway-config";
+import { json } from "@/lib/utils";
+
+/** آیا مسیر callback درگاه شبیه‌سازی در این محیط مجاز است؟ */
+async function sandboxCallbackBlocked(): Promise<boolean> {
+  return !(await sandboxModeAllowed());
+}
 
 function collectParams(url: string, body?: Record<string, string>): Record<string, string> {
   const u = new URL(url);
@@ -28,6 +35,8 @@ function safeRedirectPath(path: string | undefined): string {
 
 export async function GET(req: Request, { params }: { params: { gateway: string } | Promise<{ gateway: string }> }) {
   const { gateway } = await params;
+  // callback درگاه شبیه‌سازی بیرون از محیط توسعه وجود ندارد (جلوگیری از «پرداخت جعلی»)
+  if (gateway === "sandbox" && (await sandboxCallbackBlocked())) return json({ success: false, error: "در دسترس نیست" }, { status: 404 });
   getGateway(gateway);
   const search = collectParams(req.url);
   const orderId = search.order ?? search.OrderId ?? "";
@@ -40,13 +49,15 @@ export async function GET(req: Request, { params }: { params: { gateway: string 
   const base = safeRedirectPath(search.redirect);
   const origin = new URL(req.url).origin;
   if (result.success) {
-    return redirectTo(origin, `${base}?status=success&ref=${result.companyId}`);
+    const orderQs = orderId ? `&order=${encodeURIComponent(orderId)}` : "";
+    return redirectTo(origin, `${base}?status=success&ref=${encodeURIComponent(result.companyId ?? "")}${orderQs}`);
   }
   return redirectTo(origin, `${base}?status=failed&reason=${encodeURIComponent(result.message ?? "")}`);
 }
 
 export async function POST(req: Request, { params }: { params: { gateway: string } | Promise<{ gateway: string }> }) {
   const { gateway } = await params;
+  if (gateway === "sandbox" && (await sandboxCallbackBlocked())) return json({ success: false, error: "در دسترس نیست" }, { status: 404 });
   let body: Record<string, string> | undefined;
   try {
     const ct = req.headers.get("content-type") ?? "";
@@ -75,7 +86,8 @@ export async function POST(req: Request, { params }: { params: { gateway: string
   const base = safeRedirectPath(search.redirect);
   const origin = new URL(req.url).origin;
   if (result.success) {
-    return redirectTo(origin, `${base}?status=success&ref=${result.companyId}`);
+    const orderQs = orderId ? `&order=${encodeURIComponent(orderId)}` : "";
+    return redirectTo(origin, `${base}?status=success&ref=${encodeURIComponent(result.companyId ?? "")}${orderQs}`);
   }
   return redirectTo(origin, `${base}?status=failed&reason=${encodeURIComponent(result.message ?? "")}`);
 }

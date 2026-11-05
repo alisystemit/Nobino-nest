@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { settingOrEnv } from "@/lib/settings";
+import { isDevelopmentEnv } from "@/lib/env";
 
 /**
  * کاتالوگ اعتبارنامهٔ درگاه‌های پرداخت (منبع واحد حقیقت برای پنل تنظیمات).
@@ -165,6 +166,20 @@ export function gatewaySettingsPrefix(id: string): string {
 export async function gwCredential(id: string, field: string, envFallback?: string): Promise<string> {
   const value = await settingOrEnv(`${gatewaySettingsPrefix(id)}${field}`, envFallback);
   return value ?? "";
+}
+
+/**
+ * آیا درگاه شبیه‌سازی «sandbox» و مسیر mock-pay مجازند؟
+ *
+ * فقط در محیط توسعهٔ صریح (`NODE_ENV=development/test`) یا وقتی سوپرادمین
+ * آگاهانه `payments.sandbox.sandbox=true` ست کرده باشد. قبلاً معیار
+ * `NODE_ENV !== "production"` بود که در استقرارهای بدون NODE_ENV همیشه
+ * باز می‌ماند و اجازه می‌داد اشتراک بدون پرداخت واقعی فعال شود.
+ */
+export async function sandboxModeAllowed(): Promise<boolean> {
+  if (isDevelopmentEnv()) return true;
+  const raw = await settingOrEnv("payments.sandbox.sandbox", undefined);
+  return (raw ?? "").trim().toLowerCase() === "true";
 }
 
 /**

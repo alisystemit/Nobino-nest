@@ -1,12 +1,20 @@
 // خودکار: پورت‌شده از src/app/api/payments/mock-pay/route.ts — بدون تغییر منطق
 import { simulateSandboxPay } from "@/lib/payments/engine";
+import { sandboxModeAllowed } from "@/lib/payments/gateway-config";
+import { json } from "@/lib/utils";
 
 /**
  * صفحه شبیه‌سازی پرداخت برای درگاه‌های سندباکس.
  * بعد از «پرداخت» تست، کاربر را به مسیر بازگشت درگاه هدایت می‌کند
  * تا چرخه کامل (request → redirect → callback → verify) تست شود.
+ *
+ * فقط ابزار توسعه است؛ بیرون از محیط توسعهٔ صریح (یا بدون سوئیچ آگاهانهٔ
+ * سوپرادمین) به ۴۰۴ ختم می‌شود.
  */
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
+  if (!(await sandboxModeAllowed())) {
+    return json({ success: false, error: "در دسترس نیست" }, { status: 404 });
+  }
   const u = new URL(req.url);
   const order = u.searchParams.get("order") ?? "";
   const invoice = u.searchParams.get("invoice") ?? "";

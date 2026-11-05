@@ -8,7 +8,8 @@ import { env } from "@/lib/env";
 export class ZibalGateway extends BaseGateway {
   readonly id = "zibal";
   readonly name = "زیبال";
-  readonly sandbox = true;
+  // قبلاً hard-code «true» بود؛ حالا فقط با تنظیم/متغیر sandbox روشن می‌شود
+  readonly sandbox = false;
 
   async doRequestPayment(order: PaymentOrder): Promise<PaymentRequestResult> {
     const body: Record<string, string | number> = {

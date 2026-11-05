@@ -8,7 +8,8 @@ import { env } from "@/lib/env";
 export class AmanatGateway extends BaseGateway {
   readonly id = "amanat";
   readonly name = "آمانت";
-  readonly sandbox = true;
+  // قبلاً hard-code «true» بود؛ حالا فقط با تنظیم/متغیر sandbox روشن می‌شود
+  readonly sandbox = false;
 
   async doRequestPayment(order: PaymentOrder): Promise<PaymentRequestResult> {
     const res = await fetch("https://amanat.ir/api/v1/payment/request", {

@@ -8,7 +8,8 @@ import { env } from "@/lib/env";
 export class IdPayGateway extends BaseGateway {
   readonly id = "idpay";
   readonly name = "آیدی‌پی";
-  readonly sandbox = true;
+  // قبلاً hard-code «true» بود؛ حالا فقط با تنظیم/متغیر sandbox روشن می‌شود
+  readonly sandbox = false;
   callbackMethod(): "GET" | "POST" {
     return "POST";
   }
@@ -19,7 +20,7 @@ export class IdPayGateway extends BaseGateway {
       headers: {
         "Content-Type": "application/json",
         "X-API-KEY": await this.cred("api_key", env.IDPAY_API_KEY || env.PSP_API_KEY),
-        "X-SANDBOX": "1",
+        "X-SANDBOX": (await this.inSandbox()) ? "1" : "0",
       },
       body: JSON.stringify({
         order_id: order.id,
@@ -48,7 +49,7 @@ export class IdPayGateway extends BaseGateway {
       headers: {
         "Content-Type": "application/json",
         "X-API-KEY": await this.cred("api_key", env.IDPAY_API_KEY || env.PSP_API_KEY),
-        "X-SANDBOX": "1",
+        "X-SANDBOX": (await this.inSandbox()) ? "1" : "0",
       },
       body: JSON.stringify({ id, order_id: opts.order.id }),
     });

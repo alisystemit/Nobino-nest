@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
-import { createPaymentForOrder, createDepositPayment } from "@/lib/payments/engine";
+import { createPaymentForOrder, createDepositPayment, finalizePaidOrder } from "@/lib/payments/engine";
 import { json, apiError } from "@/lib/utils";
 
 const schema = z.object({
@@ -95,9 +95,10 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     let originalAmount = unitPrice;
     let discountId: string | undefined;
 
-    // اعمال کد تخفیف
-    if (body.discountCode) {
-      const discount = await prisma.discount.findUnique({ where: { code: body.discountCode.trim().toUpperCase() } });
+    // اعمال کد تخفیف — کد ابتدا trim می‌شود تا «فاصله» به‌جای کد خالی ننشیند
+    const discountCode = body.discountCode?.trim().toUpperCase() ?? "";
+    if (discountCode) {
+      const discount = await prisma.discount.findUnique({ where: { code: discountCode } });
       if (!discount || !discount.isActive) {
         return json({ success: false, error: "کد تخفیف نامعتبر است" }, { status: 400 });
       }
@@ -130,6 +131,27 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
         status: "PENDING",
       },
     });
+
+    // سفارش رایگان (پلن رایگان یا تخفیف ۱۰۰٪): بدون درگاه و بدون Payment
+    // مستقیم نهایی می‌شود تا مسیر «پرداخت جعلی» برای مبلغ صفر وجود نداشته باشد.
+    if (amount <= 0) {
+      await prisma.$transaction([
+        prisma.order.update({ where: { id: order.id }, data: { status: "PAID" } }),
+        ...(discountId ? [prisma.discount.update({ where: { id: discountId }, data: { usedCount: { increment: 1 } } })] : []),
+      ]);
+      await finalizePaidOrder(order).catch(() => {});
+      return json(
+        {
+          success: true,
+          free: true,
+          orderId: order.id,
+          amount: 0,
+          originalAmount,
+          discountApplied: discountId ? true : false,
+        },
+        { status: 201 }
+      );
+    }
 
     const { payment, gateway } = await createPaymentForOrder({ orderId: order.id, gateway: body.gateway });
 

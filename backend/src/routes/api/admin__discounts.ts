@@ -33,7 +33,8 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
 }
 
 const createSchema = z.object({
-  code: z.string().min(2).max(40),
+  // trim قبل از min: کد «  » (فاصله) باید رد شود، نه اینکه خالی ذخیره گردد
+  code: z.string().trim().min(2, "کد تخفیف باید حداقل ۲ کاراکتر باشد.").max(40),
   percent: z.number().int().min(1).max(100),
   maxUses: z.number().int().min(0).default(0),
   expiresAt: z.string().datetime().optional().nullable(),

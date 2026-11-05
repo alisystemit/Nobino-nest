@@ -8,7 +8,8 @@ import { env } from "@/lib/env";
 export class PayIrGateway extends BaseGateway {
   readonly id = "payir";
   readonly name = "پی‌آی‌آر";
-  readonly sandbox = true;
+  // قبلاً hard-code «true» بود؛ حالا فقط با تنظیم/متغیر sandbox روشن می‌شود
+  readonly sandbox = false;
   callbackMethod(): "GET" | "POST" {
     return "POST";
   }
