@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth/guards";
 import { enqueueInApp, enqueueSms } from "@/lib/notifications/queue";
 import { renderSmsTemplate } from "@/lib/notifications/templates";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { announceDepositRefundDue } from "@/lib/financial/deposit-refund";
 import { json, apiError } from "@/lib/utils";
 
 const schema = z.object({ reason: z.string().optional() });
@@ -67,7 +68,10 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
     }
     await dispatchWebhook(appointment.salonId, "appointment.cancelled", { appointmentId: id, customerName: appointment.customerName, reason: body.reason });
 
-    return json({ success: true, appointment: updated });
+    // O2: اگر بیعانه پرداخت شده بود، بدهی ثبت و اعلام می‌شود (پیش‌تر پول بی‌صدا می‌ماند)
+    const refundDue = await announceDepositRefundDue(id).catch(() => null);
+
+    return json({ success: true, appointment: updated, depositRefund: refundDue ? { status: "DUE", amount: refundDue.amount } : null });
   } catch (err) {
     return apiError(err);
   }

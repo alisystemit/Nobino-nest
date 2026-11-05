@@ -1,74 +1,102 @@
 import { prisma } from "@/lib/prisma";
-import { TransactionKind, TransactionReason } from "@prisma/client";
+import { httpError } from "@/lib/utils";
+import { Prisma, TransactionKind, TransactionReason } from "@prisma/client";
 
 /**
- * عملیات کیف پول با رعایت ذخیره‌سازی (trigger در تراکنش).
+ * عملیات کیف پول با ثبت هم‌زمان دفترکل.
+ *
+ * همهٔ توابع اختیاری `client` می‌گیرند تا فراخوانِ داخل یک `$transaction`
+ * تعاملی بتواند همان تراکنش را پاس بدهد (وگرنه قلم‌ها جدا نوشته می‌شوند).
+ * بدون client، خودِ تابع یک تراکنش تعاملی باز می‌کند.
  */
-export async function ensureWallet(userId: string) {
-  let wallet = await prisma.wallet.findUnique({ where: { ownerId: userId } });
-  if (!wallet) {
-    wallet = await prisma.wallet.create({ data: { ownerId: userId } });
-  }
-  return wallet;
+type Db = Prisma.TransactionClient;
+
+export async function ensureWallet(userId: string, client: Db = prisma) {
+  const existing = await client.wallet.findUnique({ where: { ownerId: userId } });
+  if (existing) return existing;
+  // upsert تا دو ساخت هم‌زمان روی @@unique([ownerId]) خطای race ندهد
+  return client.wallet.upsert({ where: { ownerId: userId }, update: {}, create: { ownerId: userId } });
 }
 
 export async function getWallet(userId: string) {
   return ensureWallet(userId);
 }
 
-export async function credit(userId: string, amount: number, reason: TransactionReason, opts?: { refType?: string; refId?: string; description?: string }) {
-  if (amount <= 0) throw new Error("مبلغ باید مثبت باشد");
-  const wallet = await ensureWallet(userId);
-  const balanceAfter = wallet.balance + amount;
+/**
+ * افزایش موجودی به‌همراه ردیف دفترکل، هر دو داخل یک تراکنش.
+ *
+ * نکته (O10): `balanceAfter` هرگز از خواندنِ قبلی حساب نمی‌شود؛ بعد از
+ * `increment` خودِ ردیف را می‌خوانیم. UPDATE روی ردیف کیف پول قفل می‌گیرد، پس
+ * دو واریز هم‌زمان صف می‌شوند و عدد دفترکل با موجودی واقعی می‌خواند.
+ */
+export async function credit(
+  userId: string,
+  amount: number,
+  reason: TransactionReason,
+  opts?: { refType?: string; refId?: string; description?: string },
+  client?: Db
+) {
+  if (amount <= 0) throw httpError("مبلغ باید مثبت باشد", 400);
 
-  const [updated, tx] = await prisma.$transaction([
-    prisma.wallet.update({ where: { id: wallet.id }, data: { balance: { increment: amount } } }),
-    prisma.transaction.create({
+  const run = async (db: Db) => {
+    const wallet = await ensureWallet(userId, db);
+    const updated = await db.wallet.update({ where: { id: wallet.id }, data: { balance: { increment: amount } } });
+    const ledger = await db.transaction.create({
       data: {
-        walletId: wallet.id,
+        walletId: updated.id,
         kind: TransactionKind.CREDIT,
         reason,
         amount,
-        balanceAfter,
+        balanceAfter: updated.balance,
         refType: opts?.refType,
         refId: opts?.refId,
         description: opts?.description,
       },
-    }),
-  ]);
+    });
+    return { wallet: updated, transaction: ledger };
+  };
 
-  return { wallet: updated, transaction: tx };
+  return client ? run(client) : prisma.$transaction((tx) => run(tx));
 }
 
-export async function debit(userId: string, amount: number, reason: TransactionReason, opts?: { refType?: string; refId?: string; description?: string }) {
-  if (amount <= 0) throw new Error("مبلغ باید مثبت باشد");
-  const wallet = await ensureWallet(userId);
+/**
+ * برداشت با شرط موجودی داخل خودِ UPDATE (ضد TOCTOU) و ردیف دفترکل در همان
+ * تراکنش. اگر موجودی نرسد خطا می‌دهد و نوشتن‌های آن تراکنش رول‌بک می‌شود.
+ */
+export async function debit(
+  userId: string,
+  amount: number,
+  reason: TransactionReason,
+  opts?: { refType?: string; refId?: string; description?: string },
+  client?: Db
+) {
+  if (amount <= 0) throw httpError("مبلغ باید مثبت باشد", 400);
 
-  // برداشت اتمیک: شرط موجودی داخل خودِ UPDATE می‌نشیند تا دو برداشت هم‌زمان
-  // روی هم خوانده نشوند (TOCTOU). اگر صف‌بندها به تعارض بخورند، یک بار تلاش مجدد.
-  let updated: typeof wallet | null = null;
-  for (let attempt = 0; attempt < 3 && !updated; attempt++) {
-    const res = await prisma.wallet.updateMany({
+  const run = async (db: Db) => {
+    const wallet = await ensureWallet(userId, db);
+    const res = await db.wallet.updateMany({
       where: { id: wallet.id, balance: { gte: amount } },
       data: { balance: { decrement: amount } },
     });
-    if (res.count !== 1) break;
-    updated = await prisma.wallet.findUnique({ where: { id: wallet.id } });
-  }
-  if (!updated) throw new Error("موجودی کیف پول کافی نیست");
+    if (res.count !== 1) throw httpError("موجودی کیف پول کافی نیست", 400);
 
-  const tx = await prisma.transaction.create({
-    data: {
-      walletId: updated.id,
-      kind: TransactionKind.DEBIT,
-      reason,
-      amount,
-      balanceAfter: updated.balance,
-      refType: opts?.refType,
-      refId: opts?.refId,
-      description: opts?.description,
-    },
-  });
+    const updated = await db.wallet.findUnique({ where: { id: wallet.id } });
+    if (!updated) throw httpError("کیف پول یافت نشد", 400);
 
-  return { wallet: updated, transaction: tx };
+    const ledger = await db.transaction.create({
+      data: {
+        walletId: updated.id,
+        kind: TransactionKind.DEBIT,
+        reason,
+        amount,
+        balanceAfter: updated.balance,
+        refType: opts?.refType,
+        refId: opts?.refId,
+        description: opts?.description,
+      },
+    });
+    return { wallet: updated, transaction: ledger };
+  };
+
+  return client ? run(client) : prisma.$transaction((tx) => run(tx));
 }
