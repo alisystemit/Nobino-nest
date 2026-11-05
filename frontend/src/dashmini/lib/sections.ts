@@ -27,7 +27,7 @@ export const SECTIONS: Section[] = [
   { to: "/staff", label: "کارکنان", sub: "آرایشگران، کمیسیون و شیفت", icon: "scissors", classic: "/dashboard/staff", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/services", label: "خدمات و پکیج", sub: "نام، قیمت و مدت هر خدمت", icon: "ticket", classic: "/dashboard/salon", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/salon", label: "سالن من", sub: "صفحهٔ عمومی و وضعیت سالن", icon: "store", classic: "/dashboard/salon", roles: ["SALON_OWNER", "ADMIN"], built: true },
-  { to: "/settings", label: "تنظیمات سالن", sub: "ساعات کاری، قوانین رزرو و دامنه", icon: "pin", classic: "/dashboard/settings", roles: ["SALON_OWNER", "ADMIN"] },
+  { to: "/settings", label: "تنظیمات سالن", sub: "ساعات کاری، قوانین رزرو و دامنه", icon: "pin", classic: "/dashboard/settings", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/management", label: "مدیریت سالن", sub: "تعطیلات، شعبه، کمپین و بلوک‌ها", icon: "chart", classic: "/dashboard/management", roles: ["SALON_OWNER", "ADMIN"] },
   { to: "/finance", label: "مالی و گزارش", sub: "درآمد، صندوق و گزارش روزانه", icon: "wallet", classic: "/dashboard/management", roles: ["SALON_OWNER", "ADMIN"] },
   { to: "/wallet", label: "کیف پول", sub: "موجودی و تراکنش‌ها", icon: "wallet", classic: "/dashboard/wallet" },
