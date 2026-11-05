@@ -655,3 +655,39 @@ label.mini-btn {
   font-weight: 700;
   color: var(--m-muted);
 }
+
+/* ── کیف پول (/dash/wallet) ────────────────────────────────────────── */
+
+/* مبلغ تراکنش: واریز سبز، برداشت قرمز — در هر دو پوسته خوانا */
+.dash-tx-amt {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-weight: 900;
+  white-space: nowrap;
+  margin-inline-start: auto;
+}
+
+.dash-tx-amt.is-in {
+  color: #0b7a55;
+}
+
+.dash-tx-amt.is-out {
+  color: #b91c1c;
+}
+
+.mini-root.dark .dash-tx-amt.is-in {
+  color: #6ee7b7;
+}
+
+.mini-root.dark .dash-tx-amt.is-out {
+  color: #fca5a5;
+}
+
+.dash-tag.is-debit {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.mini-root.dark .dash-tag.is-debit {
+  color: #fca5a5;
+}
