@@ -30,7 +30,12 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
     const from = new Date(now.getTime() + w.hours * 60 * 60 * 1000);
     const to = new Date(now.getTime() + (w.hours - 0.5) * 60 * 60 * 1000);
     const appointments = await prisma.appointment.findMany({
-      where: { status: "CONFIRMED", startAt: { gte: to, lte: from } },
+      where: {
+        status: "CONFIRMED",
+        startAt: { gte: to, lte: from },
+        // A8: سالنی که تعلیق/غیرفعال شده دیگر نباید برای مشتریانش پیامک یادآوری بفرستد
+        salon: { isActive: true, isApproved: true },
+      },
       include: { salon: { select: { name: true } } },
     });
     candidates += appointments.length;

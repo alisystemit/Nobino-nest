@@ -21,7 +21,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     const { page, limit, skip, take } = getPagination(_req.url, 10, 100);
     const reviews = await prisma.review.findMany({
       where: { salonId: salon.id },
-      include: { customer: { select: { name: true, phone: true } }, staff: { select: { name: true } } },
+      // C9: این فهرست عمومی و بی‌لاگین است — شمارهٔ تلفن هرگز نباید از اینجا
+      // بیرون برود (قبلاً چون OTP نام را پر نمی‌کند، شمارهٔ کامل جای نام رندر می‌شد).
+      include: { customer: { select: { name: true } }, staff: { select: { name: true } } },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       skip,
       take,
@@ -46,7 +48,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         id: r.id,
         rating: r.rating,
         comment: r.comment,
-        customerName: r.customer.name ?? r.customer.phone,
+        // C9: نام (اگر کاربر نامش را وارد کرده) و در غیر این صورت یک نام مستعار
+        // بی‌هویت؛ شمارهٔ تلفن در هیچ حالتی چاپ نمی‌شود.
+        customerName: r.customer?.name?.trim() || `مشتری ${r.id.slice(-4).toUpperCase()}`,
         staff: r.staff?.name ?? null,
         createdAt: r.createdAt,
       })),

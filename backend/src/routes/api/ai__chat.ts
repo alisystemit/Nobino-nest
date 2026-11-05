@@ -7,7 +7,12 @@ import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } 
 
 const schema = z.object({
   salonId: z.string(),
-  question: z.string().min(1).max(1000),
+  // C20: پیام پیش‌فرض zod انگلیسی بود و کلاینت آن را با «متوجه نشدم» جایگزین می‌کرد؛
+  // حالا متن فارسی است و کاربر دلیل واقعی خطا را می‌بیند.
+  question: z
+    .string()
+    .min(1, "سؤال را بنویسید.")
+    .max(1000, "سؤال خیلی بلند است؛ کوتاه‌تر بپرسید (حداکثر ۱۰۰۰ نویسه)."),
   customerName: z.string().optional(),
 });
 
