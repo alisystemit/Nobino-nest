@@ -4,7 +4,7 @@
  * از این مسیر به کلاینت نمی‌روند (فقط `platformToken` برای راستی‌آزمایی سرور).
  */
 import { getSetting, getSettingGroup } from "@/lib/settings";
-import { SITE_URL } from "@/lib/site";
+import { publicOrigin } from "@/lib/site-origin";
 
 export type MiniPlatformId = "telegram" | "bale" | "eitaa" | "wita";
 
@@ -90,7 +90,10 @@ export function platformInstallUrl(p: { id: MiniPlatformId }, bot: string, app: 
 /** پیکربندی کامل مینی‌اپ با پیش‌فرض‌های امن */
 export async function readMiniConfig(): Promise<MiniConfig> {
   const g = await getSettingGroup("miniapps.");
-  const base = (g["base_url"] ?? "").trim() || SITE_URL;
+  // پایهٔ مینی‌اپ: اگر سوپرادمین آدرس جدا نگذاشته، میزبانِ همان درخواست (با
+  // پورت) — تا `miniUrl` روی :3100 نشانی :5175 نباشد؛ بیرون از درخواست همان
+  // SITE_URLِ تنظیم‌شده می‌ماند.
+  const base = (g["base_url"] ?? "").trim() || publicOrigin();
 
   const grouped: Record<string, Record<string, string>> = {};
   for (const key of Object.keys(g)) {

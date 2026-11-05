@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
+import { request as rawRequest } from "node:http";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -17,6 +18,7 @@ const DIST_MAIN = join(ROOT, "backend", "dist", "main.js");
 const DIST_INDEX = join(ROOT, "frontend", "dist", "index.html");
 
 const lib = (rel) => require(join(ROOT, "backend", "dist", "lib", rel));
+const dist = (rel) => require(join(ROOT, "backend", "dist", rel));
 
 // ───────────────────────── منطق خالص (نیازمند فقط بیلد بک‌اند) ─────────────────────────
 const distReady = existsSync(DIST_MAIN);
@@ -115,6 +117,47 @@ test("نشانی سالن: ساب‌دامین محلی، /s/<slug> و میزب�
   assert.equal(U.isSalonOwnHost({ slug: "mah", customDomain: "mah.style", domainStatus: "PENDING" }, "mah.style"), false, "دامنهٔ تأییدنشده میزبان حساب نشود");
 });
 
+test("اوریجین نمایشی: میزبانِ درخواست با پورت حفظ می‌شود و هدر جعلی رد می‌شود", (t) => {
+  if (skipIfNoBuild(t)) return;
+  const SO = lib("site-origin.js");
+  const RC = dist("compat/request-context.js");
+  const U = lib("salon-url.js");
+  const withRequest = (url, fn) => RC.requestStore.run({ request: new Request(url) }, fn);
+  const saved = { ROOT_DOMAIN: process.env.ROOT_DOMAIN, SITE_URL: process.env.SITE_URL, APP_URL: process.env.APP_URL };
+  process.env.ROOT_DOMAIN = "localhost";
+  process.env.SITE_URL = "http://localhost:5175";
+  delete process.env.APP_URL;
+  try {
+    // لوکال: پورتِ میزبان باید بماند — همان چیزی که روی :3100 نشانی‌ها را درست می‌کند
+    assert.equal(withRequest("http://mah.localhost:3100/api/x", () => SO.requestOriginOrNull()), "http://mah.localhost:3100");
+    assert.equal(withRequest("http://127.0.0.1:3100/api/x", () => SO.requestOriginOrNull()), "http://127.0.0.1:3100");
+    assert.equal(
+      withRequest("http://localhost:3100/api/x", () => U.salonPublicUrl({ slug: "mah" })),
+      "http://mah.localhost:3100",
+      "نشانی سالن از میزبانِ درخواست ساخته می‌شود، نه SITE_URL"
+    );
+    assert.equal(
+      withRequest("http://mah.localhost:3100/api/x", () => U.salonPublicUrl({ slug: "mah" })),
+      "http://mah.localhost:3100",
+      "اگر روی ساب‌دامین خودِ سالن باشیم mah.mah ساخته نمی‌شود"
+    );
+    // میزبان متفرقهٔ هدر Host پذیرفته نمی‌شود و به SITE_URL برمی‌گردد
+    assert.equal(withRequest("http://evil.example.com/api/x", () => SO.requestOriginOrNull()), null, "هاست جعلی نباید بپذیرد");
+    assert.equal(SO.requestOriginOrNull(), null, "بیرون از درخواست null است");
+    assert.equal(SO.publicOrigin(), "http://localhost:5175", "در نبودِ درخواست، SITE_URL");
+    assert.equal(U.salonPublicUrl({ slug: "mah", customDomain: "mah.style", domainStatus: "VERIFIED" }), "https://mah.style", "دامنهٔ اختصاصی دست‌نخورده");
+    // دامنهٔ واقعی: زیرِ ROOT_domain قبول، بیرون از آن رد
+    process.env.ROOT_DOMAIN = "nobino.ir";
+    assert.equal(withRequest("https://mah.nobino.ir/api/x", () => SO.requestOriginOrNull()), "https://mah.nobino.ir");
+    assert.equal(withRequest("https://evil.test/api/x", () => SO.requestOriginOrNull()), null);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
 test("تقویم جلالی: رفت و برگشت و قالب فارسی", (t) => {
   if (skipIfNoBuild(t)) return;
   const J = lib("time/jalali.js");
@@ -192,6 +235,22 @@ describe("سرور ساخته‌شده (backend/dist/main.js)", () => {
     return { status: res.status, ct: res.headers.get("content-type") || "", json, text };
   };
 
+  /** با هدر Hostِ دلخواه — fetch این هدر را نادیده می‌گیرد، پس node:http لازم است */
+  const withHost = (path, host) =>
+    new Promise((resolve, reject) => {
+      const req = rawRequest(
+        { host: "127.0.0.1", port: Number(base.split(":").pop()), path, method: "GET", headers: { host } },
+        (res) => {
+          let text = "";
+          res.on("data", (c) => (text += c));
+          res.on("end", () => resolve({ status: res.statusCode, text }));
+        }
+      );
+      req.on("error", reject);
+      req.setTimeout(15000, () => req.destroy(new Error("timeout")));
+      req.end();
+    });
+
   before(async () => {
     if (!distReady) {
       skipReason = "backend/dist/main.js نیست (npm run build:backend)";
@@ -248,6 +307,18 @@ describe("سرور ساخته‌شده (backend/dist/main.js)", () => {
     }
     const lim = await get("/api/public/upload-limits");
     assert.ok(["avatarMaxMb", "imageMaxMb", "voiceMaxMb"].every((k) => k in lim.json), "سقف آپلود باید به‌صورت مگابایت به کلاینت برسد");
+  });
+
+  test("نشانی‌های سرو‌شده با پورتِ میزبانِ درخواست ساخته می‌شوند (:3100 نه :5175)", async (t) => {
+    if (gated(t)) return;
+    const port = Number(base.split(":").pop());
+    const mini = async (host) => JSON.parse((await withHost("/api/mini/config", host)).text);
+    const onSalonHost = await mini("mah.localhost:3100");
+    assert.equal(onSalonHost.miniUrl, "http://mah.localhost:3100/mini", "miniUrl باید میزبانِ درخواست را بگیرد");
+    const onSelfHost = await mini(`localhost:${port}`);
+    assert.equal(onSelfHost.miniUrl, `http://localhost:${port}/mini`, "پورتِ واقعیِ سرور هم حفظ می‌شود");
+    const spoofed = await mini("evil.example.com");
+    assert.ok(!String(spoofed.miniUrl).includes("evil.example.com"), `هاست جعلی در نشانی ننشیند: ${spoofed.miniUrl}`);
   });
 
   test("صفحهٔ عمومی: /api/pages/<loader>", async (t) => {

@@ -6,11 +6,15 @@
  * ۲) روی دامنهٔ اصلی — اگر میزبان زیرِ ROOT_DOMAIN باشد حالت ساب‌دامین
  * ۳) مسیر /s/<slug> به‌عنوان بازگشتی مطمئن
  */
-import { siteOriginSafe } from "@/lib/site-origin";
+import { publicOrigin } from "@/lib/site-origin";
 
-/** آدرس پایهٔ سایت (SITE_URL → APP_URL → ROOT_DOMAIN؛ منطق مشترک در site-origin) */
+/**
+ * آدرس پایهٔ ساخت لینک: اوریجین میزبانِ درخواست جاری (با پورت) و در نبودِ
+ * درخواست، SITE_URL → APP_URL → ROOT_DOMAIN. به همین دلیل روی
+ * `http://mah.localhost:3100` نشانی‌ها همان `:3100` را می‌گیرند.
+ */
 function siteUrl(): string {
-  return siteOriginSafe();
+  return publicOrigin();
 }
 
 function rootDomain(): string {
