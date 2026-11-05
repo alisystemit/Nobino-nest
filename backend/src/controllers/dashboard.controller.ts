@@ -39,6 +39,7 @@ import * as R81 from "@/routes/api/dashboard__salons__id__staff__staffId";
 import * as R82 from "@/routes/api/dashboard__salons__id__webhooks";
 import * as R83 from "@/routes/api/dashboard__salons__id__webhooks__webhookId";
 import * as R84 from "@/routes/api/dashboard__stats";
+import * as R121 from "@/routes/api/dashboard__salons__id__refunds";
 
 @Controller()
 export class DashboardController {
@@ -263,6 +264,11 @@ export class DashboardController {
     await runRoute(req, res, (r, c) => R76.GET(r as never, c as never));
   }
 
+  @Get("/api/dashboard/salons/:id")
+  async getDashboardSalonsIdRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R77.GET(r as never, c as never));
+  }
+
   @Patch("/api/dashboard/salons/:id")
   async patchDashboardSalonsIdRoute(@Req() req: Request, @Res() res: Response) {
     await runRoute(req, res, (r, c) => R77.PATCH(r as never, c as never));
@@ -331,5 +337,15 @@ export class DashboardController {
   @Get("/api/dashboard/stats")
   async getDashboardStatsRoute(@Req() req: Request, @Res() res: Response) {
     await runRoute(req, res, (r, c) => R84.GET(r as never, c as never));
+  }
+
+  @Get("/api/dashboard/salons/:id/refunds")
+  async getDashboardSalonsIdRefundsRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R121.GET(r as never, c as never));
+  }
+
+  @Post("/api/dashboard/salons/:id/refunds")
+  async postDashboardSalonsIdRefundsRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R121.POST(r as never, c as never));
   }
 }

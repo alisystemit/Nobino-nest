@@ -15,6 +15,7 @@ import * as R104 from "@/routes/api/public__upload_limits";
 import * as R105 from "@/routes/api/pwa__manifest__slug";
 import * as R106 from "@/routes/api/salons";
 import * as R115 from "@/routes/api/sms__report";
+import * as R120 from "@/routes/api/orders__id";
 
 @Controller()
 export class PublicController {
@@ -92,5 +93,10 @@ export class PublicController {
   @Get("/api/sms/report")
   async getSmsReportRoute(@Req() req: Request, @Res() res: Response) {
     await runRoute(req, res, (r, c) => R115.GET(r as never, c as never));
+  }
+
+  @Get("/api/orders/:id")
+  async getOrdersIdRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R120.GET(r as never, c as never));
   }
 }
