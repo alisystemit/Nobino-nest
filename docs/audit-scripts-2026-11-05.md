@@ -68,6 +68,7 @@
 | LO-6 | پایین | [scripts/create-admin.mjs:64](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L64) · [:106](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L106) | خط چسبیده + `exit(0)` دور‌زدنِ `$disconnect` |
 | HG-1 | بهداشت | `logs/*.mjs` (17 فایل) | ابزارهای یک‌بارمصرف زیر .gitignore — از دید Review پنهان |
 | HG-2 | بهداشت | [deploy/bootstrap.sh:296](file:///C:/laragon/www/Nobino-nest/deploy/bootstrap.sh#L296) | رمز سوپرادمین روی argv (در `ps` دیده می‌شود) برخلاف راهنمای خود `create-admin.mjs` |
+| HG-3 | بهداشت | [scripts/seed-real.mjs](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs) | بزرگ‌ترین seed (1281 خط) هیچ ورودی در `package.json` ندارد؛ `seed:stress` (پرخطرتر) دارد |
 
 ---
 
@@ -205,7 +206,20 @@ if H="$(curl -fsS --max-time 12 "http://127.0.0.1:$PORT/api/health?db=1" ...)"; 
 
 **پیشنهاد:** PID/`pm2 describe` را با listen owner تطبیق بدهید؛ چرخه‌ی retry با deadline و `exit 1` در شکست.
 
-### HI-4 — `install.sh --dry-run` همیشه می‌میرد
+### HI-4 — `build-release.mjs` با دیتابیس پایین «release آماده است» می‌گوید و exit 0
+
+**محل:** [scripts/build-release.mjs:261-266](file:///C:/laragon/www/Nobino-nest/scripts/build-release.mjs#L261) · [:278](file:///C:/laragon/www/Nobino-nest/scripts/build-release.mjs#L278)
+
+```js
+if (dbDown && !/^(1|true)$/i.test(process.env.SMOKE_DB_REQUIRED || "")) {
+  warn("دیتابیس در دسترس نبود؛ PrismaService در onModuleInit کرش می‌کند (رفتار شناخته‌شده).");
+  warn("بیلد سالم است. ...");
+} else { ... fail("سرور در ۳۰ ثانیه بالا نیامد /api/health نداد"); }
+```
+
+شاخهٔ `dbDown` هیچ `fail`ی ندارد؛ جریان به `ok("release آماده است")` در انتهای فایل می‌رسد. در نتیجه اگر سروری که بیلد می‌شود DB را نبیند (CI، کانتینر تازه) smoke test **عملاً اجرا نشده** ولی پایپ‌لاین سبز است. همین‌طور خط 278: اگر fallback اسپا در `/packages` کد غیر ۲۰۰ بدهد فقط `warn` است و خروج ۰ می‌ماند (خط 277 برای `/` واقعی `fail` می‌کند، پس این یکی تنها شکستِ نادیده‌گرفته‌شده است).
+
+### HI-5 — `install.sh --dry-run` همیشه می‌میرد
 
 **محل:** [deploy/install.sh:203-204](file:///C:/laragon/www/Nobino-nest/deploy/install.sh#L203)
 
@@ -220,7 +234,7 @@ if H="$(curl -fsS --max-time 12 "http://127.0.0.1:$PORT/api/health?db=1" ...)"; 
 
 **پیشنهاد:** `if ! $DRY_RUN && ! $SKIP_BUILD; then ... fi`.
 
-### HI-5 — `bootstrap.sh --dry-run` روی سرور دارای Postgres، تعاملی می‌شود و می‌میرد
+### HI-6 — `bootstrap.sh --dry-run` روی سرور دارای Postgres، تعاملی می‌شود و می‌میرد
 
 **محل:** [deploy/bootstrap.sh:210-219](file:///C:/laragon/www/Nobino-nest/deploy/bootstrap.sh#L210)
 
@@ -389,6 +403,8 @@ shell:false status= 0
 
 ---
 
+## ۸) بهداشت مخزن
+
 - **HG-1**: ۱۷ فایل `.mjs` یک‌بارمصرف داخل `logs/` است و `logs/` در `.gitignore` — این اسکریپت‌ها نه review می‌شوند نه در بکاپ گیت‌اند؛ اگر کسی لازم‌شان داشته باشد (مثلاً ابزار تست) در سرور بعدی وجود ندارد. در ریشه هم `tmp-*.cjs` و `tmp-css-check.mjs` (مربوط به نشستِ موازی دیگر) مانده‌اند.
 - **HG-2**: [deploy/bootstrap.sh:296](file:///C:/laragon/www/Nobino-nest/deploy/bootstrap.sh#L296) رمز سوپرادمین را روی argv می‌گذارد (`--password "$AW"`)؛ خود `create-admin.mjs` در هدرش (خط ۱۰-۱۲) توصیه می‌کند رمز از متغیر محیطی داده شود تا در shell history نماند. `--admin-password` در bootstrap هم همین.
 - **HG-3**: `scripts/seed-real.mjs` (بزرگ‌ترین seed، 1281 خط) هیچ ورودی در `package.json` ندارد؛ فقط با `node scripts/seed-real.mjs` قابل اجراست — در حالی که `seed:demo` و `seed:stress` (که پرخطرتر است!) اسکریپت عمومی در `package.json` دارند.
@@ -407,6 +423,10 @@ shell:false status= 0
 - `set -euo pipefail` با `[[ ... ]] && warn` (install.sh:168، bootstrap.sh:238) مشکل ندارد — تست شد؛ در این ساختار خطای طرف چپ لیست را متوقف نمی‌کند.
 - `.gitignore` پوشه‌های خطرناک را می‌پوشاند: `dist/`، `/backups/`، `logs/`، `.env`، `deploy/ecosystem.config.cjs`، `public/uploads/*`، `.dev.pids`.
 - `vite-build.mjs` (رفع راکت development) درست سیم‌کشی شده: `frontend/package.json` → build: `tsc -b && node scripts/vite-build.mjs && node prerender.mjs` و [scripts/build-release.mjs:140](file:///C:/laragon/www/Nobino-nest/scripts/build-release.mjs#L140) هم همان wrapper را صدا می‌زند، نه `vite build` مستقیم.
+- **دو ادعای ردشده** (تا در ممیزی بعدی دوباره گزارش نشوند):
+  1. «`console.info` در `prisma/seed.mjs:74/76/86` و `scripts/seed-real.mjs:1232` باعث `ReferenceError` می‌شود» — **نادرست**. `console` در Node یک global است و در ESM هم بدون import کار می‌کند؛ نه در آن دو فایل هیچ shimی برای `console` تعریف نشده (grep: `const console` = خالی) و آن شمارهٔ خطوط اصلاً فراخوانی `console.info` نیستند (seed.mjs:74-76 = `prisma.service.upsert`، seed-real.mjs:1232 = `console.log`). اثبات: `node --input-type=module -e "console.info('info-works')"` → چاپ کرد.
+  2. «`seed-demo.mjs` قبل از گارد پروداکشن شروع به نوشتن می‌کند» — **نادرست**. گارد اولین دستور `main()` است ([خط 591](file:///C:/laragon/www/Nobino-nest/scripts/seed-demo.mjs#L591)) و هیچ نوشتاری پیش از آن رخ نمی‌دهد؛ مسئله فقط ترتیب ساخت کلاینت است (ME-13)، نه نوشتار زودهنگام.
+- **ادعای درستِ همان رند** که ثبت شد: نبود اسکریپت npm برای `seed-real.mjs` (HG-3)، نبود گارد پروداکشن در `seed-stress.mjs` (HI-9)، پریکَت‌های حذفِ گسترده (CR-3) و بی‌اعتباری پرچم‌ها (ME-14).
 - همهٔ `CHANGE_ME*`های قالب env توسط زنجیرهٔ sed پوشش داده می‌شوند (به شرط نبود `&`/`|` در مقادیر — HI-7).
 
 ---
@@ -414,7 +434,7 @@ shell:false status= 0
 ## ۱۰) محدودیت‌های این ممیزی / کارهای ناتموم
 
 1. مسیرهای نیازمند ریشه (`apt-get`, `ufw`, `systemctl`, `nginx -t`, `pm2 startup`) در سندباکس با stub اجرا شدند؛ رفتار واقعیِ فایروال و nginx روی سرور تست نشده است (HI-10 و بازتولید ufw: کدخوانی + اجرای stub).
-2. `install.sh` فقط در حالت `--dry-run`/`--skip-build` کامل اجرا شد (که خودش HI-4 است)؛ اجرای واقعیِ کامل روی یک VPS خام انجام نشد.
+2. `install.sh` فقط در حالت `--dry-run`/`--skip-build` کامل اجرا شد (که خودش HI-5 است)؛ اجرای واقعیِ کامل روی یک VPS خام انجام نشد.
 3. `seed-*.mjs` روی دیتابیس واقعی اجرا نشدند؛ CR-3/HI-9 از روی پریکَت‌های حذف و نبود گارد استنتاج شده (کد، قطعی است — دامنهٔ اثر وابسته به داده است).
 4. `logs/*.mjs` (۱۷ فایل): نام‌فهرست آماده است ولی «آیا جای دیگر reference شده‌اند؟» کامل بررسی نشد (یک حلقهٔ grep تایم‌اوت خورد). تنها grep سریع نشان داد بیرون از `logs/` فقط `.gitignore/.dockerignore/docs/audit-2026-11-01.md/backend/src/lib/db-backup.ts/ecosystem template` رشتهٔ `logs/` را دارند — یعنی این ۱۷ فایل از کد مخزن reachable نیستند.
 5. `deploy/paas/README.md` و `Dockerfile*` در این دور خوانده نشدند (محدودهٔ «اسکریپت» بود؛ اگر بخواهید، لایهٔ image/build را جدا ممیزی می‌کنم).
