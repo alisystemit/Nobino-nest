@@ -236,7 +236,7 @@ export default function DashWallet() {
           <span className="dash-tile-title">مالی و گزارش</span>
           <span className="dash-tile-sub">درآمد خدمات، صندوق و فاکتورها</span>
         </button>
-        <button type="button" className="dash-tile" onClick={() => navigate("/packages")}>
+        <button type="button" className="dash-tile" onClick={() => navigate("/dash/packages")}>
           <span className="dash-tile-icon">
             <Icon name="star" size={18} />
           </span>

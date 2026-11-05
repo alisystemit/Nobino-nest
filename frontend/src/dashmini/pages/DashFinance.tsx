@@ -808,7 +808,7 @@ export default function DashFinance() {
           <span className="dash-tile-title">کیف پول</span>
           <span className="dash-tile-sub">موجودی و تراکنش‌های پلتفرم</span>
         </button>
-        <button type="button" className="dash-tile" onClick={() => navigate("/packages")}>
+        <button type="button" className="dash-tile" onClick={() => navigate("/dash/packages")}>
           <span className="dash-tile-icon">
             <Icon name="star" size={18} />
           </span>

@@ -705,3 +705,94 @@ label.mini-btn {
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+
+/* ── پکیج‌ها (/dash/packages) ──────────────────────────────────────── */
+
+/* ردیف کارت‌ها: ردیف‌ها با minmax(min(240px,100%)) تعریف می‌شوند تا در عرض کم
+   ستون از ظرف بیرون نزند (ستون auto با محتوای بلند، grid را می‌شکافد) */
+.dash-pkgs {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  margin-top: 12px;
+}
+
+.dash-pkg {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dash-pkg.is-best {
+  border-color: rgba(var(--m-rgb), 0.45);
+  box-shadow: 0 10px 26px rgba(var(--m-rgb), 0.14);
+}
+
+.dash-pkg-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dash-pkg-name {
+  font-size: 15px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.dash-pkg-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 17px;
+  font-weight: 900;
+  color: rgb(var(--m-rgb));
+}
+
+.dash-pkg-price small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--m-muted);
+}
+
+.dash-pkg-feats {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-feat {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.dash-feat span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dash-feat-icon {
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #0b7a55;
+}
+
+.mini-root.dark .dash-feat-icon {
+  color: #6ee7b7;
+}
+
