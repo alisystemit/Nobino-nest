@@ -259,6 +259,11 @@ pg_dump "$DATABASE_URL" | gzip > /backups/nobino-$(date +%F).sql.gz
 rsync -a public/uploads/ /backups/uploads/
 ```
 
+> بکاپ دیتابیس از داخل پنل سوپرادمین (`/admin?tab=backup`)، با دو موتور
+> `pg_dump`/JSON و بازگردانیِ تأییدشده، در `docs/backups.md` مستند است. فایل‌های
+> همان سامانه در `backups/` کنار مخزن می‌نشینند و با بکاپ‌های این اسکریپت
+> (`deploy/update.sh`) یک قالب نام و یک `.meta` مشترک دارند.
+
 ---
 
 ## ۷) محدودیت‌ها و نکات شناخته‌شده
