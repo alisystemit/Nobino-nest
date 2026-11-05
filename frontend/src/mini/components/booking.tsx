@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import type { MiniService, MiniSlot, MiniStaff } from "../lib/types";
-import { dayLabel, duration, faDigits, isPhone, normalizePhone, relativeDayLabel, shortPrice, timeLabel, toman, weekdayLabel, ymd } from "../lib/format";
+import { dayLabel, duration, faDigits, faText, isPhone, normalizePhone, relativeDayLabel, shortPrice, timeLabel, toman, weekdayLabel, ymd } from "../lib/format";
 import { mapi, useMini } from "../lib/store";
 import { Area, Button, Field, Icon, Sheet } from "./ui";
 
@@ -32,10 +32,10 @@ export function ServicePicker({
               <Icon name="check" size={13} />
             </span>
             <span style={{ minWidth: 0, flex: 1 }}>
-              <span className="mini-option-title">{s.name}</span>
+              <span className="mini-option-title">{faText(s.name)}</span>
               <span className="mini-option-sub">
                 {duration(s.durationMin)}
-                {s.description ? ` · ${s.description}` : ""}
+                {s.description ? ` · ${faText(s.description)}` : ""}
               </span>
             </span>
             {showPrices ? <span className="mini-option-price">{shortPrice(s.price)}</span> : null}
@@ -70,8 +70,8 @@ export function StaffPicker({
       {staff.map((p) => (
         <button key={p.id} type="button" className={`mini-pick${value === p.id ? " is-on" : ""}`} onClick={() => onChange(p.id)}>
           <div className="mini-avatar">{p.avatarUrl ? <img src={p.avatarUrl} alt="" loading="lazy" /> : p.name.slice(0, 1)}</div>
-          <b>{p.name}</b>
-          <span>{p.title || (p.rating != null ? `${faDigits(Number(p.rating).toFixed(1))}★` : "آرایشگر")}</span>
+          <b>{faText(p.name)}</b>
+          <span>{faText(p.title) || (p.rating != null ? `${faDigits(Number(p.rating).toFixed(1))}★` : "آرایشگر")}</span>
         </button>
       ))}
     </div>
@@ -187,12 +187,12 @@ export function BookingSummary({
     <div className="mini-card">
       <div className="mini-row">
         <span>خدمات</span>
-        <span>{services.length ? services.join("، ") : "—"}</span>
+        <span>{services.length ? services.map((n) => faText(n)).join("، ") : "—"}</span>
       </div>
       {staffName ? (
         <div className="mini-row">
           <span>آرایشگر</span>
-          <span>{staffName}</span>
+          <span>{faText(staffName)}</span>
         </div>
       ) : null}
       <div className="mini-row">
@@ -305,8 +305,8 @@ export function WaitlistSheet({
       ) : (
         <>
           <div className="mini-note" style={{ marginBottom: 12 }}>
-            {salonName}
-            {serviceNames.length ? ` · ${serviceNames.join("، ")}` : ""}
+            {faText(salonName)}
+            {serviceNames.length ? ` · ${serviceNames.map((n) => faText(n)).join("، ")}` : ""}
             {day ? ` · ${dayLabel(day, timezone)}` : ""}
           </div>
           <Field label="نام" name="wl_name" value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً مریم رضایی" />

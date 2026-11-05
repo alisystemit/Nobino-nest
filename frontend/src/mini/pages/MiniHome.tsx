@@ -14,7 +14,7 @@ import { FavoriteRow, FavoritesStrip } from "../components/favorites";
 import LoginSheet from "../components/login-sheet";
 import QrScanner, { cameraScanSupported } from "../components/qr-scanner";
 import { Button, EmptyState, Icon, Row, SectionTitle, SkeletonList, StarIcon } from "../components/ui";
-import { duration, faDigits, fullLabel, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
+import { duration, faDigits, faText, fullLabel, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
 import { rememberPendingSlug, slugFromAnything, useFavorites, type FavoriteSalon } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { startDepositPayment } from "../lib/deposit";
@@ -391,8 +391,8 @@ export default function MiniHome() {
         <div className="mini-hero-row">
           <div className="mini-hero-cover">{salon.logoUrl ? <img src={salon.logoUrl} alt="" /> : salon.name.slice(0, 1)}</div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h1>{salon.name}</h1>
-            <p>{[salon.city, salon.address].filter(Boolean).join(" · ") || config.brand.subtitle}</p>
+            <h1>{faText(salon.name)}</h1>
+            <p>{faText([salon.city, salon.address].filter(Boolean).join(" · ")) || config.brand.subtitle}</p>
           </div>
         </div>
         <div className="mini-hero-chips">
@@ -521,11 +521,11 @@ export default function MiniHome() {
                 <Icon name="sparkle" size={16} />
               </span>
               <span style={{ minWidth: 0, flex: 1 }}>
-                <span className="mini-option-title" style={{ display: "block" }}>{s.name}</span>
+                <span className="mini-option-title" style={{ display: "block" }}>{faText(s.name)}</span>
                 <span className="mini-option-sub">
-                  {s.category ? <span className="mini-tag">{s.category}</span> : null}
+                  {s.category ? <span className="mini-tag">{faText(s.category)}</span> : null}
                   {duration(s.durationMin)}
-                  {s.description ? ` · ${s.description}` : ""}
+                  {s.description ? ` · ${faText(s.description)}` : ""}
                 </span>
               </span>
               {config.brand.showPrices ? <span className="mini-option-price">{shortPrice(s.price)}</span> : null}
@@ -542,8 +542,8 @@ export default function MiniHome() {
             {staff.map((p) => (
               <button key={p.id} type="button" className="mini-pick" onClick={() => openBooking()}>
                 <div className="mini-avatar">{p.avatarUrl ? <img src={p.avatarUrl} alt="" loading="lazy" /> : p.name.slice(0, 1)}</div>
-                <b>{p.name}</b>
-                <span>{p.title || (p.rating != null ? `${faDigits(Number(p.rating).toFixed(1))}★` : "آرایشگر")}</span>
+                <b>{faText(p.name)}</b>
+                <span>{faText(p.title) || (p.rating != null ? `${faDigits(Number(p.rating).toFixed(1))}★` : "آرایشگر")}</span>
               </button>
             ))}
           </div>
@@ -581,7 +581,7 @@ export default function MiniHome() {
                   ))}
                 </span>
               </div>
-              {r.comment ? <p className="mini-option-sub" style={{ marginTop: 6, lineHeight: 1.9 }}>{r.comment}</p> : null}
+              {r.comment ? <p className="mini-option-sub" style={{ marginTop: 6, lineHeight: 1.9 }}>{faText(r.comment)}</p> : null}
             </div>
           ))}
         </>
@@ -605,7 +605,7 @@ export default function MiniHome() {
           ) : config.features.booking ? (
             <Button onClick={() => openBooking()}>
               <Icon name="calendar" size={18} />
-              گرفتن نوبت در {salon.name}
+              گرفتن نوبت در {faText(salon.name)}
             </Button>
           ) : salon.phone ? (
             <a className="mini-btn" href={`tel:${salon.phone}`} style={{ textDecoration: "none" }}>

@@ -9,7 +9,7 @@ import LoginSheet from "../components/login-sheet";
 import { BookingSummary, DayStrip, ServicePicker, SlotGrid, StaffPicker, WaitlistSheet, eligibleStaff, upcomingDays } from "../components/booking";
 import { Button, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList, StarIcon } from "../components/ui";
 import { closeMiniApp, haptic } from "../lib/bridge";
-import { dayLabel, faDigits, isPhone, normalizePhone, ratingText, timeLabel, toman } from "../lib/format";
+import { dayLabel, faDigits, faText, isPhone, normalizePhone, ratingText, timeLabel, toman } from "../lib/format";
 import { useFavorites } from "../lib/favorites";
 import { mapi, useMini } from "../lib/store";
 import type { AvailabilityResponse, MiniReview, MiniSalonDetail, MiniService, MiniStaff } from "../lib/types";
@@ -318,8 +318,8 @@ export default function MiniSalon() {
             {salon.logoUrl || salon.bannerUrl ? <img src={salon.logoUrl || salon.bannerUrl || ""} alt="" /> : salon.name.slice(0, 1)}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div className="mini-salon-name">{salon.name}</div>
-            <div className="mini-salon-meta">{[salon.city, salon.address].filter(Boolean).join(" · ") || "—"}</div>
+            <div className="mini-salon-name">{faText(salon.name)}</div>
+            <div className="mini-salon-meta">{[faText(salon.city), faText(salon.address)].filter(Boolean).join(" · ") || "—"}</div>
           </div>
           <button
             type="button"
@@ -530,8 +530,8 @@ export default function MiniSalon() {
                   ))}
                 </span>
               </div>
-              {r.comment ? <p className="mini-option-sub" style={{ marginTop: 6, lineHeight: 1.9 }}>{r.comment}</p> : null}
-              {r.staff ? <div className="mini-option-sub" style={{ marginTop: 4 }}>آرایشگر: {r.staff}</div> : null}
+              {r.comment ? <p className="mini-option-sub" style={{ marginTop: 6, lineHeight: 1.9 }}>{faText(r.comment)}</p> : null}
+              {r.staff ? <div className="mini-option-sub" style={{ marginTop: 4 }}>آرایشگر: {faText(r.staff)}</div> : null}
             </div>
           ))}
         </>
@@ -543,8 +543,8 @@ export default function MiniSalon() {
         <Field label="شماره موبایل" name="phone" dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09123456789" />
         <Field label="توضیح اختیاری" name="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً زنگ بزنید" />
         <div className="mini-card" style={{ padding: 10, marginBottom: 12 }}>
-          <Row label="سالن" value={salon.name} />
-          <Row label="خدمات" value={pickedServices.map((s) => s.name).join("، ")} />
+          <Row label="سالن" value={faText(salon.name)} />
+          <Row label="خدمات" value={pickedServices.map((s) => faText(s.name)).join("، ")} />
           {showPrices ? <Row label="قیمت تقریبی" value={toman(totals.price)} /> : null}
           <Row label="مدت" value={`${faDigits(totals.durationMin)} دقیقه`} />
         </div>
@@ -563,7 +563,7 @@ export default function MiniSalon() {
             <div className="mini-note" style={{ marginBottom: 12 }}>
               کد پیگیری: <b>{done.id.slice(0, 8)}</b>
             </div>
-            <Row label="سالن" value={salon.name} />
+            <Row label="سالن" value={faText(salon.name)} />
             <div className="mini-btn-row" style={{ marginTop: 14 }}>
               <Button variant="ghost" onClick={() => closeMiniApp()}>
                 بستن

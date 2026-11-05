@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppointmentActions, CancelSheet, RescheduleSheet, ReviewSheet, countdown } from "@/mini/components/appt-actions";
 import { Icon, SectionTitle, StatusBadge } from "@/mini/components/ui";
-import { faDigits, fromNow, fullLabel, toman } from "@/mini/lib/format";
+import { faDigits, faText, fromNow, fullLabel, toman } from "@/mini/lib/format";
 import { mapi, useMini } from "@/mini/lib/store";
 import type { MiniAppointment } from "@/mini/lib/types";
 import { siteHref } from "./site-url";
@@ -73,8 +73,8 @@ export default function MyBookings({ salonId, salonName, nonce }: { salonId: str
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="mini-next-when">{fullLabel(shown.startAt, shown.salonTimezone ?? undefined)}</div>
             <div className="mini-next-sub">
-              {shown.service ?? "نوبت"}
-              {shown.employee ? ` · ${shown.employee}` : ""}
+              {faText(shown.service) || "نوبت"}
+              {shown.employee ? ` · ${faText(shown.employee)}` : ""}
               {shown.note ? ` · یادداشت: ${shown.note}` : ""}
             </div>
           </div>
