@@ -54,6 +54,34 @@ function RouteFallback() {
   );
 }
 
+/**
+ * A10: مسیرهای ادمین فقط «صفحهٔ اصلی» را دارند؛ سوپرادمینی که آدرس دیگری را
+ * تایپ کند نباید بی‌سروصدا به هوم‌پیج عمومی برود — باید بداند صفحه‌ای وجود ندارد.
+ */
+function AdminUnknownPage() {
+  const location = useLocation();
+  return (
+    <div className="mx-auto flex min-h-[50vh] w-full max-w-xl flex-col items-center justify-center gap-3 px-4 text-center">
+      <div className="text-4xl">🧭</div>
+      <h1 className="text-lg font-black text-neutral-900 dark:text-neutral-100">این بخش از پنل ادمین وجود ندارد</h1>
+      <p className="text-sm leading-7 text-neutral-600 dark:text-neutral-300" dir="ltr">
+        <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs dark:bg-neutral-800">{location.pathname}</code>
+      </p>
+      <p className="text-sm text-neutral-600 dark:text-neutral-300">
+        همهٔ ابزارهای سوپرادمین در یک صفحهٔ با تب‌ها جمع شده‌اند. از آنجا بخش موردنظر را انتخاب کنید.
+      </p>
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+        <a href="/admin" className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900">
+          رفتن به پنل ادمین
+        </a>
+        <a href="/admin/login" className="rounded-xl bg-neutral-100 px-4 py-2.5 text-sm font-bold text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300">
+          صفحهٔ ورود
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function RequireAuth({ roles }: { roles?: string[] }) {
   const { me, loading } = useAuth();
   const location = useLocation();
@@ -172,6 +200,8 @@ function AppInner() {
 
           <Route element={<RequireAuth roles={["ADMIN"]} />}>
             <Route path="/admin" element={<AdminPage />} />
+            {/* A10: هر مسیر ناشناختهٔ زیرِ /admin به‌جای ریدایرکت بی‌صدا، پیام «وجود ندارد» می‌گیرد */}
+            <Route path="/admin/*" element={<AdminUnknownPage />} />
           </Route>
           <Route path="/admin/login" element={<AdminLoginPage />} />
 

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node prerender.mjs",
+    "build": "tsc -b && node scripts/vite-build.mjs && node prerender.mjs",
     "preview": "vite preview",
     "verify": "npm run build"
   },

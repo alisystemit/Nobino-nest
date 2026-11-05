@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import SalonIcon from "@/components/icons/SalonIcon";
+import { fetchMe } from "@/lib/session";
 
 /**
  * قاب داشبورد — سایدبار تیره با آیکون، بخش‌بندی منو، کارت پروفایل در پایین،
@@ -108,13 +109,9 @@ export default function DashboardShell({
 
   useEffect(() => {
     (async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        const data = await res.json();
-        if (data.user) setMe(data.user);
-      } catch {
-        /* بی‌صدا */
-      }
+      // C17: پروب مشترک — با AuthProvider و صفحهٔ میزبان یک درخواست هم‌زمان می‌کنند
+      const { user } = await fetchMe();
+      if (user) setMe(user as Me);
     })();
   }, []);
 

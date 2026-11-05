@@ -3,6 +3,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { fetchMe } from "@/lib/session";
 
 export type SessionUser = {
   id: string;
@@ -34,18 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/me", { credentials: "same-origin" });
-      const data = await res.json();
-      const user = (data?.user ?? null) as SessionUser | null;
-      setMe(user);
-      return user;
-    } catch {
-      setMe(null);
-      return null;
-    } finally {
-      setLoading(false);
-    }
+    // C17: از پروب مشترک استفاده می‌کند تا با سربرگ/پوسته/صفحه، پنج درخواست هم‌زمان
+    // به /api/auth/me نزند.
+    const { user } = await fetchMe();
+    setMe(user as SessionUser | null);
+    setLoading(false);
+    return user as SessionUser | null;
   }, []);
 
   const logout = useCallback(async () => {

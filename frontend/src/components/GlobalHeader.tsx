@@ -4,6 +4,7 @@ import Link from "@/router-shim";
 import { usePathname } from "@/router-shim";
 import { useEffect, useState } from "react";
 import { LangSwitch, useI18n } from "@/lib/i18n";
+import { fetchMe } from "@/lib/session";
 import { ThemeToggle } from "@/lib/theme";
 import SalonIcon from "@/components/icons/SalonIcon";
 
@@ -24,17 +25,12 @@ export default function GlobalHeader() {
   }, []);
 
   // وضعیت ورود — پس از هر جابه‌جایی دوباره خوانده می‌شود تا بعد از ورود/خروج به‌روز باشد
+  // (C17: از پروب مشترکِ `fetchMe` استفاده می‌کند تا درخواست تکراری ساخت نشود)
   useEffect(() => {
     let alive = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        const me = await res.json();
-        if (alive) setUser(me.user ?? null);
-      } catch {
-        if (alive) setUser(null);
-      }
-    })();
+    void fetchMe().then(({ user: u }) => {
+      if (alive) setUser(u);
+    });
     return () => {
       alive = false;
     };
