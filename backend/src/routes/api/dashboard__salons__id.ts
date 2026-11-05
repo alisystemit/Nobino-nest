@@ -32,6 +32,7 @@ const patchSchema = z.object({
   logoUrl: z.string().max(300).optional().nullable(),
   bannerUrl: z.string().max(300).optional().nullable(),
   coverColor: z.string().max(32).optional(),
+  salonType: z.enum(["WOMEN", "MEN", "COUPLE"]).optional(),
   timezone: z.string().max(64).optional(),
   latitude: z.number().min(-90).max(90).optional().nullable(),
   longitude: z.number().min(-180).max(180).optional().nullable(),

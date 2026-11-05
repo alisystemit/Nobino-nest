@@ -26,6 +26,7 @@ const createSchema = z.object({
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
   coverColor: z.string().default("#ec4899"),
+  salonType: z.enum(["WOMEN", "MEN", "COUPLE"]).default("WOMEN"),
 });
 
 export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
@@ -36,8 +37,10 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
     const q = url.searchParams.get("q")?.trim();
     const city = url.searchParams.get("city")?.trim();
     const sort = url.searchParams.get("sort")?.trim();
+    const type = url.searchParams.get("type")?.trim().toUpperCase();
 
     const where: Prisma.SalonWhereInput = user.role === "ADMIN" ? {} : { ownerId: user.id };
+    if (type === "MEN" || type === "WOMEN" || type === "COUPLE") where.salonType = type;
     if (q) {
       where.OR = [
         { name: { contains: q } },
@@ -114,6 +117,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
         latitude: body.latitude ?? null,
         longitude: body.longitude ?? null,
         coverColor: body.coverColor,
+        salonType: body.salonType,
         bannerUrl, // بنر پیش‌فرض SVG
         ownerId: user.id,
         isApproved: user.role === "ADMIN",

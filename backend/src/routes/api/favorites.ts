@@ -13,7 +13,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
     const [favorites, total] = await Promise.all([
       prisma.favorite.findMany({
         where,
-        include: { salon: { select: { id: true, slug: true, name: true, city: true, coverColor: true, bannerUrl: true } } },
+        include: { salon: { select: { id: true, slug: true, name: true, city: true, coverColor: true, bannerUrl: true, salonType: true } } },
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         skip,
         take,

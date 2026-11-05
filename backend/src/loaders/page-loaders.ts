@@ -41,6 +41,7 @@ async function loadHome() {
       address: true,
       description: true,
       coverColor: true,
+      salonType: true,
       bannerUrl: true,
       services: { where: { isActive: true }, take: 3, select: { name: true, price: true } },
     },
@@ -99,10 +100,17 @@ async function loadHome() {
 /* ------------------------------------------------------------- salon seo */
 
 /** متادیتا + JSON-LD صفحهٔ عمومی سالن (برای SEO) */
+const SALON_TYPE_LABEL: Record<string, string> = {
+  MEN: "آرایشگاه مردانه",
+  WOMEN: "سالن زیبایی بانوان",
+  COUPLE: "مجموعه زیبایی (مردان و زنان)",
+};
+const typeLabel = (t?: string | null) => SALON_TYPE_LABEL[t ?? ""] ?? "آرایشگاه";
+
 async function buildSalonSeo(slug: string) {
   const salon = await prisma.salon.findUnique({ where: { slug } });
   if (!salon) return null;
-  const title = `${salon.name}${salon.city ? ` — آرایشگاه در ${salon.city}` : ""}`;
+  const title = `${salon.name}${salon.city ? ` — ${typeLabel(salon.salonType)} در ${salon.city}` : ""}`;
   const description =
     salon.description ??
     `رزرو آنلاین نوبت ${salon.name}${salon.city ? ` در ${salon.city}` : ""}؛ مشاهده خدمات، قیمت‌ها، آرایشگران و زمان‌های آزاد.`;
@@ -364,6 +372,7 @@ async function loadDashboardSalon(url: URL) {
             latitude: s.latitude,
             longitude: s.longitude,
             coverColor: s.coverColor,
+            salonType: s.salonType,
           },
         };
       }
@@ -464,12 +473,12 @@ async function loadDashboardStaff(url: URL) {
 async function loadSeoSalons() {
   const salons = await prisma.salon.findMany({
     where: { isActive: true, isApproved: true },
-    select: { slug: true, name: true, city: true, description: true, bannerUrl: true, logoUrl: true },
+    select: { slug: true, name: true, city: true, description: true, bannerUrl: true, logoUrl: true, salonType: true },
     take: 300,
   });
   return salons.map((s) => ({
     path: `/s/${s.slug}`,
-    title: `${s.name}${s.city ? ` — آرایشگاه در ${s.city}` : ""}`,
+    title: `${s.name}${s.city ? ` — ${typeLabel(s.salonType)} در ${s.city}` : ""}`,
     description:
       s.description ??
       `رزرو آنلاین نوبت ${s.name}${s.city ? ` در ${s.city}` : ""}؛ مشاهده خدمات، قیمت‌ها، آرایشگران و زمان‌های آزاد.`,

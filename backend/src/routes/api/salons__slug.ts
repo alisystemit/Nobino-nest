@@ -40,6 +40,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       logoUrl: salon.logoUrl,
       bannerUrl: salon.bannerUrl,
       coverColor: salon.coverColor,
+      salonType: salon.salonType,
       timezone: salon.timezone,
       // راه‌های تماس/موقعیت — مینی‌اپ پیام‌رسان این‌ها را در صفحهٔ خانه نشان می‌دهد
       whatsapp: salon.whatsapp,

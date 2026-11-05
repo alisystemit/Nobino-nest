@@ -21,6 +21,7 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
       city: true,
       address: true,
       coverColor: true,
+      salonType: true,
       bannerUrl: true,
       logoUrl: true,
       description: true,

@@ -10,10 +10,14 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
   const city = url.searchParams.get("city") ?? "";
   const service = url.searchParams.get("service") ?? "";
   const maxPrice = Number(url.searchParams.get("maxPrice") ?? 0);
+  // نوع سالن: مردانه/بانوان/مشترک — نام سالن مبنای فیلتر نیست (بعضی «مجموعه آرایشی»ند)
+  const SALON_TYPES: Record<string, string> = { men: "MEN", women: "WOMEN", couple: "COUPLE" };
+  const salonType = SALON_TYPES[(url.searchParams.get("type") ?? "").trim().toLowerCase()];
   const { page, limit, skip, take } = getPagination(url, 50, 100);
 
   const where: Prisma.SalonWhereInput = { isApproved: true, isActive: true };
 
+  if (salonType) where.salonType = salonType;
   if (city) where.city = { contains: city, mode: "insensitive" };
   if (q) {
     // جستجوی آزاد فقط نام/توضیح نبود؛ کاربر «اصفهان» یا «خیابان ولیعصر» را هم تایپ می‌کند.
@@ -41,6 +45,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
         city: true,
         address: true,
         coverColor: true,
+        salonType: true,
         bannerUrl: true,
         logoUrl: true,
         description: true,

@@ -26,6 +26,7 @@ const patchSchema = z
     description: z.string().trim().max(1000),
     timezone: z.string().trim().min(1).max(64),
     instagram: z.string().trim().max(300).nullable(),
+    salonType: z.enum(["WOMEN", "MEN", "COUPLE"]),
     isActive: z.boolean(),
     isApproved: z.boolean(),
   })
@@ -43,6 +44,7 @@ const FIELD_LABELS: Record<string, string> = {
   description: "توضیحات",
   timezone: "منطقهٔ زمانی",
   instagram: "اینستاگرام",
+  salonType: "نوع سالن",
   isActive: "فعال بودن",
   isApproved: "تأیید شده",
 };
@@ -72,6 +74,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } |
       ...(body.address != null ? { address: body.address } : {}),
       ...(body.description != null ? { description: body.description } : {}),
       ...(body.instagram !== undefined ? { instagram: body.instagram || null } : {}),
+      ...(body.salonType != null ? { salonType: body.salonType } : {}),
       ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
       ...(body.isApproved !== undefined ? { isApproved: body.isApproved } : {}),
       ...(body.timezone != null ? { timezone: body.timezone } : {}),

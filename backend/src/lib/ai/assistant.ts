@@ -14,6 +14,7 @@ export interface AssistantContext {
  */
 type SalonFacts = {
   name: string;
+  salonType: string;
   city: string | null;
   address: string | null;
   description: string | null;
@@ -36,6 +37,7 @@ async function fetchSalonFacts(salonId: string): Promise<SalonFacts | null> {
   if (!salon) return null;
   return {
     name: salon.name,
+    salonType: salon.salonType,
     city: salon.city ?? null,
     address: salon.address ?? null,
     description: salon.description ?? null,
@@ -75,8 +77,16 @@ export async function assistantReply(question: string, ctx: AssistantContext): P
   const facts = await fetchSalonFacts(ctx.salonId);
   if (!facts) return { reply: "اطلاعات این سالن در دسترس نیست.", usedAI: false };
 
+  const kindHint =
+    facts.salonType === "MEN"
+      ? "این آرایشگاه مردانه است؛ مشتری‌ها آقا هستند و خدمات حول مو، ریش و فید می‌چرخد."
+      : facts.salonType === "COUPLE"
+        ? "این مجموعه هم بخش مردان و هم بخش بانوان دارد؛ خدمات را با بخش درست مرتبط بدان."
+        : "این سالن زیبایی بانوان است.";
+
   const system = [
-    "تو دستیار نوبت‌دهی سالن زیبایی هستی.",
+    "تو دستیار نوبت‌دهی یک سالن زیبایی/آرایشگاه هستی.",
+    kindHint,
     "فقط بر اساس اطلاعات زیر پاسخ بده و هرگز قوانین رزرو را دور نزن.",
     "زبان پاسخ فارسی باشد و پاسخ کوتاه و مفید.",
     "آدرس دقیق یا جزئیات داخلی را تکرار نکن؛ مشتری همان‌ها را در صفحهٔ سالن می‌بیند.",
