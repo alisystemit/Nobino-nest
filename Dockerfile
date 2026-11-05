@@ -1,8 +1,21 @@
 # syntax=docker/dockerfile:1
 # ─────────────────────────────────────────────────────────────────────
 # Nobino (نسخهٔ NestJS) — ایمیج تک‌پروسه: API + SPA در یک پورت
-# ساخت:   docker build -t nobino .
-# اجرا:   docker run -p 3100:3100 --env-file .env.production nobino
+#
+# ── راه پیشنهادی: docker compose (اپ + PostgreSQL) ──
+#   cp deploy/env.production.example .env      # مقادیر را پر کنید
+#   docker compose up -d --build               # compose خودش DATABASE_URL داخلی را می‌سازد
+#
+# ── یا ایمیج خالی با دیتابیس بیرون از کانتینر ──
+#   docker build --build-arg SITE_URL=https://nobino.ir \
+#                --build-arg VITE_ROOT_DOMAIN=nobino.ir -t nobino .
+#   docker run -p 3100:3100 --env-file deploy/env.docker.env nobino
+#   ⚠️ قالب env.production.example مقادیر را «گیومه‌دار» می‌نویسد؛ `docker run
+#   --env-file` برخلاف compose گیومه را حذف نمی‌کند و آن بخشی از مقدار می‌شود
+#   (مoby#46773). برای این حالت فایل بدون گیومه بسازید:
+#     sed -E 's/^([A-Z0-9_]+)="?([^"]*)"?\s*$/\1=\2/' deploy/env.production.example \
+#       | grep -E '^[A-Z0-9_]+=' > deploy/env.docker.env
+#   و پکیج‌های پیامک/درگاه را در همان فایل پر کنید.
 # ─────────────────────────────────────────────────────────────────────
 
 FROM node:24-bookworm-slim AS deps
@@ -24,7 +37,6 @@ FROM deps AS build
 WORKDIR /app
 # دامنهٔ بیلد: Vite از envDir ریشه می‌خواند و `.dockerignore` فایل‌های .env را
 # بیرون می‌گذارد، پس این ARGها تنها راه رساندن VITE_* به بیلد SPA هستند (B5).
-# ساخت:  docker build --build-arg SITE_URL=https://nobino.ir --build-arg VITE_ROOT_DOMAIN=nobino.ir -t nobino .
 ARG SITE_URL=""
 ARG VITE_ROOT_DOMAIN=""
 ARG VITE_SITE_URL=""
@@ -32,8 +44,11 @@ ARG VITE_APP_URL=""
 ENV SITE_URL=$SITE_URL \
     VITE_ROOT_DOMAIN=$VITE_ROOT_DOMAIN \
     VITE_SITE_URL=${VITE_SITE_URL:-$SITE_URL} \
-    VITE_APP_URL=${VITE_APP_URL:-$SITE_URL} \
-    PRERENDER_API=${VITE_SITE_URL:-$SITE_URL}
+    VITE_APP_URL=${VITE_APP_URL:-$SITE_URL}
+# PRERENDER_API عمداً در این لایه ست نمی‌شود: بیلد باید مستقل از شبکه بماند. اگر آن
+# را روی SITE_URL بگذاریم، `build-release --no-smoke` سایتِ زندهٔ قدیمی را صدا می‌زند و
+# صفحات SEO با دادهٔ کهنه داخل ایمیج تازه می‌سوزد. prerender در لایهٔ runtime و بعد از
+# بوت انجام می‌شود (PRERENDER_ON_BOOT=1) و از همان .env زنده دامنه را می‌گیرد.
 COPY . .
 # Prisma Client + بیلد بک‌اند و SPA (بدون smoke-test؛ دیتابیس در این مرحله نیست)
 RUN node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma \

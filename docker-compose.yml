@@ -6,7 +6,9 @@
 # ۴) لاگ:              docker compose logs -f app
 #
 # نکته: دامنهٔ ریشه (ROOT_DOMAIN) و رمزها را در همان .env بگذارید؛ compose
-# DATABASE_URL را از POSTGRES_* برای شبکهٔ داخلی کانتینر می‌سازد.
+# DATABASE_URL را از POSTGRES_* برای شبکهٔ داخلی کانتینر می‌سازد و مقدار
+# localhostِ موجود در .env هرگز به داخل کانتینر نمی‌رود. برای دیتابیس بیرونی
+# (managed) به‌جای DATABASE_URL، متغیر APP_DATABASE_URL را در .env بگذارید.
 services:
   db:
     image: postgres:16-alpine
@@ -43,10 +45,15 @@ services:
     env_file:
       - .env
     environment:
-      # داخل کانتینر، دیتابیس با نام سرویس «db» شناخته می‌شود.
-      # اگر DATABASE_URL را خودتان در .env گذاشته‌اید (دیتابیس managed)، همان
-      # مقدار برنده است و این پیش‌فرض فقط وقتی .env خالی است ساخته می‌شود (e5).
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-nobino}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-nobino}?schema=public}
+      # ⚠️ این خط همیشه بر env_file غلبه می‌کند (compose، environment را برتر
+      # می‌گیرد). پس در داخل کانتینر DATABASE_URL هرگز از .env خوانده نمی‌شود؛
+      # دلیل: قالب deploy/env.production.example یک نشانی localhost:5432 دارد
+      # که داخل کانتینر به هیچ دیتابیسی نمی‌رسد و app در crash-loop می‌افتد.
+      #   • دیتابیس همین compose (پیش‌فرض) → از POSTGRES_* و نام سرویس «db» ساخته می‌شود.
+      #   • دیتابیس managed/خارجی          → APP_DATABASE_URL را در .env بگذارید.
+      # (متغیر را APP_DATABASE_URL نامیم تا مقدار localhost خودِ DATABASE_URL
+      #  نتواند این پیش‌فرض را باطل کند.)
+      DATABASE_URL: ${APP_DATABASE_URL:-postgresql://${POSTGRES_USER:-nobino}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-nobino}?schema=public}
       PORT: "3100"
       HOST: 0.0.0.0
       SERVE_FRONTEND: "1"
