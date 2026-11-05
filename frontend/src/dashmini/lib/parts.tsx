@@ -60,7 +60,7 @@ export function StatGrid({
   cells,
 }: {
   loading: boolean;
-  cells: { value: string; label: string }[];
+  cells: { value: string; label: string; hint?: string }[];
 }) {
   if (loading) return <SkeletonList count={1} />;
   return (
@@ -69,6 +69,7 @@ export function StatGrid({
         <div key={c.label} className="mini-stat">
           <b>{c.value}</b>
           <span>{c.label}</span>
+          {c.hint ? <small>{c.hint}</small> : null}
         </div>
       ))}
     </div>
