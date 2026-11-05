@@ -564,7 +564,8 @@ model Campaign {
   salon       Salon     @relation(fields: [salonId], references: [id], onDelete: Cascade)
   name        String
   channel     String    @default("SMS") // SMS | EMAIL
-  segment     String    @default("ALL") // ALL | RETURNING
+  segment     String    @default("ALL") // ALL | RETURNING | NEW | RECENT | SILENT | VIP
+  filters     Json? // معیارهای بخش‌بندی دقیق (lib/marketing/segments.ts)؛ null = فقط preset
   message     String
   status      String    @default("DRAFT") // DRAFT | SENT | SCHEDULED
   scheduledAt DateTime?
