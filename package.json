@@ -24,6 +24,7 @@
     "test:wiring": "node --test scripts/wiring.test.mjs",
     "test:smoke": "node --test scripts/smoke.test.mjs",
     "test:seo": "node --test scripts/seo.test.mjs",
+    "test:deploy": "node --test scripts/deploy-update.test.mjs",
     "verify": "npm run db:generate && npm run build:backend && npm run build:frontend && npm test"
   },
   "prisma": {

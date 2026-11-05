@@ -10,6 +10,10 @@ backend/public/uploads/
 # دیتابیس محلی (embedded postgres)
 .pgdata/
 
+# بکاپ‌های خودکار deploy/update.sh — تمام دادهٔ کاربران داخلشان است؛
+# هرگز کامیت و از بیرون سرو نمی‌شود (با --backup-dir به جای دیگری ببرید).
+/backups/
+
 # استقرار (deploy) — فایل‌های تولیدی/رمزدار
 .env.production
 .env.production.local
