@@ -3,17 +3,22 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ─── فونت‌های محلی (Yekan / IranSans) ─── */
+/* Yekan فقط دو فایل دارد (Regular و Bold). اگر وزنها تک‌مقداری اعلام شوند،
+   درخواست 500 طبق الگوریتم CSS به نزدیک‌ترین وزن بزرگ‌تر یعنی Bold می‌افتد و
+   برچسب‌های font-medium «کلفت» نمایش داده می‌شوند. با بازهٔ وزنی، هر وزنِ
+   درخواستی (100..900) به یکی از همین دو چهرهٔ واقعی نگاشت می‌شود:
+   نازک‌وزن‌ها → Regular و ضخیم‌وزن‌ها → Bold، بدون ضخیم‌سازی مصنوعی. */
 @font-face {
   font-family: "Yekan";
   src: url("/fonts/Yekan-Regular.woff2") format("woff2");
-  font-weight: 400;
+  font-weight: 100 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Yekan";
   src: url("/fonts/Yekan-Bold.woff2") format("woff2");
-  font-weight: 700;
+  font-weight: 600 900;
   font-style: normal;
   font-display: swap;
 }
