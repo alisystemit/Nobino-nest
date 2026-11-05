@@ -10,6 +10,19 @@ export function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * «شهر — نشانی»؛ نشانی فارسی معمولاً با خودِ شهر شروع می‌شود،
+ * پس شهر دوباره تکرار نمی‌شود: «ارومیه، خیابان مدنی…» → «ارومیه — خیابان مدنی…»
+ */
+export function joinLocation(city?: string | null, address?: string | null, sep = " — "): string {
+  const c = (city ?? "").trim();
+  const a = (address ?? "").trim();
+  if (!c) return a;
+  if (!a) return c;
+  const rest = a.startsWith(`${c}،`) || a.startsWith(`${c},`) ? a.slice(c.length + 1).trim() : a;
+  return rest ? `${c}${sep}${rest}` : c;
+}
+
 /** تبدیل عدد به فرمت تومان با جداکننده هزارگان */
 export function formatToman(amount: number): string {
   return new Intl.NumberFormat("fa-IR").format(amount) + " تومان";

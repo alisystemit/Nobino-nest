@@ -40,6 +40,16 @@ export function faText(input: string | null | undefined): string {
   return s.split(TECHNICAL).map((part, i) => (i % 2 ? part : toFa(part))).join("");
 }
 
+/** «شهر · نشانی» بدون تکرار شهر — نشانی فارسی معمولاً با خودِ شهر شروع می‌شود */
+export function locationLine(city?: string | null, address?: string | null, sep = " · "): string {
+  const c = (city ?? "").trim();
+  const a = (address ?? "").trim();
+  if (!c) return a;
+  if (!a) return c;
+  const rest = a.startsWith(`${c}،`) || a.startsWith(`${c},`) ? a.slice(c.length + 1).trim() : a;
+  return rest ? `${c}${sep}${rest}` : c;
+}
+
 /** ۱۲۵۰۰۰ → «۱۲۵٬۰۰۰ تومان» */
 export function toman(amount: number | null | undefined): string {
   if (amount == null || !Number.isFinite(amount)) return "—";

@@ -11,7 +11,7 @@ import { MapPin, Search, Star } from "lucide-react";
 import Pagination from "@/components/ui/Pagination";
 import SafeImage from "@/components/SafeImage";
 import SalonIcon from "@/components/icons/SalonIcon";
-import { formatToman, toPersianDigits } from "@/lib/utils";
+import { formatToman, joinLocation, toPersianDigits } from "@/lib/utils";
 import { subdomainUrl } from "@/lib/subdomain";
 
 /** هم‌راستا با پیش‌فرض سرور (getPagination: 50) — اینجا فهرست فشرده‌تر نمایش داده می‌شود */
@@ -30,10 +30,6 @@ type SearchSalon = {
   rating: number | null;
   reviewCount: number;
 };
-
-function joinLocation(city?: string | null, address?: string | null): string {
-  return [city, address].filter(Boolean).join(" — ") || "بدون آدرس ثبت‌شده";
-}
 
 export default function SalonsPage() {
   const [salons, setSalons] = useState<SearchSalon[]>([]);
@@ -169,7 +165,7 @@ export default function SalonsPage() {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">📍 {joinLocation(s.city, s.address)}</p>
+                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">📍 {toPersianDigits(joinLocation(s.city, s.address)) || "بدون آدرس ثبت‌شده"}</p>
                 {s.description && <p className="mt-2 line-clamp-2 text-sm text-neutral-400 dark:text-neutral-500">{s.description}</p>}
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <span className="rounded-full bg-pink-50 px-2.5 py-0.5 text-[10px] font-bold text-pink-700 dark:bg-pink-950/40 dark:text-pink-300">

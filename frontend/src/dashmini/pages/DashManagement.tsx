@@ -20,6 +20,7 @@ import { Area, Button, Chip, EmptyState, Field, Icon, SectionTitle, Sheet, Skele
 import { faDigits, timeLabel, ymd } from "@/mini/lib/format";
 import { JALALI_MONTHS, WEEKDAYS_SHORT, formatJalali, formatJalaliWithWeekday, isoToJalali, jalaliMonthDays, jalaliToIso, toPersianDigits, weekdayIndexSaturdayFirst } from "@/lib/time/jalali";
 import { todayInZone, zonedTimeToIso } from "@/lib/time/zoned";
+import { joinLocation } from "@/lib/utils";
 import { dapi, qs } from "../lib/api";
 import { DeleteButton, Pager, SalonSwitcher } from "../lib/parts";
 import { useDash } from "../lib/store";
@@ -793,7 +794,7 @@ function BranchesPane({ base, notify, onChanged }: { base: string; notify: (text
               <span className="mini-item-main">
                 <span className="mini-item-title">{b.name}</span>
                 <span className="mini-item-sub">
-                  {[b.city, b.address].filter(Boolean).join(" · ") || "بدون آدرس"}
+                  {joinLocation(b.city, b.address, " · ") || "بدون آدرس"}
                   {" · "}
                   {faDigits(b._count?.staff ?? 0)} کارکن · {faDigits(b._count?.appointments ?? 0)} نوبت
                 </span>

@@ -14,7 +14,7 @@ import { FavoriteRow, FavoritesStrip } from "../components/favorites";
 import LoginSheet from "../components/login-sheet";
 import QrScanner, { cameraScanSupported } from "../components/qr-scanner";
 import { Button, EmptyState, Icon, Row, SectionTitle, SkeletonList, StarIcon } from "../components/ui";
-import { duration, faDigits, faText, fullLabel, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
+import { duration, faDigits, faText, fullLabel, locationLine, ratingText, shortPrice, toman, todayWeekdayIndex, WEEKDAYS_FA, ymd } from "../lib/format";
 import { rememberPendingSlug, slugFromAnything, useFavorites, type FavoriteSalon } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { startDepositPayment } from "../lib/deposit";
@@ -392,7 +392,7 @@ export default function MiniHome() {
           <div className="mini-hero-cover">{salon.logoUrl ? <img src={salon.logoUrl} alt="" /> : salon.name.slice(0, 1)}</div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <h1>{faText(salon.name)}</h1>
-            <p>{faText([salon.city, salon.address].filter(Boolean).join(" · ")) || config.brand.subtitle}</p>
+            <p>{faText(locationLine(salon.city, salon.address)) || config.brand.subtitle}</p>
           </div>
         </div>
         <div className="mini-hero-chips">

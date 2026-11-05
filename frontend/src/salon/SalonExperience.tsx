@@ -24,6 +24,7 @@ import { siteHref, siteHomeHref } from "./site-url";
 import { localizeTexts } from "./text";
 import { usePageData } from "@/lib/page-data";
 import { useTheme } from "@/lib/theme";
+import { joinLocation } from "@/lib/utils";
 import { useMeta } from "@/lib/use-meta";
 import LoginSheet from "@/mini/components/login-sheet";
 import { Button, EmptyState, Icon, Row, SectionTitle, Sheet, SkeletonList, StarIcon } from "@/mini/components/ui";
@@ -351,7 +352,7 @@ function SalonInner({ slug, isDark }: { slug: string; isDark: boolean }) {
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h1>{salon.name}</h1>
-                <p>{[salon.city, salon.address].filter(Boolean).join(" · ") || "سالن زیبایی"}</p>
+                <p>{joinLocation(salon.city, salon.address, " · ") || "سالن زیبایی"}</p>
               </div>
               <div className="sm-hero-fav">
                 {/* مهمان نباید درخواست protected بزند — فقط وقتی نشست روشن شد می‌پرسیم */}

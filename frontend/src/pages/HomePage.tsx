@@ -8,7 +8,7 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import HomeHero from "@/components/HomeHero";
 import SafeImage from "@/components/SafeImage";
 import SalonIcon from "@/components/icons/SalonIcon";
-import { formatToman, toPersianDigits } from "@/lib/utils";
+import { formatToman, joinLocation, toPersianDigits } from "@/lib/utils";
 import { subdomainUrl } from "@/lib/subdomain";
 import { usePageData } from "@/lib/page-data";
 
@@ -75,15 +75,6 @@ const faqs = [
   { q: "اگر سرویس پیامک قطع شود چه می‌شود؟", a: "پیام‌ها در صف ذخیره می‌شوند و به‌صورت خودکار از سرویس‌دهنده بعدیِ پیکربندی‌شده تلاش مجدد می‌شود؛ هیچ اعلانی گم نمی‌شود." },
   { q: "می‌توانم چند شعبه داشته باشم؟", a: "بله. تعداد شعبه‌ها و کارکنان بر اساس پلن شما تعیین می‌شود و از پنل مدیریت قابل ارتقاست." },
 ];
-
-function joinLocation(city: string | null | undefined, address: string | null | undefined): string {
-  const c = (city ?? "").trim();
-  const a = (address ?? "").trim();
-  if (!c) return a || "—";
-  if (!a) return c;
-  const a2 = (a.startsWith(c + "،") ? a.slice(c.length + 1) : a.startsWith(c + ",") ? a.slice(c.length + 1) : a).trim();
-  return a2 ? `${c} — ${a2}` : c;
-}
 
 export default function HomePage() {
   const { data } = usePageData<HomeData>("home");
@@ -163,7 +154,7 @@ export default function HomePage() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">📍 {joinLocation(s.city, s.address)}</p>
+                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">📍 {toPersianDigits(joinLocation(s.city, s.address))}</p>
                     {s.description && <p className="mt-2 line-clamp-2 text-sm text-neutral-400 dark:text-neutral-500">{s.description}</p>}
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {s.services.map((svc) => (
