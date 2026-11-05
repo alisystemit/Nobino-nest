@@ -133,7 +133,11 @@ if (!SKIP_FRONTEND) {
     for (const l of lines.slice(0, 8)) console.log("    " + l);
   }
   log("ساخت SPA (vite build)...");
-  const vite = run("npx", ["vite", "build"], { cwd: frontendDir });
+  // NODE_ENV را صریح پروداکشن می‌گذاریم: .env ریشه `NODE_ENV="development"` دارد و
+  // Vite (به‌خاطر envDir همان پوشه) آن را برای build هم برمی‌دارد، پس بدون این خط
+  // راکتِ development در dist می‌نشیند. frontend/scripts/vite-build.mjs همین کاری را
+  // برای `npm run build` می‌کند؛ اینجا مستقیم‌ترین معادل است.
+  const vite = run("node", ["scripts/vite-build.mjs"], { cwd: frontendDir });
   if (vite.status !== 0) fail("vite build ناموفق بود");
   log("prerender بعد از بوت سرور انجام می‌شود (تا صفحات سالن‌ها از API گرفته شوند)...");
 } else {

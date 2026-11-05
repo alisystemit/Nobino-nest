@@ -14,12 +14,24 @@
  *    شماره‌های بالا استفاده می‌شود تا با دیتای قبلی برخورد نکند.
  *
  * اجرا:  node scripts/seed-stress.mjs
+ * پاک‌سازی تنظیمات:  node scripts/seed-stress.mjs --clean-settings
+ *   فقط ردیف‌های Setting با کلید stress.key.* را می‌برد (همان‌ها که در پنل ادمین
+ *   به‌عنوان «تنظیم» مزاحم می‌شوند — A7). بقیهٔ دیتای استرس عمداً حذف نمی‌شود؛
+ *   جدول‌ها به هم وابسته‌اند و پاک‌شان کردن باید با آگاهی و دستی باشد.
  */
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, randomInt } from "node:crypto";
 
 const prisma = new PrismaClient();
 const TARGET = 250;
+
+/** A7: پاک‌سازی ردیف‌های تنظیمِ ساخته‌شده توسط همین اسکریپت */
+async function cleanSettings() {
+  const r = await prisma.setting.deleteMany({ where: { key: { startsWith: "stress.key." } } });
+  const left = await prisma.setting.count();
+  console.log(`🧹 ${r.count} ردیف استرس از جدول Setting حذف شد؛ ${left} ردیف باقی مانده است.`);
+  if (r.count === 0) console.log("   (ردیفی با کلید stress.key.* پیدا نشد — چیزی برای پاک‌کردن نبود.)");
+}
 
 const rand = (min, max) => randomInt(min, max + 1);
 const pick = (arr) => arr[rand(0, arr.length - 1)];
@@ -81,6 +93,10 @@ const PAYOUT_STATUS = ["REQUESTED", "PROCESSING", "PAID", "REJECTED"];
 const TK_STATUS = ["OPEN", "IN_PROGRESS", "CLOSED"];
 
 async function main() {
+  if (process.argv.includes("--clean-settings")) {
+    await cleanSettings();
+    return;
+  }
   console.log("🚀 شروع تزریق حجم بالا (استرس) — هدف: ۲۵۰ رکورد در هر جدول\n");
 
   // ── ۱) کاربران ─────────────────────────────────────────────────────
