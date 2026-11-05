@@ -19,7 +19,9 @@
     "build": "node scripts/build-release.mjs --skip-install --no-smoke",
     "build:release": "node scripts/build-release.mjs",
     "start": "node scripts/paas-start.mjs",
-    "verify": "npm run db:generate && npm run build:backend && npm run build:frontend"
+    "test": "node --test \"scripts/*.test.mjs\"",
+    "test:wiring": "node --test scripts/wiring.test.mjs",
+    "verify": "npm run db:generate && npm run build:backend && npm run build:frontend && npm test"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",
