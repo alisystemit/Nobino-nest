@@ -34,7 +34,7 @@ const int = (raw: string, min = 0): number => {
 };
 
 export default function DashServices() {
-  const { salonId, payload, toast } = useDash();
+  const { salonId, publicUrl, toast } = useDash();
   const navigate = useNavigate();
 
   const [rows, setRows] = useState<ServiceRow[]>([]);
@@ -90,8 +90,8 @@ export default function DashServices() {
       <div className="dash-toolbar">
         <SectionTitle title="خدمات و پکیج‌ها" hint={loading ? "" : `${faDigits(rows.length)} خدمت`} />
         <div className="mini-actions" style={{ marginInlineStart: "auto" }}>
-          {payload?.publicUrl ? (
-            <button type="button" className="mini-btn soft tiny" onClick={() => window.open(payload.publicUrl, "_blank", "noopener")}>
+          {publicUrl ? (
+            <button type="button" className="mini-btn soft tiny" onClick={() => window.open(publicUrl, "_blank", "noopener")}>
               <Icon name="link" size={15} />
               صفحهٔ عمومی
             </button>

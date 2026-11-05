@@ -103,7 +103,7 @@ function formFromSalon(s: any): Form {
 
 export default function DashSalon() {
   const navigate = useNavigate();
-  const { salon, salonId, payload, reloadPayload, toast, payloadLoading } = useDash();
+  const { salon, salonId, payload, publicUrl, reloadPayload, toast, payloadLoading } = useDash();
 
   const [pane, setPane] = useState<Pane>("info");
   const [form, setForm] = useState<Form>(() => (salon ? formFromSalon(salon) : emptyForm()));
@@ -259,10 +259,9 @@ export default function DashSalon() {
   }
 
   async function copyLink() {
-    const url = payload?.publicUrl ?? "";
-    if (!url) return;
+    if (!publicUrl) return;
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(publicUrl);
       toast("نشانی صفحهٔ عمومی کپی شد", "ok");
     } catch {
       toast("کپی نشد؛ نشانی را دستی بردارید", "error");
@@ -301,7 +300,6 @@ export default function DashSalon() {
   const subEnds = faDate(salon.subscriptionEndsAt);
   const trialEnds = faDate(salon.trialEndsAt);
   const subActive = salon.subscriptionEndsAt ? new Date(salon.subscriptionEndsAt) > new Date() : false;
-  const publicUrl = payload?.publicUrl ?? "";
   const hasAddress = !!(form.address.trim() || form.city.trim());
   const mapQuery = encodeURIComponent(`${form.address} ${form.city}`.trim());
 

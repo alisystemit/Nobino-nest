@@ -98,7 +98,7 @@ function parseSpecialties(raw: string): string[] {
 }
 
 export default function DashStaff() {
-  const { salonId, payload, toast } = useDash();
+  const { salonId, publicUrl, toast } = useDash();
   const navigate = useNavigate();
 
   const [staff, setStaff] = useState<StaffItem[]>([]);
@@ -156,8 +156,8 @@ export default function DashStaff() {
       <div className="dash-toolbar">
         <SectionTitle title="کارکنان" hint={loading ? "" : `${faDigits(staff.length)} نفر`} />
         <div className="mini-actions" style={{ marginInlineStart: "auto" }}>
-          {payload?.publicUrl ? (
-            <button type="button" className="mini-btn soft tiny" onClick={() => window.open(payload.publicUrl, "_blank", "noopener")}>
+          {publicUrl ? (
+            <button type="button" className="mini-btn soft tiny" onClick={() => window.open(publicUrl, "_blank", "noopener")}>
               <Icon name="link" size={15} />
               صفحهٔ عمومی
             </button>

@@ -25,7 +25,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function DashHome() {
   const navigate = useNavigate();
-  const { me, stats, statsLoading, payload, salon, salonId, canManage, isSuperAdmin } = useDash();
+  const { me, stats, statsLoading, payload, salon, salonId, publicUrl, canManage, isSuperAdmin } = useDash();
 
   /* خلاصهٔ امروز از همان بارگذاری نسخهٔ کلاسیک (agenda) — داده یکی است */
   const { data: agendaData, loading: agendaLoading } = usePageData<AgendaPayload>(
@@ -143,9 +143,9 @@ export default function DashHome() {
 
       {canManage ? <PlanMeters snap={payload?.snap} planLabel={payload?.snap?.planLabel} /> : null}
 
-      {payload?.publicUrl ? (
+      {publicUrl ? (
         <div style={{ marginTop: 14 }}>
-          <Button variant="soft" onClick={() => window.open(payload.publicUrl, "_blank", "noopener")}>
+          <Button variant="soft" onClick={() => window.open(publicUrl, "_blank", "noopener")}>
             <Icon name="link" size={17} />
             مشاهدهٔ صفحهٔ عمومی سالن
           </Button>

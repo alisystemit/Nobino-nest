@@ -22,6 +22,7 @@ import { usePageData } from "@/lib/page-data";
 import { hexToRgb } from "@/mini/lib/format";
 import type { DashboardStats } from "@/mini/lib/types";
 import { dapi } from "./api";
+import { salonPublicAddress } from "./public-url";
 
 /** خلاصهٔ سالن در سوییچر بالای داشبورد */
 export type DashSalonOption = { id: string; name: string };
@@ -80,6 +81,13 @@ type DashContextValue = {
   salon: any | null;
   mySalons: DashSalonOption[];
 
+  /**
+   * نشانی canonical صفحهٔ عمومی — فرم ساب‌دامین (دامنهٔ اختصاصی تأییدشده اگر باشد).
+   * `payload.publicUrl` سرور فرم مسیر (`/s/<slug>`) است؛ برای نمایش و کپی همین
+   * مقدار را مصرف می‌کنیم تا نشانی‌ای که سالن تبلیغ می‌کند همان آدرس اصلی باشد.
+   */
+  publicUrl: string;
+
   salonId: string;
   setSalonId: (id: string) => void;
 
@@ -130,6 +138,9 @@ export function DashProvider({ children }: { children: ReactNode }) {
   const payload = data ?? null;
   const mySalons = useMemo(() => payload?.mySalons ?? [], [payload]);
   const salon = payload?.salon ?? null;
+
+  /** نشانی canonical: ساب‌دامین (یا دامنهٔ اختصاصی تأییدشده) به‌جای فرم مسیرِ سرور */
+  const publicUrl = useMemo(() => salonPublicAddress(salon, payload?.publicUrl ?? ""), [salon, payload?.publicUrl]);
 
   const salonId = useMemo(() => {
     if (paramSalon && (!mySalons.length || mySalons.some((s) => s.id === paramSalon))) return paramSalon;
@@ -225,6 +236,7 @@ export function DashProvider({ children }: { children: ReactNode }) {
       reloadPayload: reload,
       salon,
       mySalons,
+      publicUrl,
       salonId,
       setSalonId,
       stats,
@@ -251,6 +263,7 @@ export function DashProvider({ children }: { children: ReactNode }) {
       reload,
       salon,
       mySalons,
+      publicUrl,
       salonId,
       setSalonId,
       stats,

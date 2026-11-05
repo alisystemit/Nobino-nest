@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Chip, EmptyState, Field, Icon, Row, SectionTitle, SkeletonList, Tabs } from "@/mini/components/ui";
 import { faDigits, toman, WEEKDAYS_FA } from "@/mini/lib/format";
+import { displayUrl } from "@/lib/site";
 import { dapi } from "../lib/api";
 import { SalonSwitcher } from "../lib/parts";
 import { useDash } from "../lib/store";
@@ -77,7 +78,7 @@ const int = (raw: string, fallback = 0): number => {
 
 export default function DashSettings() {
   const navigate = useNavigate();
-  const { salon, salonId, payload, reloadPayload, toast } = useDash();
+  const { salon, salonId, payload, publicUrl, reloadPayload, toast } = useDash();
 
   const [pane, setPane] = useState<Pane>("hours");
 
@@ -600,10 +601,11 @@ export default function DashSettings() {
           {savedDomain ? (
             <div className="mini-note" style={{ marginTop: 12 }}>
               دامنهٔ فعلی: <span dir="ltr">{savedDomain}</span>
-              {payload?.publicUrl ? (
+              {publicUrl ? (
                 <>
-                  {" · "}
-                  <button type="button" className="mini-btn ghost tiny" style={{ verticalAlign: "middle" }} onClick={() => void copyText(payload?.publicUrl ?? "")}>
+                  {" · نشانی عمومی: "}
+                  <span dir="ltr">{displayUrl(publicUrl)}</span>{" "}
+                  <button type="button" className="mini-btn ghost tiny" style={{ verticalAlign: "middle" }} onClick={() => void copyText(publicUrl)}>
                     کپی نشانی عمومی
                   </button>
                 </>
