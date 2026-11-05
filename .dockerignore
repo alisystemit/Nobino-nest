@@ -31,3 +31,9 @@ temp-patches/
 *.patch
 *.png
 !frontend/public/**/*.png
+
+# بایگانی لاگ، ابزار موقت ممیزی و خروجی بسته‌بندی APK — داخل ایمیج لازم نیستند
+logs/
+tmp_audit/
+frontend/dist-apk/
+frontend/tmp-*.json

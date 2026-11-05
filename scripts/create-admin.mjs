@@ -35,14 +35,41 @@ function loadEnv() {
   }
   return null;
 }
-const envPath = loadEnv();
-if (!process.env.DATABASE_URL) {
+/** راهنما و پرچم‌های مجاز — قبل از هر کاری (حتی پیش از بررسی DATABASE_URL) */
+const KNOWN_FLAGS = ["phone", "password", "name", "force-reset"];
+function usage() {
+  console.log(`کاربرد: node scripts/create-admin.mjs --phone 09121110000 --password <رمز> [--name "مدیر سایت"] [--force-reset]
+
+  --phone <09xxxxxxxxx>   شمارهٔ سوپرادمین (یا متغیر محیطی ADMIN_PHONE)
+  --password <رمز>        رمز عبور، حداقل ۸ کاراکتر (یا ADMIN_PASSWORD)
+  --name <نام>            نام نمایشی (پیش‌فرض: مدیر سایت / ADMIN_NAME)
+  --force-reset           بازنویسی رمز سوپرادمینِ همین شماره (فقط با --phone همان شماره)
+  --help                  همین راهنما
+
+مثال (رمز از محیط، تا در تاریخچهٔ shell نماند):
+  ADMIN_PHONE=09121110000 ADMIN_PASSWORD='MyStr0ng!Pass' node scripts/create-admin.mjs`);
+}
+const givenFlags = process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.slice(2).split("=")[0]);
+if (givenFlags.includes("help") || process.argv.slice(2).includes("-h")) {
+  usage();
+  process.exit(0);
+}
+const unknownFlags = givenFlags.filter((f) => f !== "help" && !KNOWN_FLAGS.includes(f));
+if (unknownFlags.length) {
+  console.error(`❌ پرچم ناشناخته: ${unknownFlags.map((f) => `--${f}`).join(", ")}\n`);
+  usage();
+  process.exit(1);
+}
+
+const envPath = loadEnv();if (!process.env.DATABASE_URL) {
   console.error("❌ DATABASE_URL پیدا نشد — فایل .env کنار مخزن باشد یا متغیر محیطی بدهید.");
   process.exit(1);
 }
 
 // ── آرگومان‌ها ──
 function arg(name) {
+  const inline = process.argv.find((a) => a.startsWith(`--${name}=`));
+  if (inline) return inline.slice(`--${name}=`.length);
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? process.argv[i + 1] : undefined;
 }
