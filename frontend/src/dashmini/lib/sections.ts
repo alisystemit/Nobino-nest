@@ -31,7 +31,7 @@ export const SECTIONS: Section[] = [
   { to: "/management", label: "مدیریت سالن", sub: "تعطیلات، شعبه، کمپین و بلوک‌ها", icon: "chart", classic: "/dashboard/management", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/finance", label: "مالی و گزارش", sub: "درآمد، صندوق و گزارش روزانه", icon: "wallet", classic: "/dashboard/management", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/wallet", label: "کیف پول", sub: "موجودی و تراکنش‌ها", icon: "wallet", classic: "/dashboard/wallet", built: true },
-  { to: "/commission", label: "کمیسیون", sub: "درصد و درآمد نمایندگی", icon: "bolt", classic: "/dashboard/commission", roles: ["AGENT", "ADMIN"] },
+  { to: "/commission", label: "کمیسیون", sub: "درصد و درآمد نمایندگی", icon: "bolt", classic: "/dashboard/commission", roles: ["AGENT", "ADMIN"], built: true },
   { to: "/packages", label: "پکیج‌ها", sub: "خرید و تمدید اشتراک", icon: "star", classic: "/packages", roles: ["SALON_OWNER", "AGENT", "ADMIN"] },
   { to: "/notifications", label: "اطلاعیه‌ها", sub: "پیام‌های سیستم و نوبت‌ها", icon: "bell", classic: "/dashboard", built: true },
   { to: "/account", label: "حساب من", sub: "پروفایل، رمز و سبک داشبورد", icon: "user", classic: "/dashboard/account", built: true },

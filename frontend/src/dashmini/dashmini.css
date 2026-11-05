@@ -691,3 +691,17 @@ label.mini-btn {
 .mini-root.dark .dash-tag.is-debit {
   color: #fca5a5;
 }
+
+/* ── کمیسیون (/dash/commission) ────────────────────────────────────── */
+
+/* نشانی عمومی سالن: چپ‌به‌راست و با شکست نرم روی هر نویسه (overflow-wrap: anywhere)
+   تا در عرضِ ستون جا بگیرد — در فهرست‌های grid، متنِ nowrapِ بلند باعث «blowout» می‌شود
+   و ردیف از لبهٔ کارت بیرون می‌زند. */
+.dash-url {
+  display: block;
+  direction: ltr;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
