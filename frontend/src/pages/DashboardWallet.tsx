@@ -5,6 +5,7 @@ import { Banknote, Landmark, Receipt, TrendingUp, Wallet } from "lucide-react";
 import { formatToman, toPersianDigits } from "@/lib/utils";
 import DashboardShell from "@/components/DashboardShell";
 import { Badge, PanelCard, StatCard } from "@/components/ui/Stats";
+import { fetchMe } from "@/lib/session";
 import Pagination from "@/components/ui/Pagination";
 
 type Tx = { id: string; kind: string; reason: string; amount: number; balanceAfter: number; description?: string; createdAt: string };
@@ -70,8 +71,8 @@ export default function WalletPage() {
     load();
     (async () => {
       try {
-        const me = await (await fetch("/api/auth/me")).json();
-        setRole(me.user?.role ?? "");
+        const { user } = await fetchMe();
+        setRole(user?.role ?? "");
       } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

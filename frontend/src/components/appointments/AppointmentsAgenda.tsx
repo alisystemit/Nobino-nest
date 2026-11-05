@@ -459,6 +459,7 @@ export default function AppointmentsAgenda({ items: serverItems, dayISO, todayIS
           serviceId={reschedule.serviceId}
           employeeId={reschedule.employeeId}
           branchId={reschedule.branchId}
+          durationMin={Math.round((new Date(reschedule.endAt).getTime() - new Date(reschedule.startAt).getTime()) / 60000)}
           timezone={reschedule.salonTimezone}
           onClose={() => setReschedule(null)}
           onDone={(text) => {

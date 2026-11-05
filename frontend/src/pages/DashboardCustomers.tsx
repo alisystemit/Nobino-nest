@@ -6,9 +6,25 @@ import { useState, useEffect, useRef } from "react";
 import { Navigate, Link, useSearchParams } from "@/router-shim";
 import { Search, MoreVertical, X, Plus, Trash2, Upload, Mic } from "lucide-react";
 import { formatToman, toPersianDigits } from "@/lib/utils";
+import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import { useAuth } from "@/auth";
 import DashboardShell from "@/components/DashboardShell";
 import Pagination from "@/components/ui/Pagination";
+
+/**
+ * سقف ضبط ویس پرونده — از «حجم مجاز ویس پرونده» سوپرادمین مشتق می‌شود.
+ * مبنای تخمین همان ۸KB/s سرور برای webm است؛ کف ۶۰ ثانیه تا رفتار پیشین
+ * با پایین آمدن سقف تغییر ناگهانی نکند.
+ */
+const RECORD_MIN_SECONDS = 60;
+const BYTES_PER_SECOND = 8000;
+
+/** سقف حجم فایل پرونده: اول مقدار همان پرونده از سرور، بعد کش سوپرادمین، بعد پیش‌فرض */
+function crmMaxMb(detail: { photoMaxMb?: number; voiceMaxMb?: number } | null, kind: "photo" | "voice"): number {
+  const fromDetail = detail ? (kind === "voice" ? detail.voiceMaxMb : detail.photoMaxMb) : undefined;
+  const fromPanel = uploadLimitsSync().crm[kind === "voice" ? "voiceMaxMb" : "photoMaxMb"];
+  return Number(fromDetail ?? fromPanel) || Number(fromPanel) || (kind === "voice" ? 10 : 5);
+}
 
 type Customer = {
   id: string;
@@ -99,10 +115,21 @@ export default function DashboardCustomersPage() {
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  /** سقف نمایش داده‌شدهٔ ضبط (ثانیه) — مشتق‌شده از حجم ویس سوپرادمین */
+  const [recordCap, setRecordCap] = useState(RECORD_MIN_SECONDS);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** سقف ثانیه‌های ضبط (از حجم ویس سوپرادمین)، برای خواندن از داخل تایمر */
+  const recordCapRef = useRef<number>(RECORD_MIN_SECONDS);
+
+  // پیش‌پرکردن سقف‌ها تا راهنمای حجم و سقف ضبط، از همان اولین render درست باشد
+  useEffect(() => {
+    void getUploadLimits().then((l) => {
+      recordCapRef.current = Math.max(RECORD_MIN_SECONDS, Math.floor(mbToBytes(l.crm.voiceMaxMb) / BYTES_PER_SECOND));
+    });
+  }, []);
 
   useEffect(() => {
     const fetchSalons = async () => {
@@ -213,6 +240,13 @@ export default function DashboardCustomersPage() {
 
   async function uploadMedia(file: File) {
     if (!selectedCustomer) return;
+    // پیش‌بررسی حجم با سقف پنل (CRM پرونده) — بررسی نهایی سمت سرور است
+    const isVoice = (file.type || "").startsWith("audio/");
+    const maxMb = crmMaxMb(detail, isVoice ? "voice" : "photo");
+    if (file.size > mbToBytes(maxMb)) {
+      setDetailError(`حجم ${isVoice ? "ویس" : "عکس"} ${sizeHintFa(maxMb)}`);
+      return;
+    }
     setUploading(true);
     setDetailError(null);
     try {
@@ -248,6 +282,10 @@ export default function DashboardCustomersPage() {
       return;
     }
     streamRef.current = stream;
+    // سقف ضبط از حجم ویس پروندهٔ سوپرادمین (با کف ۶۰ ثانیه)
+    const capSec = Math.max(RECORD_MIN_SECONDS, Math.floor(mbToBytes(crmMaxMb(detail, "voice")) / BYTES_PER_SECOND));
+    recordCapRef.current = capSec;
+    setRecordCap(capSec);
     const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
     const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
     chunksRef.current = [];
@@ -261,6 +299,11 @@ export default function DashboardCustomersPage() {
       setRecording(false);
       stopTimer();
       if (blob.size === 0) return;
+      const maxVoiceMb = crmMaxMb(detail, "voice");
+      if (blob.size > mbToBytes(maxVoiceMb)) {
+        setDetailError(`حجم ویس ${sizeHintFa(maxVoiceMb)} — ضبط را کوتاه‌تر کنید.`);
+        return;
+      }
       setUploading(true);
       try {
         const fd = new FormData();
@@ -279,7 +322,16 @@ export default function DashboardCustomersPage() {
     recorderRef.current = rec;
     setRecording(true);
     setRecordSeconds(0);
-    timerRef.current = setInterval(() => setRecordSeconds((sec) => sec + 1), 1000);
+    timerRef.current = setInterval(() => {
+      setRecordSeconds((sec) => {
+        // سقف پنل رد شد: ضبط خودکار متوقف و همان مقدار ذخیره می‌شود
+        if (sec + 1 >= recordCapRef.current) {
+          if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+          return recordCapRef.current;
+        }
+        return sec + 1;
+      });
+    }, 1000);
   }
 
   function stopRecording() {
@@ -504,7 +556,7 @@ export default function DashboardCustomersPage() {
                           className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-xs font-black text-white shadow-md transition hover:bg-red-600"
                         >
                           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
-                          توقف ضبط · {toPersianDigits(recordSeconds)} ثانیه
+                          توقف ضبط · {toPersianDigits(recordSeconds)} از {toPersianDigits(recordCap)} ثانیه
                         </button>
                       ) : (
                         <button
@@ -518,7 +570,7 @@ export default function DashboardCustomersPage() {
                       )}
 
                       <span className="self-center text-[11px] text-neutral-400">
-                        عکس تا {toPersianDigits(detail.photoMaxMb ?? 5)} مگابایت، ویس تا {toPersianDigits(detail.voiceMaxMb ?? 10)} مگابایت — فقط در همین سالن دیده می‌شوند.
+                        عکس تا {toPersianDigits(crmMaxMb(detail, "photo"))} مگابایت، ویس تا {toPersianDigits(crmMaxMb(detail, "voice"))} مگابایت — فقط در همین سالن دیده می‌شوند.
                       </span>
                     </div>
                   )}

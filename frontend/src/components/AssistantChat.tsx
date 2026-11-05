@@ -23,10 +23,22 @@ export default function AssistantChat({ salonId }: { salonId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ salonId, question: q }),
       });
-      const data = await res.json();
-      setMessages((m) => [...m, { role: "ai", text: data.reply ?? "متوجه نشدم." }]);
+      const data = (await res.json().catch(() => null)) as { success?: boolean; reply?: string; error?: string } | null;
+      // C20: خطاهای واقعی (سقف 429، سؤال بلند 400) نباید پشت «متوجه نشدم» مخفی شوند
+      if (!res.ok || data?.success === false) {
+        const fallback =
+          res.status === 429
+            ? "سقف پرسش از دستیار پر شده است؛ چند دقیقه دیگر دوباره بپرسید."
+            : "پاسخ دستیار ممکن نشد. سؤال را کوتاه‌تر بپرسید یا با سالن تماس بگیرید.";
+        setMessages((m) => [...m, { role: "ai", text: data?.error || fallback }]);
+        return;
+      }
+      setMessages((m) => [
+        ...m,
+        { role: "ai", text: data?.reply || "سؤال را دقیق‌تر بپرسید تا بتوانم کمک کنم (خدمات، قیمت، ساعت یا قوانین رزرو)." },
+      ]);
     } catch {
-      setMessages((m) => [...m, { role: "ai", text: "خطا در ارتباط." }]);
+      setMessages((m) => [...m, { role: "ai", text: "ارتباط با سرور برقرار نشد؛ اتصال خود را بررسی کنید." }]);
     } finally {
       setLoading(false);
     }

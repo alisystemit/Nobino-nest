@@ -12,6 +12,16 @@ import { formatJalali, toPersianDigits } from "@/lib/time/jalali";
 import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import { useI18n } from "@/lib/i18n";
 
+/**
+ * سقف حجم فایل پروندهٔ مشتری: اول مقدار همان پرونده که سرور فرستاده،
+ * بعد کش تنظیمات سوپرادمین؛ پیش‌فرض‌ها هم‌نام کد بک‌اند (۵ و ۱۰ مگابایت).
+ */
+function crmMaxMb(detail: { photoMaxMb?: number; voiceMaxMb?: number } | null | undefined, kind: "photo" | "voice"): number {
+  const fromDetail = detail ? (kind === "voice" ? detail.voiceMaxMb : detail.photoMaxMb) : undefined;
+  const fromPanel = uploadLimitsSync().crm[kind === "voice" ? "voiceMaxMb" : "photoMaxMb"];
+  return Number(fromDetail ?? fromPanel) || Number(fromPanel) || (kind === "voice" ? 10 : 5);
+}
+
 /* ─── انواع ─────────────────────────────────────────────────────────── */
 
 type Service = { id: string; name: string; durationMin: number; price: number; description?: string | null; category?: string | null; bufferMin?: number; isActive: boolean };
@@ -770,6 +780,89 @@ function CashForm({ ctx }: { ctx: Ctx }) {
         <input className={inputCls} type="number" placeholder="هزینه" value={expenseAmount} onChange={(e) => setExpenseAmount(Number(e.target.value))} />
         <button onClick={submit} className={darkBtn}>ثبت</button>
       </div>
+      <DepositRefunds ctx={ctx} />
+    </div>
+  );
+}
+
+/* ─── بدهی بازگشت بیعانه (O2) ─────────────────────────────────────────── */
+
+type RefundRow = {
+  paymentId: string;
+  appointmentId: string;
+  amount: number;
+  customerName: string;
+  customerPhone: string;
+  gateway: string;
+  note: string | null;
+};
+
+function DepositRefunds({ ctx }: { ctx: Ctx }) {
+  const [due, setDue] = useState<RefundRow[]>([]);
+  const [settled, setSettled] = useState<RefundRow[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function load() {
+    const r = await ctx.api<{ due?: RefundRow[]; settled?: RefundRow[] }>(`${ctx.base}/refunds`, "GET");
+    if (r) {
+      setDue(r.due ?? []);
+      setSettled((r.settled ?? []).slice(0, 5));
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.base]);
+
+  async function settle(row: RefundRow) {
+    setBusy(row.paymentId);
+    const r = await ctx.api<{ summary?: { count: number; amount: number } }>(
+      `${ctx.base}/refunds`,
+      "POST",
+      { paymentId: row.paymentId },
+      `بازگشت ${row.amount.toLocaleString("fa-IR")} تومان ثبت شد ✅`
+    );
+    if (r) {
+      await load();
+      ctx.refreshCash();
+    }
+    setBusy(null);
+  }
+
+  if (due.length === 0 && settled.length === 0) return null;
+  const totalDue = due.reduce((s, d) => s + d.amount, 0);
+
+  return (
+    <div className={`${cardCls} mt-4`}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-black text-neutral-900 dark:text-neutral-100">بدهی بازگشت بیعانه</h3>
+        {totalDue > 0 && (
+          <span className="rounded-lg bg-red-50 px-2 py-1 text-xs font-bold text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {totalDue.toLocaleString("fa-IR")} تومان
+          </span>
+        )}
+      </div>
+      {due.length === 0 ? (
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">بیعانهٔ برگشت‌خوردگانی در انتظار نیست.</p>
+      ) : (
+        <ul className="space-y-2">
+          {due.map((row) => (
+            <li key={row.paymentId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
+              <span className="font-bold text-neutral-800 dark:text-neutral-200">{row.customerName}</span>
+              <span className="text-neutral-500 dark:text-neutral-400" dir="ltr">{row.customerPhone}</span>
+              <span className="font-black text-neutral-900 dark:text-neutral-100">{row.amount.toLocaleString("fa-IR")} تومان</span>
+              <button onClick={() => settle(row)} disabled={busy === row.paymentId} className={darkBtn}>
+                {busy === row.paymentId ? "…" : "بازگشت انجام شد"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {settled.length > 0 && (
+        <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+          آخرین بازگشت‌های ثبت‌شده: {settled.map((s) => `${s.customerName} (${s.amount.toLocaleString("fa-IR")})`).join("، ")}
+        </p>
+      )}
     </div>
   );
 }
@@ -1088,6 +1181,12 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
 
   async function uploadMedia(file: File) {
     if (!selected) return;
+    const isVoice = (file.type || "").startsWith("audio/");
+    const maxMb = crmMaxMb(detail, isVoice ? "voice" : "photo");
+    if (file.size > mbToBytes(maxMb)) {
+      ctx.setMsg({ ok: false, text: `حجم ${isVoice ? "ویس" : "عکس"} ${sizeHintFa(maxMb)}` });
+      return;
+    }
     setUploading(true);
     try {
       const fd = new FormData();
@@ -1292,7 +1391,7 @@ function CustomersView({ ctx }: { ctx: Ctx }) {
                       <input type="file" accept="audio/*" className="hidden" disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); e.target.value = ""; }} />
                     </label>
                     <span className="self-center text-[11px] text-neutral-400">
-                      عکس تا {toPersianDigits(detail?.photoMaxMb ?? 5)} مگابایت، ویس تا {toPersianDigits(detail?.voiceMaxMb ?? 10)} مگابایت — فقط در همین سالن دیده می‌شود.
+                      عکس تا {toPersianDigits(crmMaxMb(detail, "photo"))} مگابایت، ویس تا {toPersianDigits(crmMaxMb(detail, "voice"))} مگابایت — فقط در همین سالن دیده می‌شود.
                     </span>
                   </div>
                 )}
