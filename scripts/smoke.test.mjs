@@ -236,10 +236,10 @@ describe("سرور ساخته‌شده (backend/dist/main.js)", () => {
   };
 
   /** با هدر Hostِ دلخواه — fetch این هدر را نادیده می‌گیرد، پس node:http لازم است */
-  const withHost = (path, host) =>
+  const withHost = (path, host, headers = {}) =>
     new Promise((resolve, reject) => {
       const req = rawRequest(
-        { host: "127.0.0.1", port: Number(base.split(":").pop()), path, method: "GET", headers: { host } },
+        { host: "127.0.0.1", port: Number(base.split(":").pop()), path, method: "GET", headers: { host, ...headers } },
         (res) => {
           let text = "";
           res.on("data", (c) => (text += c));
@@ -319,6 +319,33 @@ describe("سرور ساخته‌شده (backend/dist/main.js)", () => {
     assert.equal(onSelfHost.miniUrl, `http://localhost:${port}/mini`, "پورتِ واقعیِ سرور هم حفظ می‌شود");
     const spoofed = await mini("evil.example.com");
     assert.ok(!String(spoofed.miniUrl).includes("evil.example.com"), `هاست جعلی در نشانی ننشیند: ${spoofed.miniUrl}`);
+  });
+
+  test("لودر داشبورد: publicUrl همان ساب‌دامینِ میزبانِ درخواست است", async (t) => {
+    if (gated(t)) return;
+    const login = await get("/api/admin/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "admin@nobino.ir", password: "Admin@1234" }),
+    });
+    const token = login.json?.token || login.json?.accessToken || login.json?.data?.token;
+    if (login.status !== 200 || !token) {
+      t.skip(`ورود ادمین ممکن نشد (${login.status})`);
+      return;
+    }
+    const search = await get("/api/salons/search?query=");
+    const salon = (search.json?.salons ?? [])[0];
+    if (!salon?.id || !salon?.slug) {
+      t.skip("سالنی برای تست نیست");
+      return;
+    }
+    const raw = await withHost(`/api/pages/dashboard-salon?salon=${salon.id}`, "mah.localhost:3100", {
+      authorization: `Bearer ${token}`,
+    });
+    assert.equal(raw.status, 200, `لودر → ${raw.status} ${raw.text.slice(0, 160)}`);
+    const body = JSON.parse(raw.text);
+    const data = body?.data ?? body;
+    assert.equal(data?.publicUrl, `http://${salon.slug}.localhost:3100`, "publicUrl باید ساب‌دامین با پورتِ میزبان باشد، نه /s/ روی SITE_URL");
   });
 
   test("صفحهٔ عمومی: /api/pages/<loader>", async (t) => {

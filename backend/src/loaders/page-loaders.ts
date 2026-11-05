@@ -12,6 +12,7 @@ import { getCurrentUser } from "@/lib/auth/guards";
 import { getSetting } from "@/lib/settings";
 import { httpError } from "@/lib/utils";
 import { SITE_URL } from "@/lib/site";
+import { salonPublicUrl } from "@/lib/salon-url";
 import { loadAgenda } from "@/lib/appointments/agenda";
 import { listOwnerSalons, resolveDashboardSalonId } from "@/lib/salons";
 import { getPlanLimitsForPlan, limitSnapshot, normalizePlan } from "@/lib/plans/limits";
@@ -381,9 +382,11 @@ async function loadDashboardSalon(url: URL) {
   if (!salon) return { mode: "create" as const, mySalons };
 
   const snap = await limitSnapshot(salon.id);
-  const publicBase =
-    salon.customDomain && salon.domainStatus === "VERIFIED" ? `https://${salon.customDomain}` : SITE_URL;
-  const publicUrl = `${publicBase.replace(/\/+$/, "")}/s/${salon.slug}`;
+  // نشانی canonical سالن: دامنهٔ اختصاصی تأییدشده یا ساب‌دامین روی میزبانِ همان
+  // درخواست (پورت حفظ می‌شود → http://mah.localhost:3100). فرم /s/<slug> فقط وقتی
+  // میزبان IP است و ساب‌دامین ساخته نمی‌شود؛ پیش‌تر این‌جا همیشه SITE_URL + /s/
+  // بود و روی :3100 نشانیِ پورتِ اشتباه (`:5175`) نشان می‌داد.
+  const publicUrl = salonPublicUrl(salon);
 
   return { mode: "salon" as const, mySalons, salon, snap, publicUrl };
 }

@@ -117,9 +117,12 @@ function runUpdate(args = [], { env = {}, box } = {}) {
       "",
     ].join("\n")
   );
+  // DATABASE_URL شل بیرون نشت نکند: هر تست یا خودش می‌دهد یا باید نبودنش را بسنجد
+  const childEnv = { ...process.env, W_LOG: px(logPath), ...env };
+  if (env.DATABASE_URL === undefined) delete childEnv.DATABASE_URL;
   const res = spawnSync("bash", [px(wrapperPath), ...args], {
     encoding: "utf8",
-    env: { ...process.env, W_LOG: px(logPath), ...env },
+    env: childEnv,
   });
   // رنگ‌های ANSI را می‌چینیم تا منطبق‌های regex ساده بمانند
   const out = `${res.stdout || ""}${res.stderr || ""}`.replace(/\x1B\[[0-9;]*m/g, "");
