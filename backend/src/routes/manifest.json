@@ -460,6 +460,22 @@
     ]
   },
   {
+    "path": "dashboard/salons/[id]/campaigns/preview",
+    "url": "/api/dashboard/salons/:id/campaigns/preview",
+    "module": "@/routes/api/dashboard__salons__id__campaigns__preview",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "dashboard/salons/[id]/campaigns/segments",
+    "url": "/api/dashboard/salons/:id/campaigns/segments",
+    "module": "@/routes/api/dashboard__salons__id__campaigns__segments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
     "path": "dashboard/salons/[id]/campaigns/[campaignId]/run",
     "url": "/api/dashboard/salons/:id/campaigns/:campaignId/run",
     "module": "@/routes/api/dashboard__salons__id__campaigns__campaignId__run",

@@ -23,10 +23,10 @@ import * as R18 from "@/routes/api/admin__sms__test";
 import * as R19 from "@/routes/api/admin__subscriptions";
 import * as R20 from "@/routes/api/admin__support";
 import * as R21 from "@/routes/api/admin__users";
-import * as R122 from "@/routes/api/admin__backups";
-import * as R123 from "@/routes/api/admin__backups__name";
-import * as R124 from "@/routes/api/admin__backups__name__download";
-import * as R125 from "@/routes/api/admin__backups__name__restore";
+import * as R124 from "@/routes/api/admin__backups";
+import * as R125 from "@/routes/api/admin__backups__name";
+import * as R126 from "@/routes/api/admin__backups__name__download";
+import * as R127 from "@/routes/api/admin__backups__name__restore";
 
 @Controller()
 export class AdminController {
@@ -203,31 +203,31 @@ export class AdminController {
 
   @Get("/api/admin/backups")
   async getAdminBackupsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R122.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R124.GET(r as never, c as never));
   }
 
   @Post("/api/admin/backups")
   async postAdminBackupsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R122.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R124.POST(r as never, c as never));
   }
 
   @Patch("/api/admin/backups")
   async patchAdminBackupsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R122.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R124.PATCH(r as never, c as never));
   }
 
   @Delete("/api/admin/backups/:name")
   async deleteAdminBackupsNameRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R123.DELETE(r as never, c as never));
+    await runRoute(req, res, (r, c) => R125.DELETE(r as never, c as never));
   }
 
   @Get("/api/admin/backups/:name/download")
   async getAdminBackupsNameDownloadRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R124.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R126.GET(r as never, c as never));
   }
 
   @Post("/api/admin/backups/:name/restore")
   async postAdminBackupsNameRestoreRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R125.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R127.POST(r as never, c as never));
   }
 }

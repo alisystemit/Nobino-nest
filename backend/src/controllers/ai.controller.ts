@@ -5,7 +5,7 @@ import { runRoute } from "@/common/run-route";
 import * as R22 from "@/routes/api/ai__analyze";
 import * as R23 from "@/routes/api/ai__chat";
 import * as R24 from "@/routes/api/ai__generate-content";
-import * as R118 from "@/routes/api/voice__transcribe";
+import * as R120 from "@/routes/api/voice__transcribe";
 
 @Controller()
 export class AiController {
@@ -27,6 +27,6 @@ export class AiController {
 
   @Post("/api/voice/transcribe")
   async postVoiceTranscribeRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R118.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R120.POST(r as never, c as never));
   }
 }
