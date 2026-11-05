@@ -23,6 +23,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, relative, resolve } from "node:path";
 import express from "express";
 import { prisma } from "@/lib/prisma";
+import { nodeEnv } from "@/lib/env";
 
 /** مسیرهای جلو‌نبوردهٔ API/آپلود که نباید به اسپا بروند */
 const RESERVED_PREFIXES = ["/api", "/uploads", "/voice"];
@@ -127,7 +128,7 @@ async function healthPayload(req: IncomingMessage) {
     app: "nobino-nest",
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
-    env: process.env.NODE_ENV || "production",
+    env: nodeEnv(),
     port: Number(process.env.PORT ?? 3100),
     rootDomain: process.env.ROOT_DOMAIN || "localhost",
     cronSecret: Boolean(process.env.CRON_SECRET),
