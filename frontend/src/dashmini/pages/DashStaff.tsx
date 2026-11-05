@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Area, Button, Chip, EmptyState, Field, Icon, Row, SectionTitle, Sheet, SkeletonList } from "@/mini/components/ui";
 import { ServicePicker } from "@/mini/components/booking";
-import { faDigits, initials } from "@/mini/lib/format";
+import { faDigits, initials, WEEKDAYS_FA } from "@/mini/lib/format";
 import type { MiniService } from "@/mini/lib/types";
 import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import { dapi } from "../lib/api";
@@ -48,7 +48,8 @@ const STAFF_ROLE: Record<string, string> = {
   OWNER: "مالک",
 };
 
-const DAY_NAMES = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+/** نام روزها از همان نگاشت مینی‌اپ (index ۰ = شنبه) */
+const DAY_NAMES = WEEKDAYS_FA;
 
 /**
  * هر دو قالب موجود در دیتابیس به هفت ردیف یکسان تبدیل می‌شود تا فرم همیشه باز شود
