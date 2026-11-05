@@ -6,7 +6,7 @@
  * خوانده می‌شود و کارت‌ها همان دو فرم آدرس را دارند: ساب‌دامین سالن و /s/<slug>.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "@/router-shim";
+import { Link, useSearchParams } from "@/router-shim";
 import { MapPin, Search, Star } from "lucide-react";
 import Pagination from "@/components/ui/Pagination";
 import SafeImage from "@/components/SafeImage";
@@ -40,11 +40,13 @@ export default function SalonsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [q, setQ] = useState("");
-  const [city, setCity] = useState("");
-  const [service, setService] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [type, setType] = useState("");
+  // نشانی‌های آماده‌شده (مثلاً /salons?type=men از منو یا Google) باید فیلتر را انتخاب کند
+  const fromUrl = useSearchParams();
+  const [q, setQ] = useState(() => fromUrl.get("q") ?? "");
+  const [city, setCity] = useState(() => fromUrl.get("city") ?? "");
+  const [service, setService] = useState(() => fromUrl.get("service") ?? "");
+  const [maxPrice, setMaxPrice] = useState(() => fromUrl.get("maxPrice") ?? "");
+  const [type, setType] = useState(() => fromUrl.get("type") ?? "");
 
   // تایپ آزاد را debounce می‌کنیم تا هر کلید یک درخواست نزند
   const debounced = useMemo(() => q.trim(), [q]);
