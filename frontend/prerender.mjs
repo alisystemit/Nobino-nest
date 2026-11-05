@@ -15,7 +15,7 @@
  *   VITE_SITE_URL / VITE_APP_URL — دامنهٔ نهایی برای canonical/sitemap
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -28,18 +28,29 @@ const SITE = (process.env.VITE_SITE_URL || process.env.VITE_APP_URL || API).repl
  * اگر خروجی dist بعداً روی سرور واقعی سرو شود، همهٔ آن نشانی‌ها غلط می‌مانند.
  * با PRERENDER_ALLOW_LOCAL=1 می‌توان عمداً (برای دیدن نتیجه در لوکال) رد کرد.
  */
-const isLoopback = (u) => {
+export const isLoopback = (u) => {
   try {
-    const h = new URL(u.startsWith("http") ? u : `http://${u}`).hostname;
-    return h === "localhost" || h.endsWith(".localhost") || h === "::1" || h === "0.0.0.0" || /^127\./.test(h);
+    // نشانی IPv6 در URL همیشه داخل کروشه می‌آید («[::1]»); اگر کروشه‌ها را
+    // برنداریم، مقایسه هیچ‌گاه لوکال را نمی‌شناسد و نشانی تستی در canonical می‌سوزد.
+    const h = new URL(u.startsWith("http") ? u : `http://${u}`).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return h === "localhost" || h.endsWith(".localhost") || h === "::1" || h === "::" || h === "0.0.0.0" || /^127\./.test(h);
   } catch {
     return false;
   }
 };
+
+/**
+ * پیشوند مطلقِ لینک‌ها: در مبنا لوکال خالی می‌ماند تا رلتیو بنویسیم؛ با
+ * allowLocal (PRERENDER_ALLOW_LOCAL=1) عمداً همان نشانی لوکال می‌سوزد.
+ * (تابع جدا شد تا در scripts/seo.test.mjs قابل تست باشد.)
+ */
+export function absPrefix(site, allowLocal = false) {
+  return !isLoopback(site) || /^(1|true)$/i.test(String(allowLocal ?? "")) ? site : "";
+}
+
 const ALLOW_LOCAL = /^(1|true)$/i.test(String(process.env.PRERENDER_ALLOW_LOCAL || ""));
-const SITE_IS_PUBLIC = !isLoopback(SITE) || ALLOW_LOCAL;
-/** پیشوند مطلقِ لینک‌ها؛ در مبنا لوکال خالی می‌ماند تا رلتیو بنویسیم */
-const ABS = SITE_IS_PUBLIC ? SITE : "";
+const ABS = absPrefix(SITE, ALLOW_LOCAL);
+const SITE_IS_PUBLIC = ABS !== "";
 if (!SITE_IS_PUBLIC) {
   console.warn(`prerender هشدار: مبنا «${SITE}» لوکال است → canonical/og با نشانی نسبی و بدون sitemap نوشته می‌شود. برای خروجی سئو VITE_SITE_URL (یا PRERENDER_ALLOW_LOCAL=1) بگذارید.`);
 }
@@ -80,19 +91,20 @@ const STATIC_PAGES = [
 /** مسیرهایی که فقط fallback اسپا می‌گیرند (noindex) */
 const NOINDEX_SHELLS = ["/dashboard", "/admin", "/payment/result"];
 
-function esc(s) {
+export function esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function headBlock({ title, description, canonical, noindex, images = [] }) {
+/** متادیتای یک صفحه؛ `abs` پیشوند مطلق است (پیش‌فرض: همینی که از محیط ساخته می‌شود) */
+export function headBlock({ title, description, canonical, noindex, images = [], abs = ABS }) {
   const og = [
     `<meta property="og:type" content="website"/>`,
     `<meta property="og:locale" content="fa_IR"/>`,
     `<meta property="og:site_name" content="نوبینو"/>`,
     `<meta property="og:title" content="${esc(title)}"/>`,
     `<meta property="og:description" content="${esc(description)}"/>`,
-    `<meta property="og:url" content="${esc(ABS + canonical)}"/>`,
-    ...images.map((u) => `<meta property="og:image" content="${esc(/^https?:\/\//i.test(u) ? u : ABS + u)}"/>`),
+    `<meta property="og:url" content="${esc(abs + canonical)}"/>`,
+    ...images.map((u) => `<meta property="og:image" content="${esc(/^https?:\/\//i.test(u) ? u : abs + u)}"/>`),
     `<meta name="twitter:card" content="summary_large_image"/>`,
     `<meta name="twitter:title" content="${esc(title)}"/>`,
     `<meta name="twitter:description" content="${esc(description)}"/>`,
@@ -100,17 +112,35 @@ function headBlock({ title, description, canonical, noindex, images = [] }) {
   return [
     `<title>${esc(title)}</title>`,
     `<meta name="description" content="${esc(description)}"/>`,
-    `<link rel="canonical" href="${esc(ABS + canonical)}"/>`,
+    `<link rel="canonical" href="${esc(abs + canonical)}"/>`,
     noindex ? `<meta name="robots" content="noindex,nofollow"/>` : `<meta name="robots" content="index,follow"/>`,
     og,
   ].join("\n");
 }
 
-function buildPage(template, { head, ld, noscript }) {
-  let html = template
-    // حذف تایتل/توضیح پیش‌فرض اسپا تا جایگزین‌های prerender بیایند
-    .replace(/<title>[^<]*<\/title>/g, "")
-    .replace(/<meta name="description"[^>]*>/g, "");
+/**
+ * تزریق تگ‌های سئو داخل <head> قالب اسپا.
+ *
+ * نکتهٔ مهم: خودِ dist/index.html هم با مسیر «/» بازنویسی می‌شود، پس اگر فقط
+ * title/description پاک شوند، دفعهٔ بعدی اجرا قالبِ آلوده را می‌خواند و
+ * canonicalها تکراری می‌شوند (خزندهٔ گوگل اولی را می‌پذیرد → همهٔ صفحات سالن
+ * canonical «/» می‌گیرند و از ایندکس می‌افتند). بنابراین هر بار همهٔ ردّ‌های
+ * prerender پیشین پاک می‌شوند تا خروجی با هر تعداد اجرا یکسان بماند.
+ */
+export const SEO_STRIP = [
+  /<title>[^<]*<\/title>/,
+  /<meta[^>]*name="description"[^>]*>/,
+  /<link[^>]*rel="canonical"[^>]*>/,
+  /<meta[^>]*name="robots"[^>]*>/,
+  /<meta[^>]*(?:property|name)="(?:og:|twitter:)[^"]*"[^>]*>/,
+  /<script[^>]*type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/,
+  /<noscript>[\s\S]*?<\/noscript>/,
+];
+
+export function buildPage(template, { head, ld, noscript }) {
+  // هر الگو با فرورفتگی و خطِ خودش حذف می‌شود تا فایل هر بار دقیقاً یکسان بماند
+  let html = template;
+  for (const re of SEO_STRIP) html = html.replace(new RegExp(`[ \\t]*${re.source}[ \\t]*\\r?\\n?`, "g"), "");
   const extras = [head, ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, "\\u003c")}</script>` : "", noscript ? `<noscript>${noscript}</noscript>` : ""]
     .filter(Boolean)
     .join("\n");
@@ -197,17 +227,27 @@ async function main() {
     );
     console.log("prerender: sitemap.xml + robots.txt نوشته شدند");
   } else {
-    // نوشتن نشانی لوکال در sitemap یعنی سوختن آدرس غلط روی دیسک؛ اگر بیلد
-    // قبلی همین کار را کرده باشد، همان فایل‌ها را دور می‌ریزیم.
+    // نوشتن نشانی لوکال در sitemap یعنی سوختن آدرس غلط روی دیسک؛ در حالت لوکال
+    // هر sitemap.xml/robots.txt موجودی را دور می‌ریزیم — این دو فایل فقط همین‌جا
+    // تولید می‌شوند (در frontend/public وجود ندارند)، پس ماندنشان یعنی باقی‌ماندهٔ
+    // یک بیلد دیگر با دامنهٔ دیگری، که سرو شدنش بدتر از نبودشان است.
     for (const f of ["sitemap.xml", "robots.txt"]) {
       const p = join(DIST, f);
-      if (existsSync(p) && readFileSync(p, "utf8").includes(SITE)) rmSync(p);
+      if (existsSync(p)) {
+        rmSync(p);
+        console.warn(`prerender: ${f} کهنه از دیست حذف شد (مبنا لوکال است)`);
+      }
     }
     console.warn("prerender: sitemap.xml/robots.txt نوشته نشد (مبنا لوکال) — با VITE_SITE_URL دوباره اجرا کنید.");
   }
 }
 
-main().catch((err) => {
-  console.error("prerender failed:", err);
-  process.exit(1);
-});
+// وقتی فایل مستقیماً اجرا شود کار می‌کند؛ import شدنش (تست‌ها) بی‌اثر است —
+// هیچ فایلی نمی‌نویسد و هیچ درخواستی به بک‌اند نمی‌زند.
+const invokedDirectly = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error("prerender failed:", err);
+    process.exit(1);
+  });
+}
