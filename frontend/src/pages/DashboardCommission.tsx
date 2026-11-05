@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "@/router-shim";
+import { subdomainUrl } from "@/lib/subdomain";
 import DashboardShell from "@/components/DashboardShell";
 import { StatCard, PanelCard, Badge } from "@/components/ui/Stats";
 import { TrendingUp, Wallet, Handshake, ExternalLink } from "lucide-react";
@@ -94,7 +95,7 @@ export default function CommissionPage() {
                   <div className="flex items-center gap-3">
                     <Badge tone="brand">{p.percent}٪ کمیسیون</Badge>
                     <Link
-                      href={`/s/${p.slug}`}
+                      href={subdomainUrl(p.slug)}
                       className="inline-flex h-10 items-center gap-1 rounded-lg px-2 text-sm font-bold text-pink-600 transition hover:bg-pink-50 hover:text-pink-700 dark:hover:bg-pink-950/30"
                     >
                       مشاهده

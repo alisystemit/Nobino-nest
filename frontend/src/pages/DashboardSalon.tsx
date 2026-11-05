@@ -1,5 +1,6 @@
 /** سالن من — معادل src/app/dashboard/salon/page.tsx (دیتا از /api/pages/dashboard-salon) */
 import { Navigate, Link, useSearchParams } from "@/router-shim";
+import { subdomainUrl } from "@/lib/subdomain";
 import { toPersianDigits } from "@/lib/utils";
 import { UNLIMITED_FROM } from "@/lib/plans/limit-defs";
 import { displayUrl } from "@/lib/site";
@@ -94,7 +95,7 @@ export default function DashboardSalon() {
             )}
           </div>
           <Link
-            href={`/s/${s.slug}`}
+            href={subdomainUrl(s.slug)}
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-[#1c2434] shadow-xl transition hover:scale-[1.03] sm:w-auto"
           >
             <Store className="h-4 w-4" />

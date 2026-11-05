@@ -3,6 +3,7 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import { Navigate, Link, useSearchParams } from "@/router-shim";
+import { subdomainUrl } from "@/lib/subdomain";
 import { useAuth } from "@/auth";
 import DashboardShell from "@/components/DashboardShell";
 import TimeField from "@/components/ui/TimeField";
@@ -51,7 +52,7 @@ export default function DashboardStaff() {
   const salon = sp.get("salon") ?? undefined;
   
   // State for salons list
-  const [mySalons, setMySalons] = useState<{ id: string; name: string }[]>([]);
+  const [mySalons, setMySalons] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [loadingSalons, setLoadingSalons] = useState(true);
   
   // State for staff data
@@ -73,7 +74,7 @@ export default function DashboardStaff() {
         const res = await fetch("/api/salons");
         const d = await res.json();
         if (d.success && d.salons) {
-          const salons = d.salons.map((s: any) => ({ id: s.id, name: s.name }));
+          const salons = d.salons.map((s: any) => ({ id: s.id, name: s.name, slug: String(s.slug ?? "") }));
           setMySalons(salons);
           if (salon && salons.find((s: { id: string }) => s.id === salon)) {
             setSelectedSalonId(salon);
@@ -303,7 +304,7 @@ export default function DashboardStaff() {
             <p className="mt-1 text-xs text-neutral-300">مدیریت آرایشگران و کارمندان، برنامهٔ کاری و خدمات هر نفر</p>
           </div>
           <Link
-            href={salonId ? `/s/${salonId}` : "#"}
+            href={activeSalon?.slug ? subdomainUrl(activeSalon.slug) : "#"}
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-[#1c2434] shadow-xl transition hover:scale-[1.03] sm:w-auto"
           >
             <Store className="h-4 w-4" />

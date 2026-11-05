@@ -15,8 +15,24 @@ type LinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
   children?: ReactNode;
 };
 
+/**
+ * آیا نشانی مطلق به میزبان دیگری می‌رود؟ (مثلاً ساب‌دامین سالن
+ * `http://mah.localhost:3100/` وقتی ما روی `http://localhost:3100` هستیم.)
+ * react-router در `to` فقط مسیر را نگه می‌دارد و میزبان را دور می‌ریزد، پس
+ * چنین نشانی‌ای باید با یک <a> واقعی ریلود کامل کند.
+ */
+function isCrossOrigin(target: string): boolean {
+  if (typeof window === "undefined" || !/^https?:\/\//i.test(target)) return false;
+  try {
+    return new URL(target).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export function Link({ href, to, prefetch, scroll, replace: _replace, className, onClick, children, ...rest }: LinkProps) {
   const target = href ?? to ?? "#";
+  if (isCrossOrigin(target)) return createElement("a", { href: target, className, onClick, ...rest }, children);
   return createElement(
     RouterLink,
     { to: target, className, onClick, ...rest },

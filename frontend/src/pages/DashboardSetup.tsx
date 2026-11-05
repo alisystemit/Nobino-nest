@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { Navigate, Link, useSearchParams } from "@/router-shim";
+import { subdomainUrl } from "@/lib/subdomain";
 import { toPersianDigits } from "@/lib/utils";
 import { useAuth } from "@/auth";
 
@@ -608,7 +609,7 @@ export default function DashboardSetup() {
               سالن «{salon.name}» با {toPersianDigits(services.length)} خدمت و {toPersianDigits(staff.length)} کارکن، اکنون آماده پذیرش نوبت است.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <Link href={`/s/${salon.slug}`} className="inline-flex h-11 items-center gap-2 rounded-xl bg-pink-600 px-6 text-sm font-black text-white transition hover:bg-pink-700">مشاهده صفحه عمومی</Link>
+              <Link href={subdomainUrl(salon.slug)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-pink-600 px-6 text-sm font-black text-white transition hover:bg-pink-700">مشاهده صفحه عمومی</Link>
               <Link href="/dashboard/salon" className="inline-flex h-11 items-center gap-2 rounded-xl border border-neutral-300 bg-white px-6 text-sm font-black text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">رفتن به داشبورد سالن</Link>
             </div>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "@/router-shim";
+import { subdomainUrl } from "@/lib/subdomain";
 import { Check, Clock, MoreVertical, Phone, Star } from "lucide-react";
 import {
   CHANNEL_META,
@@ -135,7 +136,7 @@ export default function AppointmentCard({ item, timezone, role, nowMs, busy, hig
             )}
             {item.salonSlug && (
               <Link
-                href={`/s/${item.salonSlug}`}
+                href={subdomainUrl(item.salonSlug)}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-pink-50 px-3 py-2 text-xs font-bold text-pink-600 transition hover:bg-pink-100 dark:bg-pink-900/30 dark:text-pink-300"
               >
                 صفحه سالن

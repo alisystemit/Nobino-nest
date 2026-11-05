@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "@/router-shim";
 import { useRouter } from "@/router-shim";
+import { subdomainUrl } from "@/lib/subdomain";
 import { LogOut } from "lucide-react";
 import RescheduleModal from "@/components/RescheduleModal";
 import Pagination from "@/components/ui/Pagination";
@@ -386,7 +387,7 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {a.salonSlug && (
-                            <Link href={`/s/${a.salonSlug}`} className="flex h-10 items-center rounded-lg bg-pink-50 px-3 text-xs font-bold text-pink-700 hover:bg-pink-100">
+                            <Link href={subdomainUrl(a.salonSlug)} className="flex h-10 items-center rounded-lg bg-pink-50 px-3 text-xs font-bold text-pink-700 hover:bg-pink-100">
                               رزرو مجدد
                             </Link>
                           )}
@@ -430,7 +431,7 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
                         </div>
                       </div>
                       <div className="mt-4 flex gap-2">
-                        <Link href={`/s/${f.salon.slug}`} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-pink-600 px-3 text-xs font-bold text-white">
+                        <Link href={subdomainUrl(f.salon.slug)} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-pink-600 px-3 text-xs font-bold text-white">
                           مشاهده و رزرو
                         </Link>
                         <button onClick={() => removeFavorite(f.salon.id)} className="h-10 rounded-lg bg-neutral-100 px-3 text-xs font-bold text-neutral-600 hover:bg-red-50 hover:text-red-600 dark:bg-neutral-800 dark:text-neutral-300">

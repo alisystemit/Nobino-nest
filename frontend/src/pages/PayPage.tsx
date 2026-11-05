@@ -1,6 +1,7 @@
 /** صفحهٔ پرداخت فاکتور — معادل src/app/pay/[token]/page.tsx */
 import { useParamsTyped, Link } from "@/router-shim";
 import { toPersianDigits, formatToman } from "@/lib/utils";
+import { subdomainUrl } from "@/lib/subdomain";
 import { usePageData } from "@/lib/page-data";
 import { useMeta } from "@/lib/use-meta";
 import PayCard from "./PayCard";
@@ -93,7 +94,7 @@ export default function PayPage() {
 
         <p className="mt-6 text-center text-xs text-neutral-400">
           پرداخت امن با درگاه‌های معتبر بانکی ·{" "}
-          <Link href={invoice.salon.slug ? `/s/${invoice.salon.slug}` : "/"} className="text-pink-500 hover:underline">
+          <Link href={invoice.salon.slug ? subdomainUrl(invoice.salon.slug) : "/"} className="text-pink-500 hover:underline">
             مشاهده صفحه سالن
           </Link>
         </p>

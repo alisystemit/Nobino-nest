@@ -5,6 +5,7 @@
  * جابه‌جایی به ساعت آزاد، تماس و پیامک، و هشدار یادآوری‌های نرسیده.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { subdomainUrl } from "@/lib/subdomain";
 import { Button, EmptyState, Field, Icon, SectionTitle, Sheet, SkeletonList, StatusBadge } from "@/mini/components/ui";
 import { DayStrip, SlotGrid, upcomingDays } from "@/mini/components/booking";
 import { compactToman, dayLabel, faDigits, relativeDayLabel, timeLabel, weekdayLabel, ymd } from "@/mini/lib/format";
@@ -536,7 +537,7 @@ function ApptSheet({
 
           {isCustomer && item.salonSlug ? (
             <div style={{ marginTop: 10 }}>
-              <a className="mini-btn soft" style={{ width: "100%", display: "inline-flex", justifyContent: "center" }} href={`/s/${item.salonSlug}`} target="_blank" rel="noreferrer">
+              <a className="mini-btn soft" style={{ width: "100%", display: "inline-flex", justifyContent: "center" }} href={subdomainUrl(item.salonSlug)} target="_blank" rel="noreferrer">
                 <Icon name="store" size={17} />
                 صفحهٔ سالن و رزرو دوباره
               </a>

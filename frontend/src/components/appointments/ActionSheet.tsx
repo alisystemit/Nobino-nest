@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Ban, CalendarClock, Check, MessageSquare, Phone, Store, UserX } from "lucide-react";
 import { isDone, statusMeta, timeIn, tzOf, type AgendaItem } from "@/lib/appointments/agenda-view";
 import { toPersianDigits } from "@/lib/utils";
+import { subdomainUrl } from "@/lib/subdomain";
 
 type Props = {
   item: AgendaItem;
@@ -137,7 +138,7 @@ export default function ActionSheet({ item, timezone, role, busy, onClose, onSta
                   </button>
                 )}
                 {item.salonSlug && (
-                  <a href={`/s/${item.salonSlug}`} className={row}>
+                  <a href={subdomainUrl(item.salonSlug)} className={row}>
                     <Store className="h-5 w-5 text-pink-600" /> صفحهٔ سالن و رزرو مجدد
                   </a>
                 )}
