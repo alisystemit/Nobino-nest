@@ -2,6 +2,7 @@
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { withinLimit } from "@/lib/plans/limits";
+import { csvFile } from "@/lib/csv";
 
 /** خروجی CSV نوبت‌های سالن (برای گزارش‌گیری/مهاجرت) */
 export async function GET(_req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {
@@ -18,27 +19,29 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
       return new Response("خروجی CSV در پلن فعلی این سالن فعال نیست", { status: 403 });
     }
 
-    const rows = await prisma.appointment.findMany({
+    const appointments = await prisma.appointment.findMany({
       where: { salonId: id },
       include: { service: { select: { name: true } }, employee: { select: { name: true } } },
       orderBy: { startAt: "desc" },
       take: 5000,
     });
 
-    const esc = (v: unknown) => {
-      const s = v == null ? "" : String(v);
-      return `"${s.replace(/"/g, '""')}"`;
-    };
-
+    // C11: سلول‌ها از `lib/csv.ts` می‌گذرند (خنثی‌سازی فرمول + نقل‌قول)
     const header = ["id", "customer_name", "customer_phone", "service", "employee", "start_at", "end_at", "status", "channel", "deposit_paid"];
-    const lines = rows.map((r) =>
-      [r.id, r.customerName, r.customerPhone, r.service?.name ?? "", r.employee?.name ?? "", r.startAt.toISOString(), r.endAt.toISOString(), r.status, r.channel, r.depositPaid]
-        .map(esc)
-        .join(",")
-    );
+    const dataRows = appointments.map((r) => [
+      r.id,
+      r.customerName,
+      r.customerPhone,
+      r.service?.name ?? "",
+      r.employee?.name ?? "",
+      r.startAt.toISOString(),
+      r.endAt.toISOString(),
+      r.status,
+      r.channel,
+      r.depositPaid,
+    ]);
 
-    const csv = [header.map(esc).join(","), ...lines].join("\r\n");
-    return new Response("\uFEFF" + csv, {
+    return new Response(csvFile(header, dataRows), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="appointments-${salon.slug}.csv"`,

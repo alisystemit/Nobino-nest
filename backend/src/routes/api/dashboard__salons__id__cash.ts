@@ -1,8 +1,10 @@
-// خودکار: پورت‌شده از src/app/api/dashboard/salons/[id]/cash/route.ts — بدون تغییر منطق
+// خودکار: پورت‌شده از src/app/api/dashboard/salons/[id]/cash/route.ts — منطق روز به وقت سالن (O8)
 import { z } from "zod";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { json, apiError, getPagination } from "@/lib/utils";
+import { localParts } from "@/lib/timezone";
+import { dayWindow } from "@/lib/time/day-window";
 
 const createSchema = z.object({
   branchId: z.string().optional(),
@@ -20,7 +22,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
 
     const { page, limit, skip, take } = getPagination(_req.url, 25, 200);
     const entriesWhere = { salonId: id };
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+
+    // O8: «امروز» با نیم‌شب به وقت خودِ سالن شروع می‌شود، نه ساعت صفر سرور.
+    // روی هاست UTC قبلاً کارت‌های ۰۳:۳۰ تا ۰۳:۲۹ Tehran در دو روز مختلف می‌نشستند.
+    const salon = await prisma.salon.findUnique({ where: { id }, select: { timezone: true } });
+    if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
+    const timezone = salon.timezone || "Asia/Tehran";
+    const todayKey = localParts(new Date(), timezone).dayISO;
+    const todayStart = dayWindow(todayKey, timezone).start;
 
     // جمع‌های روز از پایگاه داده می‌آیند (نه از صفحهٔ جاری) تا با صفحه‌بندی درست بمانند
     const [entries, total, todayAgg] = await Promise.all([
@@ -58,6 +67,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
         expense,
         net: cash + card + online - expense,
       },
+      // O8: روز و منطقه‌زمانی مبنای جمع‌ها اعلام می‌شود تا فهرست «امروز» قابل‌افسون‌گاری باشد
+      today: todayKey,
+      timezone,
     });
   } catch (err) {
     return apiError(err);

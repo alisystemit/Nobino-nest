@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { assertBranchOfSalon, assertServicesOfSalon, assertUserAccount } from "@/lib/tenant-refs";
 import { json, apiError } from "@/lib/utils";
 
 const patchSchema = z.object({
@@ -32,10 +33,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string; st
     }
 
     const body = patchSchema.parse(await req.json());
+
+    // O4: همان محافظت مسیر ساخت — خدمت/شعبه/حساب کاربر باید به همین سالن باشد
+    const serviceIds = await assertServicesOfSalon(body.serviceIds, id);
+    if (body.branchId !== undefined) await assertBranchOfSalon(body.branchId, id);
+    if (body.userId !== undefined) await assertUserAccount(body.userId, "کاربر متصل به کارمند");
+
     const data: Record<string, unknown> = { ...body };
     delete data.serviceIds;
-    if (body.serviceIds) {
-      data.services = { set: body.serviceIds.map((sid) => ({ id: sid })) };
+    if (body.serviceIds !== undefined) {
+      data.services = { set: serviceIds.map((sid) => ({ id: sid })) };
     }
 
     const updated = await prisma.staff.update({

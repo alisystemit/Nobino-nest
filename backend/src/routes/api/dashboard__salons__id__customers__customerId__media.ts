@@ -1,5 +1,5 @@
 import { requireSalonManage } from "@/lib/auth/guards";
-import { crmLimits } from "@/lib/crm-limits";
+import { crmLimits, crmLimitsPayload } from "@/lib/crm-limits";
 import { prisma } from "@/lib/prisma";
 import { storeFile, removeLocalFile } from "@/lib/storage";
 import { json, apiError } from "@/lib/utils";
@@ -28,7 +28,16 @@ export async function GET(
       }),
       crmLimits(),
     ]);
-    return json({ success: true, media, limit: limits.mediaLimit, limits: { mediaLimit: limits.mediaLimit, mediaEnabled: limits.mediaEnabled } });
+    // سقف‌ها کامل برگردانده می‌شوند (تعداد + حجم)، تا رابط کاربری بتواند
+    // پیش از ارسال، حجم فایل و طول ضبط را از همان مقدار پنل بخواند.
+    const p = crmLimitsPayload(limits);
+    return json({
+      success: true,
+      media,
+      limit: p.mediaLimit,
+      limits: p,
+      ...p,
+    });
   } catch (err) {
     return apiError(err);
   }

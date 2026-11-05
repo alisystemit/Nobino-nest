@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { json, apiError } from "@/lib/utils";
+import { localParts } from "@/lib/timezone";
+import { dayWindow, shiftDay } from "@/lib/time/day-window";
 
 const schema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -16,37 +18,49 @@ export async function GET(req: Request, { params }: { params: { id: string } | P
     const { id } = await params;
 
     const url = new URL(req.url);
-    const from = url.searchParams.get("from") ?? new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-    const to = url.searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
-    schema.parse({ from, to });
-
     const salon = await prisma.salon.findUnique({ where: { id } });
     if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
     if (user.role !== "ADMIN" && salon.ownerId !== user.id) {
       return json({ success: false, error: "دسترسی غیرمجاز" }, { status: 403 });
     }
 
-    const start = new Date(from + "T00:00:00");
-    const end = new Date(to + "T23:59:59.999");
+    // O8: بازه با نیم‌شب به وقت سالن بریده می‌شود؛ «امروز» هم به وقت همان سالن است،
+    // نه UTCِ سرور (قبلاً یک بازهٔ ۳۰ روزه می‌توانست ۳۱ روز محلی را بپوشاند).
+    const timezone = salon.timezone || "Asia/Tehran";
+    const todayLocal = localParts(new Date(), timezone).dayISO;
+    const from = url.searchParams.get("from") ?? shiftDay(todayLocal, -30);
+    const to = url.searchParams.get("to") ?? todayLocal;
+    schema.parse({ from, to });
+
+    const { start } = dayWindow(from, timezone);
+    const { end } = dayWindow(to, timezone);
 
     const appointments = await prisma.appointment.findMany({
-      where: { salonId: id, startAt: { gte: start, lte: end } },
+      where: { salonId: id, startAt: { gte: start, lt: end } },
       include: { service: { select: { price: true, name: true } } },
+      orderBy: [{ startAt: "asc" }, { id: "asc" }],
     });
 
     const services = await prisma.service.findMany({ where: { salonId: id }, select: { id: true, price: true, name: true } });
     const priceMap = new Map(services.map((s) => [s.id, s.price]));
 
+    // O9: مبلغ زمان رزرو (priceSnapshot) مبناست؛ فقط ردیف‌های قدیمی که snapshot
+    // ندارند به قیمت جاری خدمت برمی‌گردند (و پاسخ می‌گوید چند ردیف از نوع قدیمی بوده).
+    const priceOf = (a: { priceSnapshot: number | null; serviceId: string | null }) =>
+      a.priceSnapshot ?? (a.serviceId ? priceMap.get(a.serviceId) ?? 0 : 0);
+    let legacyPriced = 0;
+    for (const a of appointments) if (a.priceSnapshot === null) legacyPriced++;
+
     const completed = appointments.filter((a) => a.status === "COMPLETED");
     const cancelled = appointments.filter((a) => a.status === "CANCELLED");
     const requested = appointments.filter((a) => a.status === "REQUESTED");
 
-    const revenue = completed.reduce((s, a) => s + (a.serviceId ? priceMap.get(a.serviceId) ?? 0 : 0), 0);
-    const potentialRevenue = requested.reduce((s, a) => s + (a.serviceId ? priceMap.get(a.serviceId) ?? 0 : 0), 0);
+    const revenue = completed.reduce((s, a) => s + priceOf(a), 0);
+    const potentialRevenue = requested.reduce((s, a) => s + priceOf(a), 0);
 
-    // پرداخت‌های سالن در بازه (سفارش‌های اشتراک)
+    // پرداخت‌های سالن در بازه (سفارش‌های اشتراک) — همین‌ها هم به وقت سالن
     const payments = await prisma.order.findMany({
-      where: { salonId: id, status: "PAID", createdAt: { gte: start, lte: end } },
+      where: { salonId: id, status: "PAID", createdAt: { gte: start, lt: end } },
       select: { amount: true, createdAt: true },
     });
     const paidTotal = payments.reduce((s, p) => s + p.amount, 0);
@@ -66,6 +80,8 @@ export async function GET(req: Request, { params }: { params: { id: string } | P
       report: {
         from,
         to,
+        timezone,
+        legacyPricedRows: legacyPriced,
         totalAppointments: appointments.length,
         completed: completed.length,
         cancelled: cancelled.length,

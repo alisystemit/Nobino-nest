@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { assertLimit } from "@/lib/plans/limits";
+import { assertBranchOfSalon, assertServicesOfSalon, assertUserAccount } from "@/lib/tenant-refs";
 import { json, apiError } from "@/lib/utils";
 
 const createSchema = z.object({
@@ -53,6 +54,11 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
 
     const body = createSchema.parse(await req.json());
 
+    // O4: تعریف خدمت، شعبه و حساب کاربر باید متعلق به همین سالن باشد
+    const serviceIds = await assertServicesOfSalon(body.serviceIds, id);
+    await assertBranchOfSalon(body.branchId, id);
+    await assertUserAccount(body.userId, "کاربر متصل به کارمند");
+
     // رعایت محدودیت پلن (تعداد آرایشگران) — پیام دقیق از ماتریس محدودیت‌ها می‌آید
     await assertLimit({ salonId: id }, "staff");
 
@@ -69,7 +75,7 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
         avatarUrl: body.avatarUrl,
         specialties: body.specialties,
         schedule: body.schedule,
-        services: body.serviceIds ? { connect: body.serviceIds.map((sid) => ({ id: sid })) } : undefined,
+        services: serviceIds.length ? { connect: serviceIds.map((sid) => ({ id: sid })) } : undefined,
       },
       include: { services: true, branch: true },
     });
