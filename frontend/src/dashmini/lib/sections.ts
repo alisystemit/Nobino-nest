@@ -24,7 +24,7 @@ export const SECTIONS: Section[] = [
   { to: "/booking", label: "رزرو دستی", sub: "ثبت نوبت تلفنی یا حضوری", icon: "edit", classic: "/dashboard/new-appointment", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/voice-booking", label: "رزرو صوتی", sub: "صدای فارسی را هوش مصنوعی ثبت می‌کند", icon: "mic", classic: "/dashboard/voice-booking", roles: ["SALON_OWNER", "ADMIN"] },
   { to: "/customers", label: "مشتریان", sub: "کارت مشتری، یادداشت و فایل", icon: "users", classic: "/dashboard/customers", roles: ["SALON_OWNER", "ADMIN"], built: true },
-  { to: "/staff", label: "کارکنان", sub: "آرایشگران، کمیسیون و شیفت", icon: "scissors", classic: "/dashboard/staff", roles: ["SALON_OWNER", "ADMIN"] },
+  { to: "/staff", label: "کارکنان", sub: "آرایشگران، کمیسیون و شیفت", icon: "scissors", classic: "/dashboard/staff", roles: ["SALON_OWNER", "ADMIN"], built: true },
   { to: "/services", label: "خدمات و پکیج", sub: "نام، قیمت و مدت هر خدمت", icon: "ticket", classic: "/dashboard/salon", roles: ["SALON_OWNER", "ADMIN"] },
   { to: "/salon", label: "سالن من", sub: "صفحهٔ عمومی و وضعیت سالن", icon: "store", classic: "/dashboard/salon", roles: ["SALON_OWNER", "ADMIN"] },
   { to: "/settings", label: "تنظیمات سالن", sub: "ساعات کاری، قوانین رزرو و دامنه", icon: "pin", classic: "/dashboard/settings", roles: ["SALON_OWNER", "ADMIN"] },
