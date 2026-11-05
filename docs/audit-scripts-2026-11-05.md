@@ -8,7 +8,7 @@
 
 ## ۱) نتیجه در یک نگاه
 
-**33 finding**: ۳ بحرانی، ۱۰ بالا، ۱۲ متوسط، ۶ پایین، ۲ بهداشتی.
+**37 finding**: ۳ بحرانی، ۱۰ بالا، ۱۴ متوسط، ۷ پایین، ۳ بهداشتی. (۴ موردِ آخر از رندِ تست‌های seed اضافه شد: ME-13، ME-14، LO-7، HG-3.)
 
 سه چیزی که همین حالا در پروداکشن ضربه می‌زند:
 
@@ -58,12 +58,15 @@
 | ME-10 | متوسط | [backend/scripts/gen-controllers.mjs:88](file:///C:/laragon/www/Nobino-nest/backend/scripts/gen-controllers.mjs#L88) · [backend/scripts/port-routes.mjs:43](file:///C:/laragon/www/Nobino-nest/backend/scripts/port-routes.mjs#L43) · [frontend/scripts/port-pages.mjs:37](file:///C:/laragon/www/Nobino-nest/frontend/scripts/port-pages.mjs#L37) | کنترلر بی‌یتیم/اسکریپت‌های مردهٔ ENOENT |
 | ME-11 | متوسط | [frontend/prerender.mjs:211](file:///C:/laragon/www/Nobino-nest/frontend/prerender.mjs#L211) + [scripts/paas-start.mjs:171](file:///C:/laragon/www/Nobino-nest/scripts/paas-start.mjs#L171) | خروج ۰ بدون صفحه + `stdio:"ignore"` = هشدارها گم می‌شوند |
 | ME-12 | متوسط | [scripts/seed-real.mjs:31](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L31) | گارد پروداکشن حساس به بزرگی/کوچکی (با بقیه ناسازگار) |
+| ME-13 | متوسط | [scripts/seed-real.mjs:23](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L23) · [scripts/seed-demo.mjs:18](file:///C:/laragon/www/Nobino-nest/scripts/seed-demo.mjs#L18) | `new PrismaClient()` قبل از گارد پروداکشن (اتصال زودهنگام) |
+| ME-14 | متوسط | [scripts/seed-real.mjs:26-28](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L26) · [scripts/seed-stress.mjs:96](file:///C:/laragon/www/Nobino-nest/scripts/seed-stress.mjs#L96) | پرچم ناشناخته/تایپو = اجرای کامل پاک‌سازی+seed؛ `--help` ندارد |
 | LO-1 | پایین | [frontend/prerender.mjs:216](file:///C:/laragon/www/Nobino-nest/frontend/prerender.mjs#L216) | `/login` در sitemap در حالی که `noindex` است |
 | LO-2 | پایین | [frontend/prerender.mjs:181](file:///C:/laragon/www/Nobino-nest/frontend/prerender.mjs#L181) | fallback عمیق با canonical/noindex یکسان برای همهٔ مسیرها |
 | LO-3 | پایین | [scripts/paas-start.mjs:140](file:///C:/laragon/www/Nobino-nest/scripts/paas-start.mjs#L140) | `process.exit(code ?? 0)` — کشته‌شده با سیگنال = خروج ۰ |
 | LO-4 | پایین | [deploy/update.sh:125](file:///C:/laragon/www/Nobino-nest/deploy/update.sh#L125) | rollback با هر فایل untracked مسدود (از جمله `--backup-dir` داخل مخزن) |
 | LO-5 | پایین | [backend/scripts/gen-controllers.mjs:115-135](file:///C:/laragon/www/Nobino-nest/backend/scripts/gen-controllers.mjs#L115) | ۵ ددلاین کران سخت‌کد؛ کران تازه در مانیفست بی‌صدا نادیده |
 | LO-6 | پایین | [scripts/create-admin.mjs:64](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L64) · [:106](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L106) | خط چسبیده + `exit(0)` دور‌زدنِ `$disconnect` |
+| LO-7 | پایین | [scripts/seed-real.mjs:337-339](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L337) | فیلترمالی‌ها بر `ownerId` است نه سالن → تراکنش واقعی همان کاربر هم پاک می‌شود |
 | HG-1 | بهداشت | `logs/*.mjs` (17 فایل) | ابزارهای یک‌بارمصرف زیر .gitignore — از دید Review پنهان |
 | HG-2 | بهداشت | [deploy/bootstrap.sh:296](file:///C:/laragon/www/Nobino-nest/deploy/bootstrap.sh#L296) | رمز سوپرادمین روی argv (در `ps` دیده می‌شود) برخلاف راهنمای خود `create-admin.mjs` |
 
@@ -138,6 +141,8 @@ await kill("supportTicket", { OR: [{ userId: { in: stressUserIds } }, { phone: {
 ```
 
 - `code startsWith "WELCOME"`: هر کوپن واقعی که با WELCOME شروع شود (کمپین خوش‌آمدگویی) حذف می‌شود — ربطی به پیشوند `stress` ندارد.
+- `giftCard`: ردیف‌ها با `code: { contains: "stress", mode: "insensitive" }` ([خط 334](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L334)) — کارت‌هدیهٔ واقعی که کدش این رشته را داشته باشد نابود می‌شود.
+- `supportTicket` علاوه بر پیش‌شماره‌ها با `subject: { contains: "موضوع تیکت" }` هم مقایسه می‌شود (همان خط 336) — یک موضوع تیکتِ قالب‌ریخته/واقعی پاک می‌شود.
 - `phone startsWith 0999 / 0998`: این‌ها پیش‌شمارهٔ واقعی موبایل ایران‌اند؛ هر **تیکت پشتیبانی** ([خط 336](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L336)) و هر **ردیف OTP** ([خط 342](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L342))ِ مشتری واقعی با آن پیش‌شماره پاک می‌شود.
 - سالن‌ها با `slug startsWith "stress"` یا `name contains "استرس"` یا `city contains "تست"` شناسایی و `salon.deleteMany` می‌شوند ([خط 275](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L275) → [:330](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L330)) — یک سالن واقعی با نام/شهر شامل آن رشته‌ها حذف می‌شود.
 - حلقهٔ `SELF_CLEAN` (خطوط 258-263 و 361) هر ردیفی در 28 جدول که `id` آن با `nr` شروع شود حذف می‌کند؛ اگر یکبار آن پیشوند با شناسهٔ واقعی برخورد کند، حذف انبوه بدون هشدار رخ می‌دهد.
