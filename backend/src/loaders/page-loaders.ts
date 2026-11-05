@@ -107,10 +107,23 @@ const SALON_TYPE_LABEL: Record<string, string> = {
 };
 const typeLabel = (t?: string | null) => SALON_TYPE_LABEL[t ?? ""] ?? "آرایشگاه";
 
+/** اگر نام برند خودش نوع را می‌گوید، در تکرار آن در تایتل فایده‌ای نیست و فقط کلمات کلیدی را رقیق می‌کند */
+const NAME_SAYS_TYPE: Record<string, RegExp> = {
+  MEN: /مردانه|آرایشگاه/,
+  WOMEN: /بانوان|زنانه|سالن زیبایی|استودیو زیبایی/,
+  COUPLE: /مردان و زنان|مشترک/,
+};
+
+function salonSeoTitle(salon: { name: string; city: string | null; salonType?: string | null }) {
+  if (!salon.city) return salon.name;
+  if ((NAME_SAYS_TYPE[salon.salonType ?? ""] ?? /$^/).test(salon.name)) return `${salon.name} — ${salon.city}`;
+  return `${salon.name} — ${typeLabel(salon.salonType)} در ${salon.city}`;
+}
+
 async function buildSalonSeo(slug: string) {
   const salon = await prisma.salon.findUnique({ where: { slug } });
   if (!salon) return null;
-  const title = `${salon.name}${salon.city ? ` — ${typeLabel(salon.salonType)} در ${salon.city}` : ""}`;
+  const title = salonSeoTitle(salon);
   const description =
     salon.description ??
     `رزرو آنلاین نوبت ${salon.name}${salon.city ? ` در ${salon.city}` : ""}؛ مشاهده خدمات، قیمت‌ها، آرایشگران و زمان‌های آزاد.`;
@@ -478,7 +491,7 @@ async function loadSeoSalons() {
   });
   return salons.map((s) => ({
     path: `/s/${s.slug}`,
-    title: `${s.name}${s.city ? ` — ${typeLabel(s.salonType)} در ${s.city}` : ""}`,
+    title: salonSeoTitle(s),
     description:
       s.description ??
       `رزرو آنلاین نوبت ${s.name}${s.city ? ` در ${s.city}` : ""}؛ مشاهده خدمات، قیمت‌ها، آرایشگران و زمان‌های آزاد.`,

@@ -79,7 +79,7 @@ const CITY = [
 const STREET = ["خیابان ولیعصر", "خیابان شریعتی", "خیابان مطهری", "بلوار معلم", "خیابان آزادی", "خیابان کریمخان", "خیابان طالقانی", "بلوار جمهوری", "خیابان چمران", "خیابان ستارخان", "خیابان فلسطین", "بلوار پاسداران", "خیابان امام", "خیابان بهار", "خیابان انقلاب"];
 
 /* ── برندها (slug لاتین + نام فارسی) ─────────────────────────────── */
-/** kind: W = زنانه، M = مردانه — ۹۲ برند، به‌علاوهٔ ۸ سالن دمو = ۱۰۰ سالن */
+/** kind: W = زنانه، M = مردانه، C = مشترک (COUPLE_SLUGS) — ۹۲ برند، به‌علاوهٔ ۸ سالن دمو = ۱۰۰ سالن */
 const BRAND = [
   // زنانه (۶۴) — «ava» و «gisso» هنر گرافیکی آماده دارند
   ["ava", "آوا", "W"], ["gisso", "گیسو", "W"], ["armita", "آرمیتا", "W"], ["atena", "آتنا", "W"],
@@ -109,6 +109,7 @@ const BRAND = [
 ];
 const W_TYPES = ["مجموعه زیبایی", "سالن زیبایی", "سالن مو و زیبایی", "استودیو زیبایی"];
 const M_TYPES = ["آرایشگاه مردانه", "مجموعه آرایشی مردانه", "آرایشگاه و اصلاح‌موی"];
+const C_TYPES = ["مجموعه زیبایی مردان و زنان", "مجتمع آرایشی", "مجموعه زیبایی"];
 
 /* ── کاتالوگ خدمات با قیمت‌های بازار (تومان) ─────────────────────── */
 const SERVICES_W = {
@@ -154,76 +155,155 @@ const SERVICES_W = {
     ["میکرونیدلینگ", 60, 1500000],
   ],
 };
+/* کاتالوگ مردانه هم دسته‌بندی دارد؛ مینی‌اپ و صفحهٔ سالن خدمات را با دستهٔ «مردانه» شلوغ نمی‌کنند */
 const SERVICES_M = {
-  "مردانه": [
-    ["کوتاهی مو (مردانه)", 30, 280000, "با شست‌وشو و سشوار"],
-    ["کوتاهی با ماشین", 20, 180000],
-    ["اصلاح ریش و خط ریش", 20, 160000, "با حولهٔ گرم"],
-    ["مدل ریش و سبیل", 35, 260000],
-    ["رنگ مو (مردانه)", 60, 700000],
-    ["ویژژ مردانه", 90, 1200000],
-    ["کراتین مو (مردانه)", 120, 1900000],
-    ["پاکسازی پوست مردانه", 50, 650000],
-    ["ماساژ صورت", 30, 400000],
-    ["کوتاهی مو نوجوان", 25, 220000],
+  "مو و فید": [
+    ["کوتاهی مو فید", 30, 320000, "سایه‌ماشین و خط‌اندازی"],
+    ["کوتاهی مدل و سشوار", 40, 380000, "شست‌وشو و حالت‌دهی"],
+    ["اندرکات", 30, 300000, "برای حجم و پرپشت‌تر شدن مو"],
+    ["طراحی و خط مو (هیردیزاین)", 25, 240000, "با تیغ و قالب"],
+    ["فید نظامی", 25, 280000],
+    ["حالت‌دهی با واکس و چسب مو", 20, 160000],
+    ["شست‌وشو و سشوار", 20, 140000],
+    ["مشورت و درمان ریزش مو", 30, 350000, "معرفی محصول بعد از بررسی"],
+  ],
+  "ریش و اصلاح": [
+    ["اصلاح صورت با حولهٔ گرم", 30, 260000, "تیغ، کف و مرطوب‌کنندهٔ بعد از اصلاح"],
+    ["خط ریش و فیس‌آف", 20, 180000],
+    ["مدل ریش و سبیل", 35, 280000, "با روغن و بالآم ریش"],
+    ["تتوی خط ریش (SMP)", 60, 1800000, "پر کردن خلأی و محو طاسی"],
+    ["رنگ ریش", 25, 320000],
+    ["مرتب‌سازی ابرو مردانه", 15, 130000, "با قیچی و ووکس"],
+    ["ووکس بینی و گوش", 15, 120000],
+  ],
+  "رنگ و مواد": [
+    ["رنگ مو یک‌مرحله‌ای", 60, 780000, "پوشش کامل سفیدی"],
+    ["رنگ خاکستری و نقره‌ای", 75, 950000],
+    ["بلیچ و مش", 90, 1300000],
+    ["دکلره", 120, 1700000],
+    ["کراتین مو", 120, 1900000, "کاهش وز و حجم مو"],
+    ["بوتاکس مو", 90, 1450000],
+    ["ویتامینه و پروتئین", 80, 1100000],
+  ],
+  "پوست و فیشال": [
+    ["فیشال مردانه", 60, 850000, "پاکسازی، بخور و ماسک"],
+    ["پاکسازی پوست با دستگاه", 50, 700000],
+    ["ماساژ صورت و گردن", 30, 420000],
+    ["میکرودرم ابریژن", 45, 680000],
+    ["هایفوتراپی صورت", 90, 2400000],
+    ["لیزر مو (هر ناحیه)", 30, 900000],
+    ["درمان جوش و جای جوش", 60, 1250000],
+  ],
+  "ناخن و بهداشت": [
+    ["مانیکور مردانه", 45, 480000, "تمیز و کوتاه، بدون لاک"],
+    ["پدیکور", 55, 620000, "با سنگ‌پا و ماساژ"],
+    ["ماساژ بدن (ورزشی)", 60, 900000],
+    ["بخوره و سونا", 45, 550000],
+    ["رفع موهای زائد با وکس", 40, 700000],
+  ],
+  "کودک و نوجوان": [
+    ["کوتاهی مو کودک", 30, 260000, "تا ۱۲ سال"],
+    ["کوتاهی مو نوجوان", 30, 280000],
+    ["طراحی مو نوجوان", 35, 340000],
+    ["بلیچ مو نوجوان", 60, 700000],
+  ],
+  "داماد و مراسم": [
+    ["پک داماد (مو، ریش و فیشال)", 180, 4800000, "شامل تست و هماهنگی پیش از مراسم"],
+    ["مدل مو و اصلاح برای مراسم", 45, 420000],
+    ["رنگ مو و فرم ریش", 90, 1100000],
+    ["پک داماد کامل (با ماساژ)", 240, 6500000],
   ],
 };
 
 const STAFF_TITLES_W = ["مدیر فنی", "آرایشگر ارشد", "متخصص رنگ و مش", "متخصص مو و کراتین", "ناخن‌کار", "میکاپ آرتیست", "متخصص پوست و لیزر", "کارشناس مژه و ابرو", "مسئول پذیرش"];
-const STAFF_TITLES_M = ["آرایشگر ارشد", "اصلاح‌گر ریش", "متخصص کوتاهی فید", "مسئول پذیرش", "مدیر سالن"];
+const STAFF_TITLES_M = ["مدیر فنی آرایشگاه", "سرشیفت", "استاد کار مو و فید", "متخصص ریش و اصلاح", "متخصص کوتاهی فید", "متخصص رنگ و مواد", "مصفف پوست و فیشال", "ناخن‌کار", "آرایشگر کودک", "مسئول پذیرش"];
+const STAFF_TITLES_C = ["مدیر مجموعه", "سرشیفت بخش مردان", "سرشیفت بخش بانوان", "آرایشگر ارشد", "متخصص رنگ و مش", "متخصص ریش و اصلاح", "میکاپ آرتیست", "متخصص پوست", "مسئول پذیرش"];
 const SPECIALTIES_W = ["رنگ و مش", "کراتین و بوتاکس", "شینیون عروس", "میکاپ شب", "کاشت ناخن", "لاک ژل", "پاکسازی پوست", "لیزر مو", "لمینت مژه", "تتوی ابرو", "بافت مو", "میکرونیدلینگ"];
-const SPECIALTIES_M = ["کوتاهی فید", "ریش و سبیل", "کراتین مردانه", "رنگ مو", "پاکسازی پوست", "موادگیری"];
+const SPECIALTIES_M = ["فید و اندرکات", "خط ریش و فیس‌آف", "تتوی ریش SMP", "محو طاسی", "رنگ خاکستری", "کراتین مو", "بلیچ و مش", "فیشال مردانه", "مانیکور", "ماساژ ورزشی", "مدل مو کلاسیک", "مو کودک و نوجوان", "ووکس بینی و گوش", "پک داماد"];
 const FIR_W = ["نگار", "سارا", "لیلا", "نازنین", "مهسا", "پریسا", "الهام", "صدف", "مریم", "بهاره", "شیوا", "ترانه", "آیدا", "پروین", "شیرین", "مینا", "فاطمه", "زهرا", "رعنا", "آسمه", "هستی", "گلنار", "رویا", "نسترن", "سیما", "مونا", "پارمیس", "آرزو"];
 const FIR_M = ["امیر", "رضا", "مهدی", "علی", "حسین", "کیان", "بهراد", "آرمان", "فرهاد", "سام", "امید", "کامران", "بهرام", "سینا", "ماهن", "بردیا", "سروش", "بهنام", "پویا", "رامین"];
 const LAST = ["رضایی", "محمدی", "احمدی", "کریمی", "حسینی", "موسوی", "جعفری", "صادقی", "رحیمی", "نادری", "قاسمی", "توکلی", "شفیعی", "عباسی", "مظفری", "کیانی", "هراتی", "زارع", "رستگار", "مطیعی", "فرهمند", "بهرامی", "اسدی", "جوادی", "شریفی"];
 
-const REVIEW_TEXTS = [
+const REVIEW_SHARED = [
   "خیلی راضی بودم، وقت‌شناسی دقیق و کار تمیز.",
   "رنگ مو عالی شد، دقیقاً همان چیزی که خواسته بودم.",
   "مهمان‌نوازی خوب و محیطی تمیز و مرتب.",
   "نفر دوم کمی دیر شروع کرد ولی نتیجه خوب بود.",
-  "کاشت ناخن خیلی طبیعی شده، دست‌مزد شما گرم.",
-  "برای میکاپ عروس انتخاب کردم و پشیمان نشدم.",
   "قیمت‌ها منصفانه است، کیفیت هم قابل قبول.",
-  "پذیرش تلفنی پاسخگو بود ولی سالن شلوغ بود.",
+  "پذیرش تلفنی پاسخگو بود ولی شلوغ بود.",
   "کراتین مو واقعاً جواب داد، موهایم لطیف شده.",
   "متخصص پوست بسیار باحوصله بود و توضیح کامل داد.",
   "بوی خوش محیط و تمیزی ابزار قابل تقدیر است.",
   "یک بار نوبت جابه‌جا شد ولی در نهایت راضی هستم.",
-  "شینیون مجلسی من را مهمان‌ها تعریف کردند.",
-  "لمینت مژه خیلی طبیعی است، دیگر مژه مصنوعی نمی‌خواهم.",
-  "امکانات پارکینگ ندارد ولی خود سالن خوب است.",
+  "پارکینگ ندارد ولی خود مجموعه خوب است.",
   "تیم جوان و باانرژی، حتماً دوباره می‌آیم.",
   "نتیجه دکلره مطلوب بود ولی زمان بیشتری گرفت.",
-  "میکاپ شب برای مراسم کوتاه بود، کمی اصلاحش کردم.",
-  "بهترین سالنی که تا حالا رفتم، ممنون از همه.",
+  "بهترین جایی که تا حالا رفتم، ممنون از همه.",
   "قیمت نهایی با آنچه گفته شد تفاوت داشت.",
   "کار تمیز و منظم، ولی انتظارم بیشتر بود.",
   "وقتی با همان ساعت قرار گرفته بود شروع شد.",
-  "برای خدمات ناخن عالی است، تنوع رنگ زیاد.",
   "پاکسازی پوست نتیجه‌اش بعد از دو جلسه مشخص شد.",
   "فضای دوستانه و پرسنل خوش‌برخورد.",
-  "ریش‌تراشی و خط ریش خیلی دقیق انجام شد.",
-  "کوتاهی فید مو عالی شد، دستتان درد نکند.",
-  "سالن شلوغ است، حتماً از قبل وقت بگیرید.",
+  "شلوغ است، حتماً از قبل وقت بگیرید.",
   "پیش‌ثبت نوبت از طریق سایت خیلی راحت است.",
   "هزینهٔ بیعانه منصفانه بود و به‌راحتی پرداخت شد.",
   "متأسفانه وقت دیرتر از ساعت رزرو شروع شد.",
-  "مژه‌ها یکدست و قرینه شد، بسیار راضی‌ام.",
-  "رنگ ابرو بعد از چند روز پرید، انتظارم بیشتر بود.",
   "امکانات رفاهی خوب و چای و میوه فراموش نشد.",
   "استاد کارش خوب است ولی نوبت‌دهی آنلاین بهتر شود.",
 ];
-const CAMPAIGN_TEXTS = [
+const REVIEW_W = [
+  "کاشت ناخن خیلی طبیعی شده، دست‌مزد شما گرم.",
+  "برای میکاپ عروس انتخاب کردم و پشیمان نشدم.",
+  "شینیون مجلسی من را مهمان‌ها تعریف کردند.",
+  "لمینت مژه خیلی طبیعی است، دیگر مژه مصنوعی نمی‌خواهم.",
+  "میکاپ شب برای مراسم کوتاه بود، کمی اصلاحش کردم.",
+  "برای خدمات ناخن عالی است، تنوع رنگ زیاد.",
+  "مژه‌ها یکدست و قرینه شد، بسیار راضی‌ام.",
+  "رنگ ابرو بعد از چند روز پرید، انتظارم بیشتر بود.",
+  "بانوان فقط می‌توانند وارد شوند و همین برایم مهم بود.",
+];
+const REVIEW_M = [
+  "ریش‌تراشی و خط ریش خیلی دقیق انجام شد.",
+  "کوتاهی فید مو عالی شد، دستتان درد نکند.",
+  "اصلاح با حولهٔ گرم و تیغ تازه؛ حسابی حالم جا آمد.",
+  "برای پک داماد رزرو کرده بودم و همه‌چیز سر وقت انجام شد.",
+  "تتوی خط ریش نتیجهٔ طبیعی داشت، دیگر معلوم نمی‌شود.",
+  "ووکس بینی و گوش را سریع و تمیز انجام دادند.",
+  "موی بچه را بدون اذیت شدن کوتاه کرد؛ برای کودک عالی است.",
+  "رنگ خاکستری مو دقیقاً همان شد که عکس آورده بودم.",
+  "ماساژ صورت بعد از اصلاح خیلی خوب بود.",
+  "آرایشگر ثابت دارم و همان کار قبلی را ادامه می‌دهد.",
+  "خط ریش کج افتاد و خودم اصلاحش کردم؛ انتظارم بیشتر بود.",
+  "برای کوتاهی با ماشین قیمتش از بقیه آرایشگاه‌ها بالاتر است.",
+  "محیط مردانه و مرتب است، انتظار نداشته باشید عروس‌ها باشند.",
+  "ساعت کاری جمعه‌ها کوتاه‌تر از سایت بود، هماهنگ کنید.",
+];
+const CAMPAIGN_SHARED = [
   "سلام {name} عزیز، این هفته در {salon} با ۱۵٪ تخفیف روی خدمات مو منتظرت هستیم.",
   "{salon}: وقت عید را از دست نده؛ همین حالا نوبتت را رزرو کن.",
   "یادآوری: نوبت شما در {salon} فردا است. در صورت نیاز جابه‌جاش کنید.",
-  "طرح تازهٔ لمینت مژه در {salon} — با قیمت آشنا، کیفیت حرفه‌ای.",
   "{name} گرامی، ماه آینده نوبت قبلی شما یک‌ساله می‌شود؛ به‌یادماندنی‌اش کنیم.",
-  "بستهٔ ویژهٔ عروس در {salon}: میکاپ، شینیون و گریم با یک قیمت.",
   "امروز ساعت آزاد زیادی داریم؛ {salon} بی‌انتظار شماست.",
   "نظر شما برای ما مهم است؛ لطفاً دربارهٔ آخرین نوبتتان در {salon} بنویسید.",
 ];
+const CAMPAIGN_W = [
+  "طرح تازهٔ لمینت مژه در {salon} — با قیمت آشنا، کیفیت حرفه‌ای.",
+  "بستهٔ ویژهٔ عروس در {salon}: میکاپ، شینیون و گریم با یک قیمت.",
+  "{salon}: رزرو کاشت ناخن و لاک ژل برای آخر هفته هنوز باز است.",
+];
+const CAMPAIGN_M = [
+  "طرح تازهٔ خط ریش و فیس‌آف در {salon} — با حولهٔ گرم، همان روز.",
+  "پک داماد {salon}: مو، ریش و فیشال با یک قیمت؛ ظرفیت مراسم محدود است.",
+  "{name} جان، نزدیک سه هفته از آخرین کوتاهی‌ات می‌گذرد؛ وقتت را در {salon} بگیر.",
+  "{salon}: تخفیف دانشجویی روی کوتاهی مو، فقط با کارت دانشجویی.",
+  "فید و اندرکات در {salon} با آرایشگر مورد علاقه‌ات؛ رزرو آنلاین سریع‌تر است.",
+  "جمعه صبح {salon} خلوت‌تر است؛ برای اصلاح ریش وقت باز زیاد داریم.",
+];
+/** نظر و کمپین باید با خدمات همان سالن هم‌خوان باشد — «میکاپ عروس» روی آرایشگاه مردانه باورکردنی نیست */
+const reviewPool = (kind) =>
+  [...REVIEW_SHARED, ...(kind === "M" ? REVIEW_M : kind === "W" ? REVIEW_W : [...REVIEW_W, ...REVIEW_M])];
+const campaignPool = (kind) =>
+  [...CAMPAIGN_SHARED, ...(kind === "M" ? CAMPAIGN_M : kind === "W" ? CAMPAIGN_W : [...CAMPAIGN_W, ...CAMPAIGN_M])];
 const TICKETS = [
   ["BOOKING", "نوبت دوبار ثبت شد", "یک نوبت را از طریق تلفن دادم و همان ساعت دوباره در پنل دیده می‌شود."],
   ["PAYMENT", "پرداخت بیعانه موفق نبود", "درگاه پیام خطا داد ولی مبلغ از حساب مشتری کسر شده است."],
@@ -238,7 +318,11 @@ const TICKETS = [
 ];
 
 /* ── پلن‌ها و رنگ‌مایه‌ها ─────────────────────────────────────────── */
+/* پالت زنانه (صورتی تا بنفش) و پالت‌های تازه برای آرایشگاه مردانه و مجموعهٔ مشترک */
 const PALETTE = ["#f472b6", "#db2777", "#a21caf", "#7c3aed", "#0891b2", "#16a34a", "#f97316", "#dc2626", "#e11d48", "#4f46e5", "#0ea5e9", "#c026d3"];
+const PALETTE_M = ["#0f172a", "#1e293b", "#111827", "#3f3f46", "#1c2434", "#4b5563", "#78350f", "#92400e", "#b45309", "#134e4a", "#0e7490", "#334155"];
+/** مجموعه‌های مشترک: رنگ خنثی‌تر، نه صورتی و نه کاملاً تیره */
+const PALETTE_C = ["#4f46e5", "#0891b2", "#7c3aed", "#0ea5e9", "#334155", "#16a34a", "#6d28d9", "#155e75", "#4338ca", "#0f766e", "#5b21b6", "#1e40af"];
 const PLANS = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
 
 /* SLUGهای دمو که می‌مانند و بازنویسی می‌شوند (لینک‌ها و QRهای موجود نشکنند) */
@@ -252,6 +336,11 @@ const ART = new Set(["mah", "rose", "niloofar", "bahar", "ava", "gisso"]);
 const GALLERY_ART = new Set(["rose", "niloofar", "bahar", "ava", "gisso"]);
 /** تعداد آواتار پرسنل موجود برای هر سالن */
 const STAFF_ART = { mah: 5, ava: 4, niloofar: 4, rose: 3, bahar: 3, gisso: 3 };
+/**
+ * چند برند زنانه به مجموعهٔ «مشترک» تبدیل می‌شوند تا فیلتر نوع در سایت فقط دو حالت نباشد:
+ * بخش مردان و بانوان جدا، پرسنل و کاتالوگ ترکیبی. (هنر گرافیکی این‌ها دست‌نخورده می‌ماند.)
+ */
+const COUPLE_SLUGS = new Set(["armita", "darya", "parisa", "sepid", "noora", "roxana"]);
 
 /* ── ۱) پاک‌سازی ─────────────────────────────────────────────────── */
 /** جدول‌هایی که ردیف‌های این اسکریپت با پیشوند nr در آن‌ها می‌نشیند — فرزند به والد */
@@ -405,33 +494,78 @@ const DESC_W = [
 ];
 const DESC_M = [
   "{name}؛ آرایشگاه مردانه در {city} با خدمات کوتاهی، فید، اصلاح ریش و خط ریش. پذیرش بدون وقت هم داریم، ولی رزرو آنلاین اولویت دارد.",
-  "در {name} کوتاهی مو با دستگاه و قیچی، رنگ آمیاک، فید کلاسیک و مدرن و اصلاح ریش انجام می‌شود.",
-  "آرایشگاه {name} با کادر مجرب، محیطی تمیز و ساعت کاری منظم؛ کارمزد services نقد و کارت‌به‌کارت.",
+  "در {name} کوتاهی مو با دستگاه و قیچی، فید کلاسیک و مدرن، طراحی خط مو و اصلاح ریش انجام می‌شود.",
+  "آرایشگاه {name} با کادر مجرب، محیطی تمیز و ساعت کاری منظم؛ پرداخت نقدی و کارت‌به‌کارت.",
   "{name}: تخصص ما فید و سایه، مدل ریش و پاکسازی پوست مردانه است. وقت‌ها را تلفنی یا آنلاین بگیرید.",
   "ریش‌تراشی با حولهٔ گرم، کوتاهی مو و ماساژ صورت در {name}؛ برای جلسات مهم، ساعت مشخص رزرو کنید.",
+  "{name} در {city}: خط ریش و تتوی ریش (SMP) برای پر کردن خلأی و محو طاسی، با مشاورهٔ رایگان پیش از کار.",
+  "بستهٔ داماد در {name}: کوتاهی مو، اصلاح و مدل ریش، فیشال و ماساژ — با تست و هماهنگی پیش از مراسم.",
+  "موی کودک و نوجوان در {name} با حوصله و بدون استرس انجام می‌شود؛ صندلی مخصوص بچه داریم.",
+  "{name}: رنگ مو، بلیچ و خاکستری با برندهای اصلی؛ کراتین و بوتاکس هم برای موهای وز و ضخیم.",
+  "در {name} هر آرایشگر ثابت خودش را دارد؛ وقت را روی آرایشگر دلخواهتان بگیرید تا کار قبلی ادامه پیدا کند.",
+  "پارکینگ، چای و اینترنت مهمان در {name}؛ مانیکور و پدیکور مردانه هم در همان سقف انجام می‌شود.",
 ];
-const CRM_NOTES = [
+const DESC_C = [
+  "{name} در {city}: بخش مردان و بانوان جدا با ورودی و کادر مستقل؛ ساعت کاری و وقت‌ها هم‌زمان رزرو می‌شود.",
+  "مجتمع آرایشی {name}: خدمات مو، رنگ و مش، فید و ریش، پوست و ناخن برای آقایان و خانم‌ها زیر یک سقف.",
+  "{name}: طبقهٔ بانوان و طبقهٔ مردان با حریم خصوصی کامل، دوربین ندارد و پذیرش یکپارچه دارد.",
+  "در {name} برای زوج‌ها بستهٔ مشترک داریم؛ وقت مو و ریش آقایان هم‌زمان با وقت بانوان هماهنگ می‌شود.",
+  "{name} با کادر آموزش‌دیده در {city}؛ خدمات داماد و عروس در روزهای مجزا و با هماهنگی قبلی.",
+];
+/** نوع سالن روی الگوهای متنی و کاتالوگ اثر می‌گذارد؛ کلید همان حرف اختصار kind است */
+const DESC_BY_KIND = { W: DESC_W, M: DESC_M, C: [...DESC_C, ...DESC_M] };
+const CRM_SHARED = [
   "به بوی قوی رنگ حساسیت دارد؛ از برندهای بدون آمونیاک استفاده شود.",
   "معمولاً با مترو می‌آید و سر وقت حاضر است.",
-  "برای مراسم نامزدی رزرو کرده؛ نتیجهٔ قبلی را خیلی پسندیده بود.",
   "ترجیح می‌دهد آرایشگر ثابت داشته باشد.",
-  "سابقهٔ شکستن ناخن دارد؛ زمان کاشت را بیشتر در نظر بگیریم.",
   "پیامک یادآوری را دوست ندارد؛ تماس تلفنی بهتر است.",
   "همیشه برای خدمات پوست وقت آخر هفته می‌گیرد.",
   "مشتری وفادار؛ بیش از ده نوبت در یک سال.",
   "یک‌بار نوبت را در دقیقهٔ آخر لغو کرد؛ بیعانهٔ همان ماه برگشت داده شد.",
+  "قبلاً یک نوبت را دو بار ثبت کرده؛ در پذیرش حواستان باشد.",
+];
+const CRM_W = [
+  "برای مراسم نامزدی رزرو کرده؛ نتیجهٔ قبلی را خیلی پسندیده بود.",
+  "سابقهٔ شکستن ناخن دارد؛ زمان کاشت را بیشتر در نظر بگیریم.",
   "برای مژه حساسیت چشمی دارد؛ تست قبل از خدمات.",
+  "رنگ مو را فقط با همان برند تیره می‌خواهد.",
+  "معمولاً با فرزندش می‌آید؛ وقت را کمی بازتر بگذاریم.",
+];
+const CRM_M = [
+  "خط ریش را همیشه با تیغ می‌خواهد، نه قیچی.",
+  "فقط با یک آرایشگر مشخص وقت می‌گیرد؛ نوبت را روی او ببندید.",
+  "برای مراسم خواستگاری رزرو کرده؛ نتیجهٔ قبلی را پسندیده بود.",
+  "موی کودک را با ماشین و بدون اشک می‌خواهد.",
+  "بعد از اصلاح ادکلن نزنید؛ به بو حساس است.",
+  "سفید موهایش را کامل بپوشانید، رنگ تیره نه.",
+  "هفته‌ای یک‌بار می‌آید و همیشه سر وقت حاضر است.",
+];
+/** یادداشت CRM باید با جنسیت مشتری و نوع سالن بخواند */
+const crmPool = (kind) =>
+  [...CRM_SHARED, ...(kind === "M" ? CRM_M : kind === "W" ? CRM_W : [...CRM_W, ...CRM_M])];
+const APPT_W = [
+  "همراه با تست رنگ.",
+  "همراه با شامپوی مخصوص خود مشتری.",
+  "هماهنگی با تالار انجام شود.",
+  "برای مراسم شب؛ وقت آخر روز.",
+  "رنگ مش فقط ریشه‌گیری.",
+  "همراه با مژه و ابرو؛ وقت اضافه لازم است.",
+];
+const APPT_M = [
+  "فقط ماشین شماره ۲، بالا بلند.",
+  "همراه با اصلاح ریش و حولهٔ گرم.",
+  "قبل از جلسهٔ کاری؛ تا ساعت ۱۰ حتماً تمام شود.",
+  "برای مراسم دامادی؛ وقت اضافه برای فیشال.",
+  "برای بچه است؛ وقت را کمی بازتر بگیرید.",
+  "ریش را کوتاه ولی خط‌دار می‌خواهد.",
 ];
 const APPT_NOTES = [
-  "همراه با تست رنگ.",
-  "درخواست ساعت زودتر از ظهر.",
-  "همراه با شامپوی مخصوص خود مشتری.",
-  "برای مراسم شب؛ وقت آخر روز.",
-  "بیعانه از قبل پرداخت شده.",
   "درخواست آرایشگر مشخص.",
-  "هماهنگی با تالار انجام شود.",
+  "درخواست ساعت زودتر از ظهر.",
+  "بیعانه از قبل پرداخت شده.",
   "",
 ];
+const apptPool = (kind) => [...APPT_NOTES, ...(kind === "M" ? APPT_M : kind === "W" ? APPT_W : [...APPT_W, ...APPT_M])];
 const CANCEL_REASONS = [
   "مشتری در سفر است",
   "تغییر برنامهٔ مراسم",
@@ -471,16 +605,36 @@ const BANKS = ["بانک ملی", "بانک ملت", "بانک سامان", "ب�
 const DEVICES = ["کروم ویندوز", "سافاری آیفون", "کروم اندروید", "فایرفاکس لینوکس", "اپل سافاری مک", "کروم تلویزیون"];
 const WEBHOOK_EVENTS = ["appointment.created", "appointment.confirmed", "appointment.cancelled", "appointment.completed", "payment.paid", "review.created"];
 const CARD_PREFIX = ["610433", "589210", "603799", "627353", "636214", "502908", "177662"];
-const CRM_TAGS = ["مو", "ناخن", "پوست", "میکاپ", "عروس", "مداوم", "ویژه", "تخفیفی", "مرجوعی"];
+const CRM_TAGS = ["مو", "پوست", "مداوم", "ویژه", "تخفیفی", "مرجوعی", "خوش‌حساب", "دیرکننده"];
+const CRM_TAGS_W = ["ناخن", "میکاپ", "عروس", "مژه", "رنگ و مش"];
+const CRM_TAGS_M = ["ریش", "فید", "داماد", "کودک", "رنگ مو"];
+const crmTagPool = (kind) =>
+  [...CRM_TAGS, ...(kind === "M" ? CRM_TAGS_M : kind === "W" ? CRM_TAGS_W : [...CRM_TAGS_W, ...CRM_TAGS_M])];
 const GALLERY_TITLES = {
   مو: ["رنگ مشبک", "کوتاهی و سشوار", "کراتین براق", "شینیون مجلسی", "بافت موج‌دار"],
   میکاپ: ["میکاپ عروس", "گریم مراسم", "میکاپ شب", "آرایش کلاسیک"],
   ناخن: ["کاشت ژلنی", "فرنچ کلاسیک", "لاک ژل پاییزه", "طراحی روی ناخن"],
   پوست: ["پاکسازی تخصصی", "میکروابریژن", "هایفوتراپی", "مزو و ویتامینه"],
   "مژه و ابرو": ["کاشت مژه", "لمینت طبیعی", "لیفت ابرو", "تتوی فیبر"],
-  مردانه: ["فید کلاسیک", "خط ریش اصلاح‌شده", "کوتاهی مدرن", "ریش و سبیل"],
+  "مو و فید": ["فید کلاسیک", "اندرکات حجم‌دار", "طراحی خط مو", "کوتاهی با ماشین"],
+  "ریش و اصلاح": ["خط ریش با تیغ", "مدل ریش کامل", "اصلاح با حولهٔ گرم", "تتوی خط ریش"],
+  "رنگ و مواد": ["رنگ خاکستری", "بلیچ و مش", "کراتین مو", "پوشش سفیدی مو"],
+  "پوست و فیشال": ["فیشال مردانه", "پاکسازی با دستگاه", "ماساژ صورت", "میکروابریژن"],
+  "ناخن و بهداشت": ["مانیکور تمیز", "پدیکور", "بخوره و سونا", "ماساژ بدن"],
+  "کودک و نوجوان": ["کوتاهی مو کودک", "طراحی مو نوجوان", "فید نوجوان"],
+  "داماد و مراسم": ["پک داماد", "مو و ریش مراسم", "فیشال پیش از مراسم"],
 };
-const GALLERY_URL = ["hair.svg", "makeup.svg", "nails.svg"];
+/** تصویر نگارخانه از همان دسته انتخاب می‌شود؛ عکس میکاپ روی آرایشگاه مردانه باورکردنی نیست */
+const GALLERY_IMG = {
+  "مو و فید": ["clipper.svg", "hair.svg"],
+  "ریش و اصلاح": ["beard.svg", "clipper.svg"],
+  "رنگ و مواد": ["hair.svg", "clipper.svg"],
+  "پوست و فیشال": ["skin.svg"],
+  "ناخن و بهداشت": ["nails.svg", "skin.svg"],
+  "کودک و نوجوان": ["clipper.svg", "hair.svg"],
+  "داماد و مراسم": ["groom.svg", "beard.svg"],
+};
+const GALLERY_URL = ["hair.svg", "makeup.svg", "nails.svg", "skin.svg"];
 const REGISTER_NOTES = ["بستهٔ روزانه", "شیفت بعدازظهر", "فروش شب", "هزینهٔ مواد مصرفی", "تسویهٔ دستگاه کارت‌خوان"];
 
 /* ── ۳) ابزارهای تولید ───────────────────────────────────────────── */
@@ -546,9 +700,19 @@ const dayShift = (n) => {
 };
 const jitter = (base, spread = 0.12) => Math.max(1, Math.round((base * (1 - spread + Math.random() * spread * 2)) / 10000) * 10000);
 const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+/** در دیتابیس نوع سالن با همان ثابت‌های Salon.salonType ذخیره می‌شود، نه حرف اختصار */
+const SALON_TYPE_BY_KIND = { W: "WOMEN", M: "MEN", C: "COUPLE" };
 const woman = () => `${pick(FIR_W)} ${pick(LAST)}`;
 const man = () => `${pick(FIR_M)} ${pick(LAST)}`;
-const personName = (kind) => (kind === "M" ? man() : woman());
+/** در مجموعهٔ مشترک هم مشتری آقا داریم هم خانم؛ پرسنل و نظرات هم ترکیبی */
+const personName = (kind) => (kind === "M" ? man() : kind === "C" ? (Math.random() < 0.5 ? man() : woman()) : woman());
+/** نوبت، علاقه‌مندی و CRM با جنسیت مخاطب سالن بخواند: آرایشگاه مردانه مشتری خانم ندارد */
+const salonCustomers = (spec, customers) => {
+  if (spec.kind === "C") return customers;
+  const want = spec.kind === "M" ? "M" : "W";
+  const list = customers.filter((c) => c.g === want);
+  return list.length ? list : customers;
+};
 
 /* ── ۴) ساخت سالن‌ها در حافظه ────────────────────────────────────── */
 /** @returns هر spec شامل id از پیش‌ساخته‌شده و همهٔ فرزندها */
@@ -562,13 +726,16 @@ function buildSpecs(demoRows) {
     seenSlug.add(slug);
     const c = CITY[rand(0, CITY.length - 1)];
     const [city, telCode, lat, lng, districts] = c;
-    const name = fixedName || `${pick(kind === "M" ? M_TYPES : W_TYPES)} ${brand}`;
+    const TYPES = { W: W_TYPES, M: M_TYPES, C: C_TYPES };
+    const name = fixedName || `${pick(TYPES[kind])} ${brand}`;
     const row = bySlug.get(slug);
+    const PALETTES = { W: PALETTE, M: PALETTE_M, C: PALETTE_C };
     const spec = {
       id: row ? row.id : nid("s"),
       slug,
       brand,
       kind,
+      salonType: SALON_TYPE_BY_KIND[kind],
       name,
       city,
       isDemo: !!row,
@@ -581,11 +748,11 @@ function buildSpecs(demoRows) {
       instagram: `@${slug}.salon`,
       website: Math.random() < 0.22 ? `https://${slug}.ir` : null,
       whatsapp: null,
-      coverColor: pick(PALETTE),
+      coverColor: pick(PALETTES[kind]),
       latitude: Math.round((lat + (Math.random() - 0.5) * 0.08) * 100000) / 100000,
       longitude: Math.round((lng + (Math.random() - 0.5) * 0.08) * 100000) / 100000,
       address: `${city}، ${pick(districts)}، ${pick(STREET)}، پلاک ${rand(1, 180)}`,
-      description: fill(pick(kind === "M" ? DESC_M : DESC_W), { name, city }),
+      description: fill(pick(DESC_BY_KIND[kind]), { name, city }),
       plan: pick(["BASIC", "BASIC", "PRO", "PRO", "PRO", "ENTERPRISE"]),
       customDomain: null,
       isApproved: demo ? true : Math.random() > 0.05,
@@ -622,18 +789,18 @@ function buildSpecs(demoRows) {
       phone: landline(telCode),
       isActive: true,
     }));
-    // ── خدمات
-    const pool = kind === "M" ? SERVICES_M["مردانه"] : Object.values(SERVICES_W).flat();
+    // ── خدمات — دستهٔ واقعی همان کاتالوگ می‌ماند؛ صفحهٔ سالن و مینی‌اپ از همین دسته فیلتر می‌کنند
+    const catalogs = kind === "M" ? [SERVICES_M] : kind === "W" ? [SERVICES_W] : [SERVICES_W, SERVICES_M];
+    const menu = catalogs.flatMap((cat) => Object.entries(cat).flatMap(([group, list]) => list.map((item) => ({ item, group }))));
     const usedSvc = new Set();
-    const svcCount = kind === "M" ? rand(5, 7) : rand(6, 9);
+    const svcCount = kind === "M" ? rand(9, 13) : kind === "C" ? rand(12, 16) : rand(6, 9);
     for (let i = 0; i < svcCount; i++) {
       let t = 0;
-      let item;
-      do item = pick(pool); while (usedSvc.has(item[0]) && ++t < 20);
-      if (usedSvc.has(item[0])) break;
-      usedSvc.add(item[0]);
-      const [svcName, durationMin, basePrice, desc] = item;
-      const category = kind === "M" ? "مردانه" : Object.entries(SERVICES_W).find(([, list]) => list.includes(item))?.[0] ?? "مو";
+      let row;
+      do row = pick(menu); while (usedSvc.has(row.item[0]) && ++t < 30);
+      if (usedSvc.has(row.item[0])) break;
+      usedSvc.add(row.item[0]);
+      const [svcName, durationMin, basePrice, desc] = row.item;
       spec.services.push({
         id: nid("v"),
         salonId: spec.id,
@@ -642,15 +809,15 @@ function buildSpecs(demoRows) {
         durationMin,
         price: jitter(basePrice),
         description: desc ?? null,
-        category,
+        category: row.group,
         bufferMin: pick([0, 0, 5, 10, 15]),
         isActive: Math.random() > 0.06,
       });
     }
-    // ── پرسنل
-    const titles = kind === "M" ? STAFF_TITLES_M : STAFF_TITLES_W;
-    const specs_ = kind === "M" ? SPECIALTIES_M : SPECIALTIES_W;
-    const staffCount = ART.has(slug) ? STAFF_ART[slug] : rand(2, 4);
+    // ── پرسنل — آرایشگاه مردانه تیم پرجمعیت‌تری دارد (چند آرایشگر، سرشیفت و مسئول پذیرش)
+    const titles = { W: STAFF_TITLES_W, M: STAFF_TITLES_M, C: STAFF_TITLES_C }[kind];
+    const specs_ = kind === "M" ? SPECIALTIES_M : kind === "W" ? SPECIALTIES_W : [...SPECIALTIES_W, ...SPECIALTIES_M];
+    const staffCount = ART.has(slug) ? STAFF_ART[slug] : kind === "M" ? rand(3, 5) : kind === "C" ? rand(4, 6) : rand(2, 4);
     for (let i = 0; i < staffCount; i++) {
       const dayRows = spec.hours.map((h) => ({ day: h.dayOfWeek, open: h.openTime, close: h.closeTime, isClosed: h.isClosed }));
       spec.staff.push({
@@ -685,7 +852,7 @@ function buildSpecs(demoRows) {
   };
 
   for (const [slug, name] of DEMO_SALONS) add(slug, name.replace(/^(سالن زیبایی|سالن)\s*/, ""), "W", name, true);
-  for (const [slug, brand, kind] of BRAND) add(slug, brand, kind, null, false);
+  for (const [slug, brand, kind] of BRAND) add(slug, brand, COUPLE_SLUGS.has(slug) ? "C" : kind, null, false);
   return specs;
 }
 
@@ -710,11 +877,12 @@ function buildSalonChildren(spec, customers) {
   const galleryCount = GALLERY_ART.has(spec.slug) ? 3 : rand(3, 5);
   for (let i = 0; i < galleryCount; i++) {
     const cat = catsUsed[i % catsUsed.length] || "مو";
+    const imgs = GALLERY_IMG[cat] || GALLERY_URL;
     add("gallery", {
       id: nid("g"),
       salonId: spec.id,
       title: pick(GALLERY_TITLES[cat] || GALLERY_TITLES["مو"]),
-      imageUrl: GALLERY_ART.has(spec.slug) && i < 3 ? `/seed/${spec.slug}-gallery-${i}.svg` : `/gallery/${GALLERY_URL[i % GALLERY_URL.length]}`,
+      imageUrl: GALLERY_ART.has(spec.slug) && i < 3 ? `/seed/${spec.slug}-gallery-${i}.svg` : `/gallery/${imgs[i % imgs.length]}`,
       type: "image",
       sortOrder: i,
     });
@@ -765,7 +933,7 @@ function buildSalonChildren(spec, customers) {
       endAt: new Date(start.d.getTime() + (start.svc.durationMin + start.svc.bufferMin) * 60000),
       status,
       channel: "MANUAL",
-      note: pick(APPT_NOTES) || null,
+      note: pick(apptPool(spec.kind)) || null,
       cancelReason: status === "CANCELLED" ? pick(CANCEL_REASONS) : null,
       cancelledAt: status === "CANCELLED" ? created : null,
       depositAmount: dep,
@@ -857,7 +1025,7 @@ async function seed() {
   const password = hashPassword(DEMO_PASSWORD);
   for (const spec of specs) {
     if (spec.ownerId) continue;
-    const name = personName(spec.kind === "M" ? "M" : "W");
+    const name = personName(spec.kind);
     const phone = fixedPhone(["0912", "0913", "0916", "0917", "0919"], "owner" + spec.slug);
     const email = `owner.${spec.slug}@nobino.ir`;
     const row = { phone, name, email, role: "SALON_OWNER", passwordHash: password, verifiedAt: new Date(), isActive: true };
@@ -872,13 +1040,14 @@ async function seed() {
   const spareOwner = specs.find((s) => s.ownerId)?.ownerId;
   for (const spec of specs) if (!spec.ownerId) spec.ownerId = spareOwner || admin?.id;
 
-  /* ب) مشتری‌ها */
+  /* ب) مشتری‌ها — جنسیت برچسب می‌خورد تا آرایشگاه مردانه مشتری خانم نگیرد */
   const customers = [];
   for (let i = 0; i < 150; i++) {
+    const g = Math.random() < 0.6 ? "W" : "M";
     const phone = fixedPhone([MOBILE[i % MOBILE.length]], "customer" + i);
-    const name = personName(Math.random() < 0.82 ? "W" : "M");
+    const name = personName(g);
     if (DRY) {
-      customers.push({ id: nid("u"), phone, name });
+      customers.push({ id: nid("u"), phone, name, g });
       continue;
     }
     const u = await prisma.user.upsert({
@@ -886,7 +1055,8 @@ async function seed() {
       update: { name, role: "CUSTOMER" },
       create: { id: nid("u"), phone, name, role: "CUSTOMER", loyaltyPoints: pick([0, 0, 25, 60, 120, 300]), verifiedAt: new Date(), isActive: true },
     });
-    customers.push({ id: u.id, phone: u.phone, name: u.name || name });
+    const finalName = u.name || name;
+    customers.push({ id: u.id, phone: u.phone, name: finalName, g: FIR_M.includes(finalName.split(" ")[0]) ? "M" : "W" });
   }
 
   /* پ) سالن‌ها */
@@ -899,7 +1069,7 @@ async function seed() {
       coverColor: spec.coverColor, timezone: "Asia/Tehran", latitude: spec.latitude, longitude: spec.longitude,
       customDomain: spec.customDomain, domainStatus: spec.customDomain ? (Math.random() < 0.6 ? "VERIFIED" : "PENDING") : "NONE",
       domainToken: spec.customDomain ? hex(8) : null,
-      isApproved: spec.isApproved, isActive: true, plan: spec.plan,
+      isApproved: spec.isApproved, isActive: true, plan: spec.plan, salonType: spec.salonType,
       minNoticeMinutes: spec.minNoticeMinutes, maxAdvanceDays: spec.maxAdvanceDays,
       cancelDeadlineHours: spec.cancelDeadlineHours, bufferMinutes: spec.bufferMinutes,
       depositEnabled: spec.depositEnabled, depositMode: spec.depositMode, depositValue: spec.depositValue,
@@ -912,7 +1082,8 @@ async function seed() {
   /* ت) فرزندان */
   const allAppts = [];
   for (const spec of specs) {
-    const appts = buildSalonChildren(spec, customers);
+    const mine = salonCustomers(spec, customers);
+    const appts = buildSalonChildren(spec, mine);
     for (const a of appts) add("appts", a);
     allAppts.push({ spec, appts });
     buildMoney(spec, packages);
@@ -920,7 +1091,7 @@ async function seed() {
     // CRM سالن
     const seenCrm = new Set();
     for (let i = 0; i < rand(2, 4); i++) {
-      const c = pick(customers);
+      const c = pick(mine);
       if (seenCrm.has(c.phone)) continue;
       seenCrm.add(c.phone);
       const visits = rand(1, 14);
@@ -928,10 +1099,10 @@ async function seed() {
       const id = nid("c");
       add("crm", {
         id, salonId: spec.id, phone: c.phone, name: c.name, firstName: c.name.split(" ")[0], lastName: c.name.split(" ")[1] ?? null,
-        note: Math.random() < 0.45 ? pick(CRM_NOTES) : null, visits, spend, lastVisitAt: dayShift(-rand(1, 120)),
-        tags: Array.from(new Set([pick(CRM_TAGS), ...(Math.random() < 0.5 ? [pick(CRM_TAGS)] : [])])),
+        note: Math.random() < 0.45 ? pick(crmPool(spec.kind)) : null, visits, spend, lastVisitAt: dayShift(-rand(1, 120)),
+        tags: (() => { const tp = crmTagPool(spec.kind); return Array.from(new Set([pick(tp), ...(Math.random() < 0.5 ? [pick(tp)] : [])])); })(),
       });
-      if (Math.random() < 0.5) add("crmNotes", { id: nid("n"), customerId: id, authorId: spec.ownerId, note: pick(CRM_NOTES) });
+      if (Math.random() < 0.5) add("crmNotes", { id: nid("n"), customerId: id, authorId: spec.ownerId, note: pick(crmPool(spec.kind)) });
       if (Math.random() < 0.55)
         add("crmMedia", {
           id: nid("m"), salonId: spec.id, customerId: id,
@@ -960,7 +1131,7 @@ async function seed() {
 
     // علاقه‌مندی
     for (let i = 0; i < rand(1, 3); i++) {
-      const c = pick(customers);
+      const c = pick(mine);
       const key = c.id + spec.id;
       if (taken.pair.has(key)) continue;
       taken.pair.add(key);
@@ -970,7 +1141,7 @@ async function seed() {
     // کمپین پیامکی
     add("campaigns", {
       id: nid("k"), salonId: spec.id, name: pick(CAMPAIGN_NAMES), channel: "SMS", segment: pick(["ALL", "ALL", "RETURNING"]),
-      message: fill(pick(CAMPAIGN_TEXTS), { name: pick(customers).name.split(" ")[0], salon: spec.name, city: spec.city }),
+      message: fill(pick(campaignPool(spec.kind)), { name: pick(mine).name.split(" ")[0], salon: spec.name, city: spec.city }),
       status: pick(["SENT", "SENT", "SCHEDULED", "DRAFT"]),
       scheduledAt: null, sentAt: null, sentCount: 0,
     });
@@ -1065,7 +1236,7 @@ async function seed() {
       const replied = Math.random() < 0.45;
       add("reviews", {
         id: nid("v"), salonId: spec.id, staffId: a.employeeId, customerId: a.customerId, appointmentId: a.id, rating,
-        comment: pick(REVIEW_TEXTS), reply: replied ? pick(REVIEW_REPLIES) : null, repliedAt: replied ? dayShift(-rand(0, 20)) : null,
+        comment: pick(reviewPool(spec.kind)), reply: replied ? pick(REVIEW_REPLIES) : null, repliedAt: replied ? dayShift(-rand(0, 20)) : null,
         createdAt: new Date(a.startAt.getTime() + rand(1, 48) * 3600000),
       });
     }

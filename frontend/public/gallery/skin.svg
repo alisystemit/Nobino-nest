@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0891b2"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <radialGradient id="r" cx="45%" cy="32%" r="72%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.36"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#g)"/>
+  <rect width="600" height="600" fill="url(#r)"/>
+  <!-- صورت در حال فیشال -->
+  <ellipse cx="300" cy="286" rx="132" ry="150" fill="#fde7d7" opacity="0.92"/>
+  <path d="M232 268 Q252 250 272 268" stroke="#7c5a44" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M328 268 Q348 250 368 268" stroke="#7c5a44" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M262 352 Q300 380 338 352" stroke="#c07a55" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <!-- نوار پیشانی -->
+  <rect x="168" y="150" width="264" height="46" rx="23" fill="#f8fafc" opacity="0.9"/>
+  <!-- قطره‌های سرم و ماسک -->
+  <g fill="#a5f3fc">
+    <path d="M446 356 Q468 392 446 416 Q424 392 446 356 Z"/>
+    <path d="M150 400 Q168 430 150 450 Q132 430 150 400 Z"/>
+  </g>
+  <path d="M120 500 Q230 462 330 498 T520 486" stroke="#e0f2fe" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.75"/>
+</svg>
