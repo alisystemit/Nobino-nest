@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
 import { json, apiError, getPagination } from "@/lib/utils";
+import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } from "@/lib/rate-limit-lite";
 import { createAppointmentSafe, depositForSalon } from "@/lib/bookings/create";
 import { combinedBooking } from "@/lib/bookings/service";
 import { localMidnightUTC } from "@/lib/timezone";
@@ -101,7 +102,10 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
         channel: a.channel,
         service: a.service?.name,
         serviceId: a.service?.id,
-        servicePrice: a.service?.price,
+        // O9: قیمت لحظهٔ رزرو اگر ثبت شده همان مبنای گزارش است؛ برای ردیف‌های
+        // قدیمی (snapshot ندارد) قیمت جاری خدمت نشان داده می‌شود.
+        servicePrice: a.priceSnapshot ?? a.service?.price,
+        priceSnapshot: a.priceSnapshot,
         salonId: a.salon?.id,
         salonName: a.salon?.name,
         salonSlug: a.salon?.slug,
@@ -125,21 +129,46 @@ const schema = z.object({
   serviceIds: z.array(z.string()).max(8).optional(), // رزرو چند خدمت
   employeeId: z.string().optional(),
   branchId: z.string().optional(),
-  customerName: z.string().min(1),
+  // C10: متن‌های بدون سقف، چیدمان داشبورد و پیامک تأیید را می‌شکستند و هزینهٔ SMS داشتند
+  customerName: z.string().trim().min(1).max(60),
   customerPhone: z.string().regex(/^0?9\d{9}$/),
   startAt: z.string().datetime(), // ISO
-  durationMin: z.number().int().positive().optional(),
+  // O14: فقط وقتی خدمتی انتخاب نشده معتبر است؛ با خدمت، مدت از خود خدمت خوانده می‌شود
+  durationMin: z.number().int().min(5).max(480).optional(),
   channel: z.enum(["VOICE", "MANUAL", "WEBAPP"]).default("MANUAL"),
   voiceCallId: z.string().optional(),
-  note: z.string().optional(),
+  note: z.string().trim().max(500).optional(),
 });
 
 export async function POST(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const body = schema.parse(await req.json());
+    const user = await requireAuth().catch(() => null);
 
     const salon = await prisma.salon.findUnique({ where: { id: body.salonId } });
     if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
+
+    // C6: سالن غیرفعال یا تأییدنشده نوبت مشتری نمی‌گیرد.
+    // استثنا: خودِ مالک سالن و سوپرادمین (رزرو دستی/صوتی از پنل پیش از تأیید هم کار می‌کند).
+    const isManagerOfThisSalon = !!user && (user.role === "ADMIN" || (user.role === "SALON_OWNER" && salon.ownerId === user.id));
+    if (!isManagerOfThisSalon && (!salon.isActive || !salon.isApproved)) {
+      return json({ success: false, error: "این سالن در حال حاضر امکان دریافت نوبت ندارد." }, { status: 404 });
+    }
+
+    // C8: مهار ربات روی مسیر ایجاد نوبت (فقط رزرو مشتری؛ ثبت نوبت توسط مدیر سالن یا سوپرادمین مهار نمی‌شود)
+    if (!isManagerOfThisSalon) {
+      const ip = clientIpFromRequest(req);
+      const perIp = await numericSettingOrEnv("booking.rate_per_hour", process.env.BOOKING_RATE_PER_HOUR, 10);
+      if (perIp > 0) {
+        const rate = checkRate(`booking:ip:${ip}`, perIp, 60 * 60 * 1000);
+        if (!rate.ok) return tooManyRequests(rate.retryAfterSec, "درخواست نوبت زیادی از این دستگاه ثبت شده است؛ کمی بعد دوباره تلاش کنید.");
+      }
+      const perPhone = await numericSettingOrEnv("booking.rate_per_phone", process.env.BOOKING_RATE_PER_PHONE, 6);
+      if (perPhone > 0) {
+        const rate = checkRate(`booking:phone:${body.customerPhone}`, perPhone, 60 * 60 * 1000);
+        if (!rate.ok) return tooManyRequests(rate.retryAfterSec, "برای این شماره بیش از حد مجاز نوبت ثبت شده است.");
+      }
+    }
 
     // خدمات انتخاب‌شده (تک‌خدمتی یا چندخدمتی) — همیشه از دیتابیس خوانده می‌شوند
     const requestedIds = Array.from(
@@ -179,7 +208,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       // نوبت بدون خدمت (مثلاً مراجعه سرخود): مدت باید منطقی باشد
       const raw = body.durationMin ?? 60;
       if (raw < 5 || raw > 480) {
-        return json({ success: false, error: "مدت نوبت باید بین ۵ تا ۴۸۰ دقیقه باشد" }, { status: 400 });
+        return json({ success: false, error: "مدت نوبت باید بین 5 تا 480 دقیقه باشد" }, { status: 400 });
       }
       duration = raw;
     }
@@ -208,8 +237,6 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
         return json({ success: false, error: "شعبه یافت نشد" }, { status: 400 });
       }
     }
-
-    const user = await requireAuth().catch(() => null);
 
     // مدیر همان سالن نمی‌تواند از راه عمومی (مینی‌اپ/صفحهٔ سالن، channel=WEBAPP) نوبت بگیرد؛
     // نوبت‌های او باید از پنل ثبت شود: دستی (MANUAL) یا هوشمند/صوتی (VOICE).
@@ -244,6 +271,8 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       note: combinedNote,
       customerId: user?.id ?? undefined,
       depositAmount,
+      // O9: مبنای درآمد همین‌جا فریز می‌شود (مجموع خدمات انتخاب‌شده، نه فقط خدمت اول)
+      priceSnapshot: selectedServices.length > 0 ? totalPrice : null,
     });
 
     // ارسال پیامک تأیید از طریق صف (با حذف تکراری و تلاش مجدد)
@@ -277,7 +306,23 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     }
     await processPendingNotifications(5).catch(() => {});
 
-    return json({ success: true, appointment }, { status: 201 });
+    return json(
+      {
+        success: true,
+        appointment,
+        // O14: مدت و بافر و بیعانهٔ «اعمال‌شده» اعلام می‌شوند تا پاسخ متضاد نباشد؛
+        // اگر درخواست durationMin فرستاده باشد ولی خدمت دیگری تعیین کرده باشد،
+        // همین‌جا مقدار واقعی را می‌بیند (پیش‌تر 900 دقیقه با خدمت 40 دقیقه‌ای 201 می‌داد).
+        applied: {
+          durationMin: duration,
+          bufferMin: buffer ?? salon.bufferMinutes,
+          price: totalPrice,
+          depositAmount,
+          ignoredDurationMin: selectedServices.length > 0 && body.durationMin !== undefined && body.durationMin !== duration ? body.durationMin : undefined,
+        },
+      },
+      { status: 201 }
+    );
   } catch (err) {
     return apiError(err);
   }

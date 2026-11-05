@@ -17,13 +17,15 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
 
     const appointment = await prisma.appointment.findUnique({
       where: { id },
-      include: { salon: { select: { id: true, name: true } } },
+      include: { salon: { select: { id: true, name: true, ownerId: true } } },
     });
     if (!appointment) return json({ success: false, error: "نوبت یافت نشد" }, { status: 404 });
 
     const isOwner = (appointment.customerId && appointment.customerId === user.id) || appointment.customerPhone === user.phone;
-    const isStaff = user.role === "SALON_OWNER" || user.role === "ADMIN";
-    if (!isOwner && !isStaff) {
+    // O1: «سالن‌دار» فقط وقتی کارمند محسوب می‌شود که مالک **همان** سالن باشد (یا سوپرادمین).
+    // پیش‌تر هر SALON_OWNER می‌توانست نوبت سالن دیگری را جابه‌جا کند و مهلت لغو را هم رد کند.
+    const isStaffOfThisSalon = user.role === "ADMIN" || (user.role === "SALON_OWNER" && appointment.salon.ownerId === user.id);
+    if (!isOwner && !isStaffOfThisSalon) {
       return json({ success: false, error: "دسترسی غیرمجاز" }, { status: 403 });
     }
     if (appointment.status === "COMPLETED" || appointment.status === "CANCELLED") {
@@ -31,7 +33,7 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
     }
 
     const updated = await rescheduleAppointmentSafe(id, new Date(body.startAt), {
-      enforceCancelDeadline: !isStaff,
+      enforceCancelDeadline: !isStaffOfThisSalon,
     });
 
     const newTime = new Intl.DateTimeFormat("fa-IR", { timeStyle: "short" }).format(updated.startAt);

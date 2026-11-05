@@ -51,10 +51,25 @@ export async function createAppointmentSafe(input: {
   voiceCallId?: string;
   /** بیعانهٔ محاسبه‌شده از تنظیمات سالن (تومان)؛ فقط برای رزرو مشتریان */
   depositAmount?: number | null;
+  /**
+   * O9: قیمت کل خدمت(ها) در لحظهٔ رزرو (تومان). این عدد دیگر عوض نمی‌شود،
+   * پس گزارش درآمد با گران/ارزان کردن خدمت در آینده بازنویسی نمی‌شود.
+   * برای ردیف‌های قدیمی NULL است و گزارش‌ها به قیمت جاری خدمت برمی‌گردند.
+   */
+  priceSnapshot?: number | null;
 }) {
   return prisma.$transaction(async (tx) => {
     // قفل سالن برای سری‌سازی رزروها
     await tx.$queryRaw`SELECT id FROM "Salon" WHERE id = ${input.salonId}::text FOR UPDATE`;
+
+    // C16: voiceCallId یکتا است. «دوباره بگو»ی مشتری یا ریتراي کلاینت همان تماس
+    // را دوباره می‌فرستد؛ قبلاً Prisma با P2002 می‌ترکید و متن انگلیسیِ داخلی
+    // (`Unique constraint failed on the fields: ("voiceCallId")`) روی صفحهٔ
+    // مشتری می‌رفت. حالا همان نوبتِ قبلی برگردانده می‌شود (رفتار idempotent).
+    if (input.voiceCallId) {
+      const prior = await tx.appointment.findUnique({ where: { voiceCallId: input.voiceCallId } });
+      if (prior) return prior;
+    }
 
     const salon = await tx.salon.findUnique({ where: { id: input.salonId } });
     if (!salon) throw new Error("salon not found");
@@ -143,6 +158,7 @@ export async function createAppointmentSafe(input: {
         note: input.note,
         voiceCallId: input.voiceCallId,
         depositAmount: input.depositAmount,
+        priceSnapshot: input.priceSnapshot ?? service?.price ?? null,
         status: "REQUESTED",
       },
     });

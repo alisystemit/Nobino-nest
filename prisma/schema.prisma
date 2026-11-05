@@ -390,6 +390,10 @@ model Appointment {
   cancelledAt       DateTime?
   depositAmount     Int? // ┘╛█î╪┤ΓÇî┘╛╪▒╪»╪º╪«╪¬/╪¿█î╪╣╪º┘å┘ç (╪¬┘ê┘à╪º┘å)
   depositPaid       Boolean           @default(false)
+  // O9: price of the booked service(s) captured at booking time (tomans).
+  // Reports must use this, not the live Service.price, so editing a price
+  // later does not rewrite past revenue. NULL = legacy row (fall back to Service.price).
+  priceSnapshot     Int?
   tempLockExpiresAt DateTime? // ┘é┘ü┘ä ┘à┘ê┘é╪¬ ┘ç┘å┌»╪º┘à ┘╛╪▒╪»╪º╪«╪¬
   rescheduledFrom   String? // id ┘å┘ê╪¿╪¬ ┘é╪¿┘ä█î ┘ç┘å┌»╪º┘à ╪¼╪º╪¿┘çΓÇî╪¼╪º█î█î
   voiceCallId       String?           @unique

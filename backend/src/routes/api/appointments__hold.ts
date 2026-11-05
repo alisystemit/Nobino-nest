@@ -1,7 +1,7 @@
 // خودکار: پورت‌شده از src/app/api/appointments/hold/route.ts — بدون تغییر منطق
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { createAppointmentSafe } from "@/lib/bookings/create";
+import { createAppointmentSafe, depositForSalon } from "@/lib/bookings/create";
 import { json, apiError } from "@/lib/utils";
 import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } from "@/lib/rate-limit-lite";
 import { HOLD_MARKER } from "@/lib/markers";
@@ -14,7 +14,7 @@ const schema = z.object({
   employeeId: z.string().optional(),
   branchId: z.string().optional(),
   startAt: z.string().datetime(),
-  durationMin: z.number().int().positive().optional(),
+  durationMin: z.number().int().min(5).max(480).optional(),
 });
 
 /** قفل موقت بازه هنگام پرداخت/تأیید (ضد رزرو هم‌زمان در لحظه خرید) */
@@ -24,6 +24,11 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     const salon = await prisma.salon.findUnique({ where: { id: body.salonId } });
     if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
+
+    // C6: این مسیر کاملاً ناشناس است؛ فقط سالن فعال و تأییدشده اجازهٔ قفل بازه دارد.
+    if (!salon.isActive || !salon.isApproved) {
+      return json({ success: false, error: "این سالن در حال حاضر امکان دریافت نوبت ندارد." }, { status: 404 });
+    }
 
     // مهار ربات: سقف نرخ به ازای هر IP + سقف هولوهای فعال یک سالن
     const ip = clientIpFromRequest(req);
@@ -43,13 +48,34 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     }
 
     let duration = body.durationMin;
+    let servicePrice = 0;
     if (body.serviceId) {
       // مدت خدمت همیشه از دیتابیس خوانده می‌شود و باید متعلق به همین سالن باشد
       const svc = await prisma.service.findFirst({ where: { id: body.serviceId, salonId: salon.id, isActive: true } });
       if (!svc) return json({ success: false, error: "خدمت یافت نشد" }, { status: 404 });
       duration = svc.durationMin;
+      servicePrice = svc.price;
     }
-    duration = duration ?? 60;
+    if (duration === undefined) {
+      return json({ success: false, error: "بدون انتخاب خدمت، مدت نوبت (5 تا 480 دقیقه) الزامی است." }, { status: 400 });
+    }
+
+    // کارمند باید متعلق به همین سالن و فعال باشد و خدمت انتخابی را ارائه دهد
+    if (body.employeeId) {
+      const staff = await prisma.staff.findUnique({
+        where: { id: body.employeeId },
+        select: { salonId: true, isActive: true, services: { select: { id: true } } },
+      });
+      if (!staff || staff.salonId !== salon.id || !staff.isActive) {
+        return json({ success: false, error: "آرایشگر یافت نشد" }, { status: 400 });
+      }
+      if (body.serviceId) {
+        const offered = staff.services.map((s) => s.id);
+        if (offered.length > 0 && !offered.includes(body.serviceId)) {
+          return json({ success: false, error: "این آرایشگر خدمت انتخابی را ارائه نمی‌دهد" }, { status: 400 });
+        }
+      }
+    }
 
     if (body.branchId) {
       const branch = await prisma.branch.findUnique({ where: { id: body.branchId }, select: { salonId: true } });
@@ -57,6 +83,10 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
         return json({ success: false, error: "شعبه یافت نشد" }, { status: 400 });
       }
     }
+
+    // C7: بیعانه از همان لحظهٔ قفل بازه روی نوبت می‌نشیند تا مبلغی که
+    // مشتری درگاه می‌بیند با بیعانهٔ ثبت‌شده یکی باشد.
+    const depositAmount = depositForSalon(salon, servicePrice);
 
     const appointment = await createAppointmentSafe({
       salonId: salon.id,
@@ -69,6 +99,9 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       durationMin: duration,
       channel: "WEBAPP",
       note: HOLD_MARKER,
+      depositAmount,
+      // O9: هولد هم قیمت لحظه را قفل می‌کند تا بعد از confirm، درآمد همین عدد باشد
+      priceSnapshot: body.serviceId ? servicePrice : null,
     });
 
     const expiresAt = new Date(Date.now() + HOLD_MINUTES * 60 * 1000);
@@ -77,7 +110,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       data: { tempLockExpiresAt: expiresAt },
     });
 
-    return json({ success: true, holdId: held.id, expiresAt }, { status: 201 });
+    return json({ success: true, holdId: held.id, expiresAt, depositAmount: held.depositAmount }, { status: 201 });
   } catch (err) {
     return apiError(err);
   }

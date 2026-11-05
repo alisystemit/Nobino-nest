@@ -209,11 +209,18 @@ export async function computeFreeSlots(params: {
   branchId?: string;
   dayISO: string;
   now?: Date;
+  /**
+   * C12: طول بازه‌ای که باید آزاد باشد. پیش‌فرض مجموع خدمت(ها) است، ولی «تغییر وقت»
+   * نوبتِ چندخدمتی باید مدت *خود نوبت* را بپرسد (مسیر جابه‌جایی، مدت واقعی نوبت را
+   * نگه می‌دارد)؛ وگرنه اسلات‌هایی نشان داده می‌شوند که بعداً 409 می‌گیرند.
+   */
+  durationMinOverride?: number;
 }): Promise<Slot[]> {
   const now = params.now ?? new Date();
   const { salon, services } = params;
   if (services.length === 0) return [];
-  const duration = combinedBooking(services).durationMin;
+  const duration =
+    params.durationMinOverride && params.durationMinOverride > 0 ? params.durationMinOverride : combinedBooking(services).durationMin;
   const buffer = effectiveBuffer(services, salon.bufferMinutes);
 
   const win = params.employeeId
