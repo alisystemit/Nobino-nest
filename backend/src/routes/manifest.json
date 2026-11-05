@@ -1005,5 +1005,39 @@
       "GET",
       "POST"
     ]
+  },
+  {
+    "path": "admin/backups",
+    "url": "/api/admin/backups",
+    "module": "@/routes/api/admin__backups",
+    "methods": [
+      "GET",
+      "POST",
+      "PATCH"
+    ]
+  },
+  {
+    "path": "admin/backups/[name]",
+    "url": "/api/admin/backups/:name",
+    "module": "@/routes/api/admin__backups__name",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "admin/backups/[name]/download",
+    "url": "/api/admin/backups/:name/download",
+    "module": "@/routes/api/admin__backups__name__download",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/backups/[name]/restore",
+    "url": "/api/admin/backups/:name/restore",
+    "module": "@/routes/api/admin__backups__name__restore",
+    "methods": [
+      "POST"
+    ]
   }
 ]
