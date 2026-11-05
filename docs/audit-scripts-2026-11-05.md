@@ -8,7 +8,7 @@
 
 ## ۱) نتیجه در یک نگاه
 
-**37 finding**: ۳ بحرانی، ۱۰ بالا، ۱۴ متوسط، ۷ پایین، ۳ بهداشتی. (۴ موردِ آخر از رندِ تست‌های seed اضافه شد: ME-13، ME-14، LO-7، HG-3.)
+**36 finding**: ۳ بحرانی، ۱۰ بالا، ۱۴ متوسط، ۶ پایین، ۳ بهداشتی. (۴ موردِ اخیر از رندِ تست‌های seed اضافه شد: ME-13، ME-14، HG-3 و گسترش CR-3.)
 
 سه چیزی که همین حالا در پروداکشن ضربه می‌زند:
 
@@ -66,7 +66,6 @@
 | LO-4 | پایین | [deploy/update.sh:125](file:///C:/laragon/www/Nobino-nest/deploy/update.sh#L125) | rollback با هر فایل untracked مسدود (از جمله `--backup-dir` داخل مخزن) |
 | LO-5 | پایین | [backend/scripts/gen-controllers.mjs:115-135](file:///C:/laragon/www/Nobino-nest/backend/scripts/gen-controllers.mjs#L115) | ۵ ددلاین کران سخت‌کد؛ کران تازه در مانیفست بی‌صدا نادیده |
 | LO-6 | پایین | [scripts/create-admin.mjs:64](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L64) · [:106](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L106) | خط چسبیده + `exit(0)` دور‌زدنِ `$disconnect` |
-| LO-7 | پایین | [scripts/seed-real.mjs:337-339](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L337) | فیلترمالی‌ها بر `ownerId` است نه سالن → تراکنش واقعی همان کاربر هم پاک می‌شود |
 | HG-1 | بهداشت | `logs/*.mjs` (17 فایل) | ابزارهای یک‌بارمصرف زیر .gitignore — از دید Review پنهان |
 | HG-2 | بهداشت | [deploy/bootstrap.sh:296](file:///C:/laragon/www/Nobino-nest/deploy/bootstrap.sh#L296) | رمز سوپرادمین روی argv (در `ps` دیده می‌شود) برخلاف راهنمای خود `create-admin.mjs` |
 
@@ -146,6 +145,8 @@ await kill("supportTicket", { OR: [{ userId: { in: stressUserIds } }, { phone: {
 - `phone startsWith 0999 / 0998`: این‌ها پیش‌شمارهٔ واقعی موبایل ایران‌اند؛ هر **تیکت پشتیبانی** ([خط 336](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L336)) و هر **ردیف OTP** ([خط 342](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L342))ِ مشتری واقعی با آن پیش‌شماره پاک می‌شود.
 - سالن‌ها با `slug startsWith "stress"` یا `name contains "استرس"` یا `city contains "تست"` شناسایی و `salon.deleteMany` می‌شوند ([خط 275](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L275) → [:330](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L330)) — یک سالن واقعی با نام/شهر شامل آن رشته‌ها حذف می‌شود.
 - حلقهٔ `SELF_CLEAN` (خطوط 258-263 و 361) هر ردیفی در 28 جدول که `id` آن با `nr` شروع شود حذف می‌کند؛ اگر یکبار آن پیشوند با شناسهٔ واقعی برخورد کند، حذف انبوه بدون هشدار رخ می‌دهد.
+- **گسترده‌ترین مورد**: [خط 285-296](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L285) فهرست `stressUsers` را با این OR می‌سازد: `phone startsWith "0999"/"0998"`، `email contains "stress"`، `name contains "استرس"` و **`{ role: "CUSTOMER", email: { endsWith: "@nobino.ir" } }`** — یعنی هر مشتری واقعی با ایمیل دامنهٔ اصلی. همان فهرست بعداً در خط 334 (GiftCard)، 336 (SupportTicket)، 337 (Transaction)، 338 (Payout)، 339 (Wallet)، 340 (Session) مصرف می‌شود. نتیجه روی دیتابیس واقعی: **صفر شدن موجودی کیف پول مشتریان، پاک شدن تاریخچهٔ تراکنش/برداشت و خروج همه از sessionها**.
+- `recipient / actorPhone startsWith "099"`: [خط 341](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L341) `notification` را با `recipient: { startsWith: "099" }` و [خط 343](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L343) `auditLog` را با `actorPhone: { startsWith: "099" }` می‌بَرَد — کل زنجیرهٔ ممیزی و اطلاعیه‌های هر کاربری با پیش‌شمارهٔ 099 (بدون هیچ قید سالن/پیشوند تست).
 - [scripts/seed-real.mjs:1223](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L1223): `prisma.wallet.deleteMany({ where: { ownerId: { in: ... } } })` بدون هیچ سقف/لاگِ قابل‌بازگشت.
 - [scripts/seed-demo.mjs:210](file:///C:/laragon/www/Nobino-nest/scripts/seed-demo.mjs#L210): `staff.deleteMany({ where: { salonId, NOT: { id: { in: canonicalStaffIds } } } })` — اگر روی دیتابیس واقعی اجرا شود، **همهٔ پرسنلی که سالن‌دار از داشبورد اضافه کرده** در همان سالنِ DEMO_SALONS پاک می‌شود (توضیح کد می‌گوید «امن است چون نوبتی اشاره ندارد»؛ پرسنل بدون نوبتِ امروز هم پاک می‌شود).
 
@@ -369,6 +370,12 @@ shell:false status= 0
 ### ME-12 — گارد پروداکشن ناسازگار
 [scripts/seed-real.mjs:31](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L31) `process.env.NODE_ENV === "production"` (exact) در برابر [scripts/seed-demo.mjs:591](file:///C:/laragon/www/Nobino-nest/scripts/seed-demo.mjs#L591) `.trim().toLowerCase()` و [prisma/seed.mjs:237](file:///C:/laragon/www/Nobino-nest/prisma/seed.mjs#L237) `.toLowerCase()`. با `NODE_ENV=Production` یا `production ` (فاصله) گارد seed-real دور زده می‌شود؛ seed-demo همان را می‌گیرد.
 
+### ME-13 — ساخت PrismaClient قبل از گارد پروداکشن
+[scripts/seed-real.mjs:23](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L23) (`const prisma = new PrismaClient();`) پنج خط **قبل** از گارد `NODE_ENV=production` در خط 31 اجرا می‌شود، و [scripts/seed-demo.mjs:18](file:///C:/laragon/www/Nobino-nest/scripts/seed-demo.mjs#L18) هم همین ترتیب را دارد (گاردش داخل `main()` در خط 591 است). هیچ نوشتاری پیش از گارد رخ نمی‌دهد، اما استخر اتصال به نشانی‌ای که ممکن است پروداکشن باشد باز می‌شود و تا پایان پروسه باز می‌ماند؛ در [prisma/seed.mjs:237](file:///C:/laragon/www/Nobino-nest/prisma/seed.mjs#L237) برعکس، گارد قبل از ساخت کلاینت است — یعنی الگوی درست در همان مخزن وجود دارد و seedها آن را رعایت نمی‌کنند. (کدخوانی)
+
+### ME-14 — پرچم ناشناخته در seedها = اجرای کاملِ پاک‌سازی
+[scripts/seed-real.mjs:26-28](file:///C:/laragon/www/Nobino-nest/scripts/seed-real.mjs#L26) و [scripts/seed-stress.mjs:96](file:///C:/laragon/www/Nobino-nest/scripts/seed-stress.mjs#L96) فقط `args.includes(...)` می‌کنند؛ هیچ اعتبارسنجی پرچم ناشناخته و هیچ `--help` در هیچ‌کدام از چهار اسکریپت seed نیست. **کدخوانی:** `node scripts/seed-real.mjs --clean-onlyy` (یک کاراکتر اضافه) → هر سه فلش false می‌مانند و مسیر کامل `clean()` (شامل تمام `deleteMany`های CR-3) + seed اجرا می‌شود؛ `--dry-run` هم فقط با املای دقیق فعال می‌شود، پس `--dryrun` پاک‌سازی واقعی می‌کند. در برابرِ الگوی درست همین مخزن: [scripts/create-admin.mjs:39-58](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L39) `KNOWN_FLAGS` را دارد و `update.sh:63` گزینهٔ ناشناخته را رد می‌کند.
+
 ---
 
 ## ۷) پایین (LOW)
@@ -381,8 +388,6 @@ shell:false status= 0
 - **LO-6** [scripts/create-admin.mjs:64](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L64) دو دستور در یک خط چسبیده (`const envPath = loadEnv();if (!process.env.DATABASE_URL) {`) و [:106](file:///C:/laragon/www/Nobino-nest/scripts/create-admin.mjs#L106) `process.exit(0)` که `finally { prisma.$disconnect() }` را دور می‌زند (در Postgres اتصال سرور تا timeout می‌ماند).
 
 ---
-
-## ۸) بهداشت مخزن
 
 - **HG-1**: ۱۷ فایل `.mjs` یک‌بارمصرف داخل `logs/` است و `logs/` در `.gitignore` — این اسکریپت‌ها نه review می‌شوند نه در بکاپ گیت‌اند؛ اگر کسی لازم‌شان داشته باشد (مثلاً ابزار تست) در سرور بعدی وجود ندارد. در ریشه هم `tmp-*.cjs` و `tmp-css-check.mjs` (مربوط به نشستِ موازی دیگر) مانده‌اند.
 - **HG-2**: [deploy/bootstrap.sh:296](file:///C:/laragon/www/Nobino-nest/deploy/bootstrap.sh#L296) رمز سوپرادمین را روی argv می‌گذارد (`--password "$AW"`)؛ خود `create-admin.mjs` در هدرش (خط ۱۰-۱۲) توصیه می‌کند رمز از متغیر محیطی داده شود تا در shell history نماند. `--admin-password` در bootstrap هم همین.
