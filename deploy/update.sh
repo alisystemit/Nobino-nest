@@ -33,8 +33,16 @@ warn() { printf '%s⚠️  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
 die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 run()  { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else "$@"; fi; }
 # رمز را از نشانی بیرون می‌کشد: postgresql://u:p@h/d → postgresql://u:***@h/d.
-# نشانی‌های بدون رمز (postgresql://u@h/d) دست‌نخورده می‌مانند.
-mask_url() { printf '%s' "${1:-}" | sed -E 's#(://[^:/@]*:)[^@]*@#\1***@#'; }
+# نشانی بدون رمز دست‌نخورده می‌ماند و اگر خودِ رمز «@» داشته باشد هم درست
+# مخفی می‌شود (هرچه میان «://» و آخرین «@» باشد رمز/نام‌کاربری است).
+mask_url() {
+  local u="${1:-}" proto userinfo host user
+  [[ "$u" =~ ^([^:/]+://)(.*)@([^@]+)$ ]] || { printf '%s' "$u"; return 0; }
+  proto="${BASH_REMATCH[1]}"; userinfo="${BASH_REMATCH[2]}"; host="${BASH_REMATCH[3]}"
+  [[ "$userinfo" == *:* ]] || { printf '%s' "$u"; return 0; }
+  user="${userinfo%%:*}"
+  printf '%s%s:***@%s' "$proto" "$user" "$host"
+}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"

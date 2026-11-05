@@ -198,6 +198,13 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.equal(real.rc, 0, real.out);
     assert.ok(real.log.some((l) => l.startsWith("pg_dump") && l.includes("nobino:secret@")),
       "pg_dump باید نشانی کامل بگیرد، نه نشانی نمایشی");
+    // رمزی که خودش «@» دارد: مخفی‌سازی باید تا آخرین «@» برود، نه اولینش
+    const atSign = runUpdate(["--dry-run"], {
+      box: fixture({ envText: 'DATABASE_URL="postgresql://ad@min:hunt3r2@db:5433/nobino?schema=public"\nPORT="3977"\n' }),
+    });
+    assert.equal(atSign.rc, 0, atSign.out);
+    assert.ok(!atSign.out.includes("hunt3r2"), "بخشی از رمز در dry-run لو رفت");
+    assert.match(atSign.out, /--dbname=postgresql:\/\/ad@min:\*\*\*@db:5433\/nobino$/m);
   });
 
   test("جریان عادی: بکاپ پیش از migrate و پیش از restart؛ dump و .meta روی دیسک", () => {
