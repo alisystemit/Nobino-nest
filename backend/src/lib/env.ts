@@ -9,6 +9,29 @@ const isProdEnv = (process.env.NODE_ENV ?? "").trim().toLowerCase() === "product
 /** پیش‌فرض حالت تست درگاه: در production «false» تا پرداخت واقعی شبیه‌سازی ثبت نشود */
 const sandboxDefault = isProdEnv ? "false" : "true";
 
+/**
+ * محیط اجرا بر اساس مقدار صریح NODE_ENV.
+ * مهم: «تعریف‌نشده» یعنی نامشخص — نه production و نه development.
+ * قبلاً چند جا `NODE_ENV !== "production"` را «توسعه» فرض می‌کردند و پروسهٔ
+ * استقرار (که NODE_ENV تنظیم ندارد) همهٔ راه‌آهن‌های تست را باز نگه می‌داشت.
+ */
+export function nodeEnv(): "production" | "development" | "unset" {
+  const raw = (process.env.NODE_ENV ?? "").trim().toLowerCase();
+  if (raw === "production") return "production";
+  if (raw === "development" || raw === "dev" || raw === "test") return "development";
+  return "unset";
+}
+
+/** فقط وقتی صریحاً production ست شده باشد */
+export function isProductionEnv(): boolean {
+  return nodeEnv() === "production";
+}
+
+/** فقط وقتی صریحاً development/test ست شده باشد (NODE_ENV خالی حساب نیست) */
+export function isDevelopmentEnv(): boolean {
+  return nodeEnv() === "development";
+}
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16).default("dev-secret-change-me"),

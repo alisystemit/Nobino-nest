@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { httpError } from "@/lib/utils";
 
 /**
  * محدودیت تلاش ناموفق ورود با رمز عبور (ضد brute-force).
@@ -20,7 +21,7 @@ export async function assertLoginAllowed(login: string) {
     },
   });
   if (recent >= MAX_FAILS) {
-    throw new Error("تعداد تلاش‌های ناموفق زیاد است. ۱۰ دقیقه بعد دوباره تلاش کنید.");
+    throw httpError("تعداد تلاش‌های ناموفق زیاد است. ۱۰ دقیقه بعد دوباره تلاش کنید.", 429);
   }
 }
 

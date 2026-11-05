@@ -2,8 +2,9 @@
 
 
 import { z } from "zod";
+import { cookies, headers } from "@/compat/next-headers";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, requireAuth, resolveToken } from "@/lib/auth/guards";
+import { AUTH_COOKIE, getCurrentUser, requireAuth, resolveToken } from "@/lib/auth/guards";
 import { dashboardStyleForUser, type DashboardStyle } from "@/lib/dashboard-style";
 import { json, apiError } from "@/lib/utils";
 
@@ -13,7 +14,21 @@ export async function GET(_req: Request, _ctx: { params: Record<string, string> 
   const token = await resolveToken();
   const user = await getCurrentUser();
   if (!user) {
-    // توکن فرستاده شده ولی معتبر نیست (منقضی/باطل) → همان 401 مستندِ docs/mobile-api.md
+    // C17: کوکی بیاتِ وب با 401 جواب می‌گرفت و کنسول مرورگر پر از «خطای قرمز»
+    // می‌شد — آن هم برای چیزی که برای کاربر فقط «وارد نشده» است. قرارداد مستندِ
+    // docs/mobile-api.md (401 برای توکن نامعتبر) برای کلاینتی است که توکن را خودش در
+    // هدر می‌فرستد (موبایل/سرویس) و همان می‌ماند؛ برای پروبِ کوکی‌محورِ وب همان 200
+    // با user:null برمی‌گردد و کوکی بیات هم پاک می‌شود تا هر بار بارگذاری، همان توکن
+    // مرده دوباره برای سرور نرود.
+    const store = await cookies();
+    const sentByCookie = Boolean(store.get(AUTH_COOKIE)?.value);
+    const authHeader = (await headers()).get("authorization");
+    const sentByHeader = Boolean(authHeader && authHeader.startsWith("Bearer "));
+    if (token && sentByCookie && !sentByHeader) {
+      store.delete(AUTH_COOKIE);
+      return json({ success: true, user: null });
+    }
+    // توکن هدر فرستاده شده ولی معتبر نیست (منقضی/باطل) → همان 401 مستندِ docs/mobile-api.md
     if (token) return json({ success: false, user: null }, { status: 401 });
     return json({ success: true, user: null });
   }

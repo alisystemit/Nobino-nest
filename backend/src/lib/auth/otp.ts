@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSmsProvider } from "@/lib/sms/provider";
 import { getEmailSender } from "@/lib/email/provider";
 import { httpError } from "@/lib/utils";
+import { isDevelopmentEnv } from "@/lib/env";
 
 const OTP_TTL_MS = 5 * 60 * 1000; // ۵ دقیقه
 // در پروداکشن سخت‌گیرانه (ضد اسپم)؛ در توسعه بالاتر تا تست‌های E2E مکرر قفل نشوند
@@ -103,10 +104,12 @@ export async function requestOtp(phone: string) {
     data: { phone, code, purpose: "LOGIN", expiresAt: new Date(Date.now() + OTP_TTL_MS) },
   });
 
-  // لاگ قطعی کد در کنسول سرور (در حالت توسعه)
-  console.log("\n════════════════════════════════════════════");
-  console.log(`  🔐 کد تأیید برای ${phone}: ${code}`);
-  console.log("════════════════════════════════════════════\n");
+  // لاگ قطعی کد در کنسول سرور — فقط در محیط توسعهٔ صریح (NODE_ENV خالی حساب نیست)
+  if (isDevelopmentEnv()) {
+    console.log("\n════════════════════════════════════════════");
+    console.log(`  🔐 کد تأیید برای ${phone}: ${code}`);
+    console.log("════════════════════════════════════════════\n");
+  }
 
   await (await getSmsProvider()).sendOtp(phone, code);
   return { expiresIn: OTP_TTL_MS / 1000 };
@@ -119,13 +122,13 @@ export async function verifyOtp(phone: string, code: string, purpose = "LOGIN") 
   });
 
   if (!record) {
-    throw new Error("کد واردشده صحیح نیست.");
+    throw httpError("کد واردشده صحیح نیست.", 400);
   }
   if (record.expiresAt < new Date()) {
-    throw new Error("کد منقضی شده است. دوباره درخواست دهید.");
+    throw httpError("کد منقضی شده است. دوباره درخواست دهید.", 400);
   }
   if (record.attempts >= MAX_ATTEMPTS) {
-    throw new Error("تعداد تلاش‌های ناموفق بیش از حد مجاز است. کد جدید درخواست کنید.");
+    throw httpError("تعداد تلاش‌های ناموفق بیش از حد مجاز است. کد جدید درخواست کنید.", 400);
   }
 
   // مقایسه کد و ثبت تلاش ناموفق (جلوگیری از brute-force روی کد ۴ رقمی)
@@ -134,7 +137,7 @@ export async function verifyOtp(phone: string, code: string, purpose = "LOGIN") 
       where: { id: record.id },
       data: { attempts: { increment: 1 }, usedAt: record.attempts + 1 >= MAX_ATTEMPTS ? new Date() : null },
     });
-    throw new Error("کد واردشده صحیح نیست.");
+    throw httpError("کد واردشده صحیح نیست.", 400);
   }
 
   // لاگین موفق — همین رکورد شمارش اسپم را ریست می‌کند

@@ -68,6 +68,24 @@ export function apiError(error: unknown) {
       /* ignore */
     }
   }
+  // C16: متن خام Prisma («Unique constraint failed on the fields …») هرگز نباید
+  // به مشتری برسد؛ کد خطا به پیام فارسی و وضعیت مناسب نگاشت می‌شود.
+  if (typeof zod === "string" && zod.startsWith("PrismaClient")) {
+    const code = (error as { code?: string })?.code;
+    if (code === "P2002") {
+      status = 409;
+      message = "این اطلاعات قبلاً ثبت شده است؛ لازم نیست دوباره تلاش کنید.";
+    } else if (code === "P2025") {
+      status = 404;
+      message = "رکورد موردنظر دیگر وجود ندارد.";
+    } else if (code === "P2003") {
+      status = 400;
+      message = "دادهٔ مرتبط با این رکورد پیدا نشد.";
+    } else {
+      status = 500;
+      message = "خطای داخلی در ثبت اطلاعات رخ داد؛ کمی بعد دوباره تلاش کنید.";
+    }
+  }
   // ثبت خطاهای سرور برای پایش (گزارش خطا)
   if (status >= 500) {
     import("@/lib/monitoring").then((m) => m.reportError(error, { status })).catch(() => {});
@@ -96,4 +114,85 @@ export function toJalali(date: Date | string): string {
 export function toPersianDigits(input: string | number): string {
   const fa = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
   return String(input).replace(/\d/g, (d) => fa[Number(d)]);
+}
+
+const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+
+/**
+ * ارقام فارسی و عربی(هندی) را به ASCII تبدیل می‌کند.
+ * `\d` در جاوااسکریپت فقط رقم انگلیسی را می‌شناسد، پس هر `replace(/\D/g,"")`
+ * یا `Number()` روی ورودی کیبورد فارسی، رشته را خالی و عدد را **صفر** می‌کند.
+ * همه‌جایی که کاربر عدد تایپ می‌کند باید اول از این عبور کند.
+ */
+export function toAsciiDigits(input: string | number | null | undefined): string {
+  if (input === null || input === undefined) return "";
+  return String(input)
+    .replace(/[۰-۹]/g, (d) => String(FA_DIGITS.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String(AR_DIGITS.indexOf(d)));
+}
+
+export type NumInput = { ok: true; value: number } | { ok: false; error: string };
+
+/**
+ * عدد صحیح از ورودی متنی/عددی کاربر، با تشخیص «چیزی نگفته» از «صفر گفته».
+ * `Number("")` برابر صفر است؛ این تابع آن تله را می‌شکند و رشتهٔ بدون رقم
+ * را خطا می‌داند نه صفر.
+ */
+export function parseIntInput(raw: unknown, label: string, opts: { min?: number; max?: number } = {}): NumInput {
+  const min = opts.min ?? 0;
+  const max = opts.max ?? 1_000_000_000;
+  if (raw === null || raw === undefined || raw === "") return { ok: false, error: `مقدار «${label}» را وارد کنید.` };
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return { ok: false, error: `مقدار «${label}» عدد معتبر نیست.` };
+    if (!Number.isInteger(raw)) return { ok: false, error: `مقدار «${label}» باید عدد صحیح باشد.` };
+    if (raw < min || raw > max) return { ok: false, error: `مقدار «${label}» باید بین ${min.toLocaleString("en-US")} و ${max.toLocaleString("en-US")} باشد.` };
+    return { ok: true, value: raw };
+  }
+  const cleaned = toAsciiDigits(raw as string | number).replace(/[^\d-]/g, "").trim();
+  if (cleaned === "" || cleaned === "-") return { ok: false, error: `مقدار «${label}» عدد معتبر نیست.` };
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return { ok: false, error: `مقدار «${label}» باید عدد صحیح باشد.` };
+  if (n < min || n > max) return { ok: false, error: `مقدار «${label}» باید بین ${min.toLocaleString("en-US")} و ${max.toLocaleString("en-US")} باشد.` };
+  return { ok: true, value: n };
+}
+
+/**
+ * پارامتر enum از query string با اعتبارسنجی.
+ * مقدار ناشناخته باید `400` بگیرد، نه `500` (خطای خام Prisma) و نه «بی‌فیلتر»؛
+ * هر دو رفتار در پنل ادمین گزارش شده بود.
+ */
+export function enumQueryParam<T extends string>(url: string | URL, name: string, allowed: readonly T[], opts: { label?: string } = {}): T | undefined {
+  const u = typeof url === "string" ? new URL(url) : url;
+  const raw = u.searchParams.get(name);
+  if (raw === null || raw.trim() === "") return undefined;
+  const value = raw.trim().toUpperCase() as T;
+  if (!allowed.includes(value)) {
+    throw httpError(`مقدار «${opts.label ?? name}» نامعتبر است. مجاز: ${allowed.join("، ")}`, 400);
+  }
+  return value;
+}
+
+/** پارامتر بلئانی از query string؛ هر مقدار غیر از true/false باید 400 بگیرد */
+export function boolQueryParam(url: string | URL, name: string, opts: { label?: string } = {}): boolean | undefined {
+  const u = typeof url === "string" ? new URL(url) : url;
+  const raw = u.searchParams.get(name);
+  if (raw === null || raw.trim() === "") return undefined;
+  const v = raw.trim().toLowerCase();
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  throw httpError(`مقدار «${opts.label ?? name}» باید بله یا خیر (true/false) باشد.`, 400);
+}
+
+/**
+ * نام پارامترهای query string را با فهرست مجاز مقایسه می‌کند.
+ * یافتهٔ A16: فیلترِ ناشناخته بی‌صدا دور ریخته می‌شد و ادمین «فیلترشده» را
+ * «همهٔ رکوردها» می‌دید. حالا پارامتر پشتیبانی‌نشده همان‌جا 400 می‌گیرد.
+ */
+export function assertKnownQueryParams(url: string | URL, allowed: readonly string[]) {
+  const u = typeof url === "string" ? new URL(url) : url;
+  const unknown = [...new Set([...u.searchParams.keys()])].filter((k) => !allowed.includes(k));
+  if (unknown.length > 0) {
+    throw httpError(`پارامتر ناشناخته: ${unknown.join("، ")}. فیلترهای مجاز: ${allowed.join("، ")}`, 400);
+  }
 }

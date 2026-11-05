@@ -2,18 +2,25 @@
 import { prisma } from "@/lib/prisma";
 import { json } from "@/lib/utils";
 import { canShowSentCodes } from "@/lib/auth/code-display";
+import { checkRate, clientIpFromRequest, tooManyRequests } from "@/lib/rate-limit-lite";
 
 /**
  * آخرین کد تأیید ارسال‌شده برای یک شماره/ایمیل.
  *
- * در محیط توسعه همیشه در دسترس است؛ در پروداکشن تنها وقتی سوپرادمین سوئیچ
- * «نمایش کدهای ارسالی» (کلید `sms.show_sent_codes`) را روشن کرده باشد.
- * با خاموش بودن سوئیچ، مسیر مثل قبل ۴۰۴ می‌دهد و کدی فاش نمی‌شود.
+ * فقط در محیط توسعهٔ صریح یا وقتی سوپرادمین سوئیچ «نمایش کدهای ارسالی»
+ * (کلید `sms.show_sent_codes`) را روشن کرده باشد در دسترس است؛ در غیر این
+ * صورت مثل قبل ۴۰۴ می‌دهد و کدی فاش نمی‌شود.
  */
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   if (!(await canShowSentCodes())) {
     return json({ success: false, error: "not available" }, { status: 404 });
   }
+
+  // حتی با سوئیچ روشن هم باید سقف تعداد داشته باشد؛ این مسیر کد OTP هر
+  // شماره‌ای را برمی‌گرداند و نباید وسیلهٔ بروت‌فورس شود.
+  const ip = clientIpFromRequest(req);
+  const rl = checkRate(`otp-dev-last:${ip}`, 30, 10 * 60 * 1000);
+  if (!rl.ok) return tooManyRequests(rl.retryAfterSec, "درخواست‌های شما بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.");
 
   const sp = new URL(req.url).searchParams;
   const phone = sp.get("phone") ?? "";
