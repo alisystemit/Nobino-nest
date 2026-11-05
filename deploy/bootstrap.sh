@@ -15,9 +15,9 @@
 #      — اگر .env موجود باشد، بی‌آن کار نمی‌کند
 #   ۶) ufw: فقط SSH + 80 + 443 + 8443 باز می‌شود (اگر ufw فعال نیست، فعال می‌کند؛
 #      با --no-firewall کلاً دست نمی‌زند)
-#   ۷) ساخت اولین سوپرادمین با موبایل/رمز دلخواه (اگر دیتابیس خالی باشد؛
+#   ۷) در پایان deploy/install.sh را کامل اجرا می‌کند (بیلد + PM2 + nginx + سلامت)
+#   ۸) ساخت اولین سوپرادمین با موبایل/رمز دلخواه (اگر دیتابیس خالی باشد؛
 #      با --admin-phone/--admin-password بدون پرسش، یا در پایان خودکار می‌پرسد)
-#   ۸) در پایان deploy/install.sh را کامل اجرا می‌کند (بیلد + PM2 + nginx + سلامت)
 #
 # گزینه‌ها:
 #   --domain <دامنه>      ضروری (مثلاً nobino.ir) — دامنه‌ای که سرویس رویش بالا می‌آید
@@ -49,6 +49,7 @@ runsh() { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else
 
 DOMAIN="" REPO_URL="" APP_DIR="/opt/nobino" PORT="3100" PG_PASSWORD=""
 ADMIN_PHONE="" ADMIN_PASSWORD="" NO_ADMIN=false
+ADMIN_SET=false ADMIN_HINT=false
 NO_FIREWALL=false FORCE_PG=false DRY_RUN=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -264,12 +265,56 @@ INSTALL_ARGS=(--domain "$DOMAIN" --port "$PORT" --app-dir "$APP_DIR")
 $DRY_RUN && INSTALL_ARGS+=(--dry-run)
 run bash "$APP_DIR/deploy/install.sh" "${INSTALL_ARGS[@]}"
 
+# ── ۹) اولین سوپرادمین ──────────────────────────────────────────────
+# بعد از install.sh اجرا می‌شود چون node_modules + Prisma client + schema
+# دیتابیس را همان مرحله می‌سازد. اگر ADMIN دیگری باشد، idempotent است.
+say "— ۹) ساخت اولین سوپرادمین —"
+if $NO_ADMIN; then
+  say "  --no-admin → از این مرحله رد می‌شود."
+elif $DRY_RUN; then
+  printf '%s[dry] node scripts/create-admin.mjs --phone <موبایل> --password <رمز>%s\n' "$C_DIM" "$C_OFF"
+else
+  AP="$ADMIN_PHONE"; AW="$ADMIN_PASSWORD"
+  if [[ -z "$AP" ]] && [[ -t 0 ]]; then
+    printf '  شماره موبایل سوپرادمین (۱۱ رقم با 0؛ خالی = بعداً دستی): '
+    read -r AP || true
+  fi
+  if [[ -n "$AP" ]] && [[ -z "$AW" ]] && [[ -t 0 ]]; then
+    printf '  رمز سوپرادمین (حداقل ۸ کاراکتر، نمایش مخفی): '
+    read -rs AW || true; printf '\n'
+  fi
+  AP="$(tr -d ' \r' <<< "$AP")"
+  if [[ -z "$AP" ]]; then
+    ADMIN_HINT=true
+    warn "  سوپرادمین ساخته نشد؛ هر وقت خواستید اجرا کنید:"
+    say "    cd $APP_DIR && node scripts/create-admin.mjs --phone 09xxxxxxxxx --password '…'"
+  elif [[ ${#AW} -lt 8 ]]; then
+    ADMIN_HINT=true
+    warn "  رمز داده‌نشده/کوتاه است — مرحلهٔ سوپرادمین رد شد. بعداً: node scripts/create-admin.mjs (داخل $APP_DIR)"
+  else
+    # در سرورهای SSHِ غیرتعاملی (exec بدون TTY) read کار نمی‌کند؛ flag لازم است.
+    if (cd "$APP_DIR" && APP_DIR="$APP_DIR" node scripts/create-admin.mjs --phone "$AP" --password "$AW"); then
+      ok "  ورود مدیران: https://$DOMAIN با $AP"
+      ADMIN_SET=true
+    else
+      ADMIN_HINT=true
+      warn "  create-admin ناموفق بود (دیتابیس/پریزما را بررسی کنید)؛ بعداً دستی اجرا کنید."
+    fi
+  fi
+  unset AW
+fi
+
 say ""
 ok "${C_OK}bootstrap تمام شد.${C_OFF}"
 say "  دامنه:   https://$DOMAIN  (ساب‌دامین سالن‌ها: <slug>.$DOMAIN)"
 say "  وضعیت:   pm2 status — لاگ: pm2 logs nobino-api"
 say "  سلامت:   curl \"http://127.0.0.1:$PORT/api/health?db=1\""
 say "  .env:    $APP_DIR/.env (رمزها همین‌جا؛ اگر PG تازه ساخت شد، رمز دیتابیس در DATABASE_URL است)"
+if $ADMIN_SET; then
+  say "  ورود مدیران: https://$DOMAIN با $AP (رمزی که دادید)"
+elif $ADMIN_HINT; then
+  say "  ورود مدیران: هنوز سوپرادمین ندارید — cd $APP_DIR && node scripts/create-admin.mjs --phone 09xxxxxxxxx --password '…'"
+fi
 say ""
 say "  باقی‌ماندهٔ دستی (اختیاری):"
 say "    ۱) DNS: A برای $DOMAIN و *.${DOMAIN} به IP همین سرور"

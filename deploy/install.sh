@@ -344,4 +344,6 @@ say "       sudo certbot certonly --manual --preferred-challenges dns -d ${DOMAI
 say "       sudo bash deploy/install.sh --domain ${DOMAIN} --tls"
 say "  ۳) در .env این‌ها را تنظیم کنید: SITE_URL=${SPA_PROTO}://${DOMAIN}  APP_URL=${SPA_PROTO}://${DOMAIN}  ROOT_DOMAIN=${DOMAIN}"
 say "  ۴) به‌روزرسانی بعدی:  sudo bash deploy/update.sh"
+say "  ۵) اگر دیتابیس تازه و خالی است، اولین سوپرادمین را بسازید:"
+say "       cd ${APP_DIR} && node scripts/create-admin.mjs --phone 09xxxxxxxxx --password '…'   (حداقل ۸ کاراکتر)"
 say "  لاگ: pm2 logs nobino-api — وضعیت: pm2 status — تست: curl ${HEALTH_URL}"

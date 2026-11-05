@@ -14,6 +14,10 @@
 # از بیرون مخزن (تک‌فرمان؛ کلون + Node + PM2 + PostgreSQL + .env + فایروال + nginx + سرویس):
 git clone <repo-url> /opt/nobino
 sudo bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir
+
+# شکل غیرتعاملی (مثلاً در script یا CI) — سوپرادمین هم خودکار ساخته می‌شود:
+sudo bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir \
+     --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
 ```
 > bootstrap همه‌چیز را اتوماتیک می‌سازد: NodeSource 24، PM2، PostgreSQL + دیتابیس
 > `nobino` با رمز تصادفی، فایل `.env` کامل (بدون CHANGE_ME؛ پیامک/ویس روی mock تا
@@ -21,6 +25,9 @@ sudo bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir
 > SSH/80/443/8443 — و در آخر `install.sh` را کامل اجرا می‌کند.
 > اگر Postgres روی سرور از قبل هست، دست به آن نمی‌زند (مگر `--with-postgres`)؛
 > برای دیدن مراحل بدون تغییر سرور `--dry-run` را اضافه کنید.
+> **اولین سوپرادمین:** در پایان همان مرحله می‌پرسد (موبایل + رمز مخفی؛ حداقل ۸ کاراکتر).
+> اگر رد کنید بعداً با `cd /opt/nobino && node scripts/create-admin.mjs --phone … --password …`
+> بسازید. با `--no-admin` هم می‌توان کلاً رد کرد.
 
 **سرور Ubuntu/Debian (نصب کامل، وقتی .env را خودتان آماده کرده‌اید):**
 ```bash
@@ -111,6 +118,8 @@ sudo bash deploy/install.sh --domain nobino.ir --dry-run
 | `PAYMENT_CALLBACK_BASE` | آدرس بازگشت درگاه | `https://nobino.ir/api/payments/callback` |
 | `SMS_PROVIDER` + کلید | پیامک یادآوری | `kavenegar` / `smsdotir` / `arpano` / `farazsms` / `ghasedak` / `melipayamak` / `iransms` / `payamresan` / `nakalaya` / `mobilesms` / `mock` — کلیدهای هر سرویس در `deploy/env.production.example` بخش ۶ آمده است |
 | `BLOB_READ_WRITE_TOKEN` | ذخیرهٔ ابری صوت/گالری | خالی = دیسک (`public/uploads`) |
+| `BOOKING_RATE_PER_HOUR` / `BOOKING_RATE_PER_PHONE` / `HOLD_CONFIRM_RATE_PER_MINUTE` | سقف درخواست نوبت (IP در ساعت / شماره در ساعت / تأیید هولد در دقیقه). جایگزین تنظیمات پنل نیستند؛ اگر کلید تنظیمات مربوطه وجود داشته باشد، همان اولویت دارد | `10` / `6` / `8` — مقدار `0` یعنی بدون سقف |
+| `ALLOW_LOCAL_WEBHOOKS` | راه‌آهن تست وب‌هوک: فقط آدرس حلقهٔ بازگشتی (`127.0.0.1`، `::1`، `localhost`) و فقط در همان حالت `http` را می‌پذیرد. شبکهٔ خصوصی، `169.254.0.0/16` و متادیتای ابری **همیشه** مسدودند | روی سرور واقعی تعریف نکنید؛ برای تست محلی `true` |
 
 دو نکتهٔ مهم:
 1. `load-env` **جای‌نگهدار `${...}` را باز نمی‌کند**؛ همهٔ مقادیر باید کامل نوشته شوند.
@@ -156,6 +165,11 @@ sudo bash deploy/install.sh --domain nobino.ir \
 ```bash
 pm2 status && pm2 logs nobino-api --lines 40     # وضعیت و لاگ
 curl -s "http://127.0.0.1:3100/api/health?db=1"  # سلامت + وضعیت DB
+
+# اگر دیتابیس تازه و خالی است، اولین سوپرادمین (idempotent — اگر ADMIN باشد دست نمی‌زند):
+cd /opt/nobino && node scripts/create-admin.mjs --phone 09121110000 --password 'YourStrong#Pass'
+# گم‌شدن رمز سوپرادمین (بازنش فقط با شمارهٔ خودِ ادمین موجود و فلگ صریح):
+node scripts/create-admin.mjs --phone <همان‌شماره> --password 'رمز#جدید' --force-reset
 ```
 
 **بازگشت به حالت قبل (بدون حذف اپ‌های دیگر):**
@@ -175,6 +189,9 @@ sudo rm /etc/nginx/sites-enabled/nobino.conf && sudo nginx -s reload
 ```bash
 docker build -t nobino .
 docker run --rm -p 3100:3100 --env-file .env nobino
+
+# اولین سوپرادمین (روی compose — داخل کانتینر اپ، چون .env آنجا هست):
+docker compose exec app node scripts/create-admin.mjs --phone 09121110000 --password 'YourStrong#Pass'
 ```
 
 **PaaS با build/start command (Render، Railway، Fly، اَبر آراس و…):**
@@ -221,6 +238,8 @@ curl -s -o /dev/null -w '%{http_code}\n' "$H/dashboard"     # 200 (shell اسپ�
 curl -s -o /dev/null -w '%{http_code}\n' "$H/api/nope"      # 404 (نه html)
 ```
 
+- [ ] اولین ورود سوپرادمین با «ورود مدیران» (موبایل + رمزی که در bootstrap/create-admin دادید)
+      کار می‌کند؛ سپس از «تنظیمات سیستم» کلیدهای پیامک/درگاه/هوش مصنوعی را پر کنید.
 - [ ] ورود با شماره موبایل و OTP روی دامنهٔ واقعی کار می‌کند (کوکی Secure از
       `X-Forwarded-Proto` تشخیص داده می‌شود).
 - [ ] لینک یک سالن به فرم `https://<slug>.nobino.ir` باز می‌شود و همان صفحهٔ سالن را
@@ -326,6 +345,8 @@ rsync -a public/uploads/ /backups/uploads/
 | `scripts/paas-start.mjs` | نقطهٔ شروع: دیتابیس → سرور → prerender |
 | `scripts/build-release.mjs` | نصب/bیلد هر دو سمت + smoke-test بوت |
 | `deploy/install.sh` | نصب‌کنندهٔ تک‌فرمان VPS |
+| `deploy/bootstrap.sh` | نصب صفر‌تا‌صد روی VPS خام (Node/PM2/Postgres/.env/ufw/سوپرادمین + اجرای install.sh) |
+| `scripts/create-admin.mjs` | ساخت اولین سوپرادمین با موبایل/رمز دلخواه (idempotent، با `--force-reset`) |
 | `deploy/update.sh` | به‌روزرسانی (pull → بیلد → migrate → restart) |
 | `deploy/ecosystem.config.cjs.template` | قالب سرویس PM2 |
 | `deploy/nginx/*.conf.*` | vhost دامنه + wildcard، بلوک TLS، upstream |
