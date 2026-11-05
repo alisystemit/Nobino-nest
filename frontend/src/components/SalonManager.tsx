@@ -7,6 +7,8 @@ import DailyBoard from "@/components/DailyBoard";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import TimeField from "@/components/ui/TimeField";
 import Pagination from "@/components/ui/Pagination";
+import { CampaignSegmentPanel } from "@/components/CampaignSegmentPanel";
+import { SEGMENT_KEYS, useSegmentBuilder, type SegCall } from "@/lib/campaign-segments";
 import { zonedTimeToIso } from "@/lib/time/zoned";
 import { formatJalali, toPersianDigits } from "@/lib/time/jalali";
 import { mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
@@ -74,7 +76,7 @@ type CustomerAppt = {
   branch?: { name: string } | null;
 };
 type Invoice = { id: string; number: string; issuedAt: string; period: string; amount: number; status: string; kind?: string; customerName?: string | null; customerPhone?: string | null; description?: string | null; payLink?: string | null };
-type Campaign = { id: string; name: string; channel: string; segment: string; status: string; sentCount: number; scheduledAt?: string | null; sentAt?: string | null };
+type Campaign = { id: string; name: string; channel: string; segment: string; segmentSummary?: string; status: string; sentCount: number; scheduledAt?: string | null; sentAt?: string | null };
 type ApptItem = { id: string; startAt: string; customerName: string; employee?: string | null; service?: string | null; status: string };
 type PeakHour = { hour: number; count: number };
 type StaffPerf = { id: string; name: string; completed: number; total: number };
@@ -158,6 +160,20 @@ const CAMPAIGN_STATUS: Record<string, string> = {
 const CAMPAIGN_SEGMENT: Record<string, string> = {
   ALL: "همه مشتریان",
   RETURNING: "مشتریان بازگشتی",
+  NEW: "مشتری تازه",
+  RECENT: "اخیراً آمده",
+  SILENT: "بدون مراجعه",
+  VIP: "مشتریان ویژه",
+};
+
+/** کلیدهای i18n برای چیپ‌های بخش‌بندی — حالت انگلیسی پنل هم برچسب بومی دارد */
+const SEGMENT_I18N: Record<(typeof SEGMENT_KEYS)[number], string> = {
+  ALL: "campaigns.all",
+  RETURNING: "campaigns.returning",
+  NEW: "campaigns.new",
+  RECENT: "campaigns.recent",
+  SILENT: "campaigns.silent",
+  VIP: "campaigns.vip",
 };
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -1663,7 +1679,6 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
   const [total, setTotal] = useState(0);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
-  const [segment, setSegment] = useState("ALL");
   const [channel, setChannel] = useState("SMS");
   const [showTemplates, setShowTemplates] = useState(false);
   /** زمان ارسال زمان‌بندی‌شده (خالی = پیش‌نویس) */
@@ -1671,6 +1686,22 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
   const [schedTime, setSchedTime] = useState("");
   /** مصرف پیامک/کمپین این ماه از سرور */
   const [usage, setUsage] = useState<{ planLabel?: string; sms?: { used: number; limit: number | boolean }; campaigns?: { used: number; limit: number | boolean } } | null>(null);
+
+  // شمارش مخاطب هر چند صدم ثانیه یک‌بار اجرا می‌شود؛ ctx.api پیام موفقیت نشان می‌دهد، پس اینجا fetch خام
+  const call: SegCall = useCallback(async (path, init) => {
+    try {
+      const res = await fetch(path, {
+        method: init?.method,
+        headers: { "Content-Type": "application/json" },
+        body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+      });
+      const data = await res.json();
+      return { ok: res.ok && data?.success !== false, data };
+    } catch {
+      return { ok: false, data: null };
+    }
+  }, []);
+  const seg = useSegmentBuilder(ctx.base, call);
 
   useEffect(() => {
     setPage(1);
@@ -1713,7 +1744,7 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
       }
       if (new Date(scheduledAt).getTime() <= Date.now()) return ctx.setMsg({ ok: false, text: "زمان ارسال باید در آینده باشد" });
     }
-    const r = await ctx.api(`${ctx.base}/campaigns`, "POST", { name, channel, segment, message, ...(scheduledAt ? { scheduledAt } : {}) }, scheduledAt ? "کمپین زمان‌بندی شد" : t("campaigns.created"));
+    const r = await ctx.api(`${ctx.base}/campaigns`, "POST", { name, channel, ...seg.payload(), message, ...(scheduledAt ? { scheduledAt } : {}) }, scheduledAt ? "کمپین زمان‌بندی شد" : t("campaigns.created"));
     if (r) {
       setName("");
       setMessage("");
@@ -1749,15 +1780,12 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
           <option value="SMS">{t("campaigns.sms")}</option>
           <option value="EMAIL">{t("campaigns.email")}</option>
         </select>
-        <select className={inputCls} value={segment} onChange={(e) => setSegment(e.target.value)}>
-          <option value="ALL">{t("campaigns.all")}</option>
-          <option value="RETURNING">{t("campaigns.returning")}</option>
-        </select>
+        <CampaignSegmentPanel seg={seg} labelOf={(k) => t(SEGMENT_I18N[k])} num={toPersianDigits} />
         <div className="grid grid-cols-1 gap-2 sm:col-span-2 sm:grid-cols-2">
           <JalaliDatePicker value={schedDate} onChange={setSchedDate} timeZone={ctx.timezone} placeholder="زمان ارسال (اختیاری — شمسی)" />
           <TimeField value={schedTime} onChange={setSchedTime} label="ساعت ارسال" />
         </div>
-        <button onClick={create} className={`${primaryBtn} sm:col-span-2`}>{t("campaigns.create")}</button>
+        <button type="button" onClick={create} className={`${primaryBtn} sm:col-span-2`}>{t("campaigns.create")}</button>
       </div>
 
       {/* قالب‌های آماده مناسبتی */}
@@ -1811,7 +1839,7 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
             <div>
               <div className="font-bold text-neutral-800 dark:text-neutral-100">{c.name}</div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                {CHANNEL_LABEL[c.channel] ?? c.channel} — {CAMPAIGN_SEGMENT[c.segment] ?? c.segment} — {CAMPAIGN_STATUS[c.status] ?? c.status} — ارسال: {toPersianDigits(c.sentCount ?? 0)}
+                {CHANNEL_LABEL[c.channel] ?? c.channel} — {toPersianDigits(c.segmentSummary || "") || CAMPAIGN_SEGMENT[c.segment] || c.segment} — {CAMPAIGN_STATUS[c.status] ?? c.status} — ارسال: {toPersianDigits(c.sentCount ?? 0)}
               </div>
               {c.scheduledAt && c.status !== "SENT" && (
                 <div className="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
@@ -1819,7 +1847,7 @@ function CampaignsView({ ctx }: { ctx: Ctx }) {
                 </div>
               )}
             </div>
-            <button onClick={() => run(c.id)} className={darkBtn}>{t("campaigns.run")}</button>
+            <button type="button" onClick={() => run(c.id)} className={darkBtn}>{t("campaigns.run")}</button>
           </div>
         ))}
       </div>
