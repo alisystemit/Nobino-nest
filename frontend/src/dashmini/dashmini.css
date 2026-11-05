@@ -465,3 +465,181 @@ label.mini-btn {
   border: 1px solid rgba(0, 0, 0, 0.18);
   vertical-align: -1px;
 }
+
+/* ── مدیریت سالن (/dash/management) ───────────────────────────────── */
+
+/* نوار تب هفت‌بخشی: به‌جای له‌شدنِ چیپ‌ها، در دو ردیف هم‌عرض می‌شکند */
+/* تب‌بار هفت‌تاییِ مدیریت: روی موبایل به‌جای له‌شدن، دو/سه ردیف می‌شود */
+.dash-tabs .mini-tabs-seg {
+  flex-wrap: wrap;
+}
+
+.dash-tabs .mini-tab-seg {
+  flex: 1 1 calc(25% - 4px);
+  min-width: calc(25% - 4px);
+}
+
+/* کنترل‌های تقویم: قبلی/امروز/بعدی در یک خط و تیتر شمسی زدن‌شکن */
+.dash-cal-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash-cal-title {
+  flex: 1 1 100%;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--m-text);
+}
+
+@media (min-width: 560px) {
+  .dash-cal-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+/* شبکهٔ ماه: هفت ستون با minmax(0,1fr) تا هیچ سلولی از لبه بیرون نزند */
+.dash-cal-wk {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--m-muted);
+  text-align: center;
+}
+
+.dash-cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.dash-cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 42px;
+  padding: 3px 1px;
+  border: 1px solid var(--m-line);
+  border-radius: 11px;
+  background: var(--m-card);
+  color: var(--m-text);
+  font: inherit;
+}
+
+.dash-cal-cell.is-today {
+  border-color: rgb(var(--m-rgb));
+  background: rgba(var(--m-rgb), 0.1);
+}
+
+.dash-cal-cell.is-off {
+  opacity: 0.45;
+}
+
+.dash-cal-num {
+  font-size: 11.5px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.dash-cal-count {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgb(var(--m-rgb));
+}
+
+/* نمای هفته: هر روز یک کارت، تیتر در یک خط و ردیف‌ها زیر آن */
+.dash-wk {
+  display: grid;
+  gap: 8px;
+}
+
+.dash-wk-day {
+  border: 1px solid var(--m-line);
+  border-radius: 16px;
+  background: var(--m-card);
+  padding: 10px 12px;
+}
+
+.dash-wk-day.is-today {
+  border-color: rgb(var(--m-rgb));
+}
+
+.dash-wk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 900;
+  color: var(--m-text);
+}
+
+.dash-wk-head i {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: var(--m-muted);
+}
+
+/* ردیف فشردهٔ نوبت: ساعت + نام مشتری + خدمت/آرایشگر، با برچسب وضعیت در انتها */
+.dash-appt-line {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 0;
+  font-size: 12.5px;
+  border-top: 1px dashed var(--m-line);
+}
+
+.dash-appt-line time {
+  flex: 0 0 auto;
+  font-weight: 900;
+}
+
+.dash-appt-line .dash-appt-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-appt-line .dash-appt-sub {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-appt-line .dash-appt-tag {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--m-muted);
+}
+
+/* سربرگ دسته‌بندی‌شدهٔ پن‌ها (کمپین/داده/…) */
+.dash-pane {
+  margin-top: 12px;
+}
+
+.dash-form-gap {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}

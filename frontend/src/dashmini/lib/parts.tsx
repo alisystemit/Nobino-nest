@@ -2,7 +2,7 @@
  * اجزای مشترک داشبورد مینی‌استایل — روی واژگان ظاهری ماژول /mini سوار می‌شوند
  * (mini.css) و منطقشان دقیقاً همان کاری است که نسخهٔ وب انجام می‌دهد.
  */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Chip, EmptyState, Icon, Row, SectionTitle, Sheet, SkeletonList, StatusBadge, type IconName } from "@/mini/components/ui";
 import { compactToman, faDigits, timeLabel, toman } from "@/mini/lib/format";
@@ -308,4 +308,65 @@ export function SoonCard({ title, classicHref }: { title: string; classicHref: s
 
 export function KeyValue({ label, value }: { label: string; value: ReactNode }) {
   return <Row label={label} value={value} />;
+}
+
+/* ── صفحه‌بندی فهرست‌های بلند (کمپین، صف انتظار، …) ─────────────────── */
+
+export function Pager({
+  page,
+  totalPages,
+  total,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  onChange: (next: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="dash-pager">
+      <button type="button" className="mini-btn soft tiny" disabled={page <= 1} onClick={() => onChange(Math.max(1, page - 1))}>
+        قبلی
+      </button>
+      <span>
+        صفحه {faDigits(page)} از {faDigits(totalPages)} · {faDigits(total)} مورد
+      </span>
+      <button type="button" className="mini-btn soft tiny" disabled={page >= totalPages} onClick={() => onChange(Math.min(totalPages, page + 1))}>
+        بعدی
+      </button>
+    </div>
+  );
+}
+
+/* ── دکمهٔ حذف دو مرحله‌ای (هیچ حذفی با یک لمس اتفاق نمی‌افتد) ──────── */
+
+export function DeleteButton({ onConfirm, busy, label = "حذف" }: { onConfirm: () => void; busy?: boolean; label?: string }) {
+  const [armed, setArmed] = useState(false);
+
+  // اگر شیت بسته شد یا عملیات طولانی شد، حالت «مطمئنی؟» خودبرگشتی است
+  useEffect(() => {
+    if (!armed) return;
+    const t = window.setTimeout(() => setArmed(false), 4500);
+    return () => window.clearTimeout(t);
+  }, [armed]);
+
+  return (
+    <button
+      type="button"
+      className={`mini-btn tiny${armed ? " danger" : " ghost"}`}
+      disabled={busy}
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
+        onConfirm();
+      }}
+    >
+      <Icon name="trash" size={15} />
+      {armed ? "برای حذف، دوباره" : label}
+    </button>
+  );
 }
