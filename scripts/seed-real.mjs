@@ -331,8 +331,9 @@ async function clean() {
   log.push(`Salon(stress): ${stressSalonIds.length}`);
 
   // ردیف‌های سراسریِ تستی
-  await kill("giftCard", { OR: [{ ownerId: { in: stressUserIds } }, { code: { startsWith: "stress" } }] }, "GiftCard");
-  await kill("supportTicket", { OR: [{ userId: { in: stressUserIds } }, { phone: { startsWith: "0999" } }, { phone: { startsWith: "0998" } }] }, "SupportTicket");
+  await kill("giftCard", { OR: [{ ownerId: { in: stressUserIds } }, { code: { contains: "stress", mode: "insensitive" } }] }, "GiftCard");
+  await kill("discount", { OR: [{ code: { startsWith: "WELCOME" } }, { code: { contains: "stress", mode: "insensitive" } }] }, "Discount(تستی)");
+  await kill("supportTicket", { OR: [{ userId: { in: stressUserIds } }, { phone: { startsWith: "0999" } }, { phone: { startsWith: "0998" } }, { subject: { contains: "موضوع تیکت" } }] }, "SupportTicket");
   await kill("transaction", { wallet: { ownerId: { in: stressUserIds } } }, "Transaction");
   await kill("payout", { wallet: { ownerId: { in: stressUserIds } } }, "Payout");
   await kill("wallet", { ownerId: { in: stressUserIds } }, "Wallet");
@@ -341,11 +342,29 @@ async function clean() {
   await kill("otp", { OR: [{ phone: { startsWith: "0999" } }, { phone: { startsWith: "0998" } }] }, "Otp(stress)");
   await kill("auditLog", { actorPhone: { startsWith: "099" } }, "AuditLog(stress)");
   await kill("webhookDelivery", { config: { url: { contains: "stress" } } }, "WebhookDelivery(url)");
-  await kill("package", { name: { contains: "استرس" } }, "Package(stress)");
+
+  // پکیج‌های استرسی: Order/Subscription آن‌ها را RESTRICT نگه می‌دارند → اول فرزند‌ها
+  const stressPackages = await prisma.package.findMany({ where: { name: { contains: "استرس" } }, select: { id: true } });
+  const stressPackageIds = stressPackages.map((x) => x.id);
+  if (stressPackageIds.length) {
+    await kill("payment", { order: { packageId: { in: stressPackageIds } } }, "Payment(order:pkg-stress)");
+    await kill("invoice", { order: { packageId: { in: stressPackageIds } } }, "Invoice(order:pkg-stress)");
+    await kill("subscription", { packageId: { in: stressPackageIds } }, "Subscription(pkg-stress)");
+    await kill("order", { packageId: { in: stressPackageIds } }, "Order(pkg-stress)");
+  }
+  await kill("package", { id: { in: stressPackageIds } }, "Package(stress)");
   await kill("setting", { key: { startsWith: "stress." } }, "Setting(stress)");
   // ردیف‌هایی که این اسکریپت قبلاً ساخته (اجرای دوباره امن باشد)
   await kill("appointment", { id: { startsWith: "nr" } }, "Appointment(real)");
   for (const model of SELF_CLEAN) await kill(model, { id: { startsWith: "nr" } }, `${model}(nr)`);
+
+  // سالن‌های دورِ قبلِ همین اسکریپت: با حذفشان slug آزاد می‌شود و فرزندها cascade می‌روند
+  const priorSalonIds = (await prisma.salon.findMany({ where: { id: { startsWith: "nr" } }, select: { id: true } })).map((s) => s.id);
+  if (priorSalonIds.length && !DRY) await prisma.salon.deleteMany({ where: { id: { in: priorSalonIds } } });
+  log.push(`Salon(nr): ${priorSalonIds.length}`);
+  // کاربرهای دورهای قبل (مالک/مشتری/نماینده) — بعد از سالن‌ها و بعد از آزادکردن Staff.user
+  if (!DRY) await prisma.staff.updateMany({ where: { userId: { startsWith: "nr" } }, data: { userId: null } });
+  await kill("user", { id: { startsWith: "nr" } }, "User(nr)");
 
   // خودِ کاربرهای تستی، بعد از تمام فرزندها. ادمین/نماینده/مالک‌های واقعی این‌جا نمی‌آیند.
   // نگهبان: کاربری که سالنِ «خارج از دامنه» دارد حذف نمی‌شود، چون Salon.owner روی Cascade است.
@@ -355,6 +374,14 @@ async function clean() {
   });
   const safeUserIds = stressUserIds.filter((id) => !risky.some((r) => r.ownerId === id));
   if (risky.length) console.log(`   ⚠ مالک سالنِ خارج از دامنه — کاربر حذف نشد: ${risky.map((r) => r.slug).join("، ")}`);
+  //Appointment.customer و Staff.user روی RESTRICT هستند → اول آزادشان کنیم
+  await kill("appointment", { customerId: { in: safeUserIds } }, "Appointment(customer-test)");
+  await kill("review", { customerId: { in: safeUserIds } }, "Review(customer-test)");
+  await kill("favorite", { userId: { in: safeUserIds } }, "Favorite(user-test)");
+  if (safeUserIds.length && !DRY) {
+    const unlinked = await prisma.staff.updateMany({ where: { userId: { in: safeUserIds } }, data: { userId: null } });
+    if (unlinked.count) log.push(`Staff(user unlink): ${unlinked.count}`);
+  }
   await kill("user", { id: { in: safeUserIds } }, "User(test)");
 
   console.log("🧹 پاک‌سازی:");
@@ -1191,6 +1218,11 @@ async function seed() {
     ["supportTicket", "tickets"], ["payment", "payments"], ["notification", "notifications"],
     ["otp", "otps"], ["session", "sessions"], ["auditLog", "audits"],
   ];
+  // Wallet.ownerId یکتاست؛ مالک‌های دمو ممکن است کیف‌پولِ دورِ قبل را نگه داشته باشند
+  if (R.wallets.length) {
+    const stale = await prisma.wallet.deleteMany({ where: { ownerId: { in: R.wallets.map((w) => w.ownerId) } } });
+    if (stale.count) console.log(`   ♻ ${stale.count} کیف‌پول کهنه حذف شد (تراکنش/برداشت‌ها cascade)`);
+  }
   for (const [model, key] of INSERT_ORDER) {
     const data = R[key] || [];
     if (!data.length) continue;
