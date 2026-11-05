@@ -629,7 +629,7 @@ SALON_OWNER (چون ورود ادمین با OTP وقتی `passwordHash` ست ش
 ```bash
 node backend/scripts/gen-controllers.mjs   # ثبت /api/mini/* در controller ها
 cd backend && npm run build && npm start
-cd frontend && npx vite build
+cd frontend && npm run build   # یا: node scripts/vite-build.mjs && node prerender.mjs
 ```
 
 `manifest.json` این ماژول پنج مسیر `mini/*` را (به‌جز `mini/config` که از قبل بود)
@@ -637,7 +637,7 @@ cd frontend && npx vite build
 
 نسخهٔ «خانهٔ سالن‌محور» هیچ مسیر جدیدی اضافه یا حذف نکرد (فقط بدنهٔ چند handler موجود
 غنی‌تر شد)، پس برای به‌روزرسانی لازم نیست `gen-controllers.mjs` را دوباره اجرا کنید؛
-`npm run build` در `backend/` و `npx vite build` در `frontend/` کافی است. کلید
+`npm run build` در `backend/` و `npm run build` در `frontend/` کافی است (اسکریپت فرانت خودِ `vite build` را با NODE_ENV=production اجرا می‌کند؛ `npx vite build` خام راکتِ development می‌سازد). کلید
 `miniapps.default_salon` از کاتالوگ تنظیمات حذف شده است؛ اگر جایی ذخیره شده باشد
 ردیفش در جدول `Setting` می‌ماند ولی دیگر هیچ‌جا خوانده نمی‌شود (پاک کردنش اختیاری است:
 `DELETE FROM "Setting" WHERE key = 'miniapps.default_salon'`).
