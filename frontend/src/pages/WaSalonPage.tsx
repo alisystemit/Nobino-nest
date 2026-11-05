@@ -1,5 +1,5 @@
 /** صفحهٔ وب‌اپ پیام‌رسان — معادل src/app/wa/salon/[slug]/page.tsx */
-import { useParamsTyped } from "@/router-shim";
+import { Link, useParamsTyped } from "@/router-shim";
 import SalonBooking from "@/components/SalonBooking";
 import WebAppScript from "@/components/WebAppScript";
 import SalonIcon from "@/components/icons/SalonIcon";
@@ -8,7 +8,7 @@ import { useMeta } from "@/lib/use-meta";
 
 export default function WaSalonPage() {
   const { slug } = useParamsTyped<{ slug: string }>();
-  const { data, loading } = usePageData<any>("wa-salon", { slug });
+  const { data, loading, error, reload } = usePageData<any>("wa-salon", { slug });
   useMeta(data?.found ? `${data.salon?.name ?? "سالن"} | نوبت صوتی` : undefined);
 
   if (loading && !data) {
@@ -17,7 +17,25 @@ export default function WaSalonPage() {
   if (!data || !data.found) {
     return (
       <main className="mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center gap-3 px-4 text-center">
-        <h1 className="text-xl font-black text-neutral-900">سالن یافت نشد</h1>
+        <div className="text-4xl">🪞</div>
+        <h1 className="text-xl font-black text-neutral-900">این صفحه باز نشد</h1>
+        <p className="text-sm text-neutral-500">
+          {/* U6: قبلاً فقط تیتر «سالن یافت نشد» بود و کاربر داخل پیام‌رسان راه برگشتی نداشت */}
+          {error
+            ? "خواندن اطلاعات سالن با خطا مواجه شد."
+            : `سالنی با نشانی «${slug || "—"}» پیدا نشد؛ ممکن است غیرفعال شده یا نشانی را اشتباه باز کرده باشید.`}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+          <button onClick={reload} className="rounded-xl bg-pink-600 px-5 py-2.5 text-sm font-bold text-white">
+            تلاش دوباره
+          </button>
+          <Link href="/wa" className="rounded-xl border border-neutral-200 px-5 py-2.5 text-sm font-bold text-neutral-700">
+            سالن‌های پیام‌رسان
+          </Link>
+          <Link href="/salons" className="text-sm font-bold text-neutral-500 underline-offset-4 hover:underline">
+            مشاهده همهٔ سالن‌ها
+          </Link>
+        </div>
       </main>
     );
   }

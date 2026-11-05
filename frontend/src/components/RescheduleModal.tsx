@@ -52,6 +52,7 @@ export default function RescheduleModal({
   serviceId,
   employeeId,
   branchId,
+  durationMin,
   timezone = "Asia/Tehran",
   onClose,
   onDone,
@@ -61,6 +62,12 @@ export default function RescheduleModal({
   serviceId: string | null | undefined;
   employeeId?: string | null;
   branchId?: string | null;
+  /**
+   * C12: مدتِ خودِ نوبت (دقیقه). مسیر جابه‌جایی مدت نوبت را حفظ می‌کند، پس
+   * اسلات‌ها هم باید با همان طول حساب شوند؛ بی این عدد، نوبتِ چندخدمتی
+   * ساعت‌های ردشده را سبز نشان می‌داد و کاربر 409 می‌گرفت.
+   */
+  durationMin?: number | null;
   timezone?: string | null;
   onClose: () => void;
   onDone: (message: string) => void;
@@ -93,6 +100,7 @@ export default function RescheduleModal({
         const q = new URLSearchParams({ serviceId, date });
         if (employeeId) q.set("employeeId", employeeId);
         if (branchId) q.set("branchId", branchId);
+        if (durationMin && durationMin > 0) q.set("durationMin", String(durationMin));
         const res = await fetch(`/api/salons/${salonSlug}/availability?${q}`);
         const data = await res.json();
         if (cancelled) return;
@@ -110,7 +118,7 @@ export default function RescheduleModal({
     return () => {
       cancelled = true;
     };
-  }, [salonSlug, serviceId, date, employeeId, branchId]);
+  }, [salonSlug, serviceId, date, employeeId, branchId, durationMin]);
 
   async function choose(startAt: string) {
     setSaving(true);

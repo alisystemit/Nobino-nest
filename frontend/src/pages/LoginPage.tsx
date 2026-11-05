@@ -7,6 +7,13 @@ import SalonIcon from "@/components/icons/SalonIcon";
 
 const RESEND_SECONDS = 60;
 
+/** ارقام فارسی/عربی را به لاتین تبدیل می‌کند تا تایپ با صفحه‌کلید فارسی عدد را پاک نکند */
+function toAsciiDigits(s: string): string {
+  return s
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<"phone" | "email" | "code" | "password">("phone");
@@ -196,7 +203,7 @@ export default function LoginPage() {
                   maxLength={11}
                   placeholder="09120000000"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => setPhone(toAsciiDigits(e.target.value).replace(/\D/g, ""))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && phone.length >= 11) requestOtp();
                   }}
@@ -256,7 +263,7 @@ export default function LoginPage() {
                   maxLength={6}
                   placeholder="····"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => setCode(toAsciiDigits(e.target.value).replace(/\D/g, ""))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && code.length >= 4) verifyCode();
                   }}

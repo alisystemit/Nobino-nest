@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "@/router-shim";
 import WebAppScript from "@/components/WebAppScript";
 
@@ -8,7 +9,31 @@ const messengers = [
   { name: "بله", icon: "🌐", color: "bg-purple-50 text-purple-700" },
 ];
 
+type WaSalon = { slug: string; name: string; city?: string | null };
+
 export default function WaPage() {
+  // U6: «سالن ماه» هاردکد بود؛ اگر آن اسلاگ وجود نداشته باشد کاربر به صفحهٔ ۴۰۴ می‌رفت
+  // و راه برگشتی نداشت. حالا نمونه‌ها از خودِ سرویس خوانده می‌شوند (فقط سالن‌های تأییدشده).
+  const [samples, setSamples] = useState<WaSalon[]>([]);
+  const [samplesFailed, setSamplesFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/salons/search?limit=3", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((d: any) => {
+        if (!alive) return;
+        if (!d || d.success === false) throw new Error("bad payload");
+        setSamples(Array.isArray(d.salons) ? d.salons : []);
+      })
+      .catch(() => {
+        if (alive) setSamplesFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <main className="mx-auto max-w-md px-6 py-12">
       <WebAppScript />
@@ -33,11 +58,29 @@ export default function WaPage() {
       </div>
 
       <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="font-extrabold text-neutral-900">سالن‌های نمونه</h2>
-        <div className="mt-4 space-y-3">
-          <Link href="/wa/salon/mah" className="block rounded-xl border border-neutral-100 px-4 py-3 transition hover:border-pink-300">
-            <div className="font-bold text-neutral-800">سالن زیبایی ماه</div>
-            <div className="text-xs text-neutral-400">نوبت صوتی — گالری — خدمات</div>
+        <h2 className="font-extrabold text-neutral-900">سالن‌های فعال</h2>
+        {samples.length > 0 ? (
+          <div className="mt-4 space-y-3">
+            {samples.map((s) => (
+              <Link key={s.slug} href={`/wa/salon/${s.slug}`} className="block rounded-xl border border-neutral-100 px-4 py-3 transition hover:border-pink-300">
+                <div className="font-bold text-neutral-800">{s.name}</div>
+                <div className="text-xs text-neutral-400">{s.city ? `${s.city} — ` : ""}نوبت صوتی — گالری — خدمات</div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-neutral-500">
+            {samplesFailed
+              ? "فهرست سالن‌ها خوانده نشد؛ از دکمهٔ پایین همهٔ سالن‌ها را ببینید."
+              : "هنوز سالن فعالی ثبت نشده است."}
+          </p>
+        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/salons" className="rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-bold text-white">
+            مشاهده همهٔ سالن‌ها
+          </Link>
+          <Link href="/" className="rounded-xl border border-neutral-200 px-4 py-2.5 text-sm font-bold text-neutral-700">
+            بازگشت به نوبینو
           </Link>
         </div>
       </div>

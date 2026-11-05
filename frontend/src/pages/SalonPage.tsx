@@ -6,13 +6,20 @@
  * را باز کرده باشد، پس چانک اولیهٔ سایت بزرگ نمی‌شود و ماژول /mini هم دست‌نخورده
  * می‌ماند.
  */
-import { lazy, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParamsTyped } from "@/router-shim";
+import { ChunkErrorBoundary, lazyWithRetry } from "@/lib/lazy-retry";
 
-const SalonExperience = lazy(() => import("@/salon/SalonExperience"));
+const SalonExperience = lazyWithRetry(() => import("@/salon/SalonExperience"));
 
 /** جایگزین حین دانلود چانک صفحهٔ سالن */
 function Skeleton() {
+  // اگر دانلود خیلی طول کشید (خطای نیمه‌باز شبکه) اسکلت بی‌پایان نشود: راه خروج نشان می‌دهیم
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSlow(true), 12_000);
+    return () => window.clearTimeout(t);
+  }, []);
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-6">
       <div className="h-32 animate-pulse rounded-3xl bg-neutral-200/70 dark:bg-neutral-800/70" />
@@ -20,7 +27,20 @@ function Skeleton() {
         <div className="h-16 animate-pulse rounded-2xl bg-neutral-200/70 dark:bg-neutral-800/70" />
         <div className="h-24 animate-pulse rounded-2xl bg-neutral-200/70 dark:bg-neutral-800/70" />
       </div>
-      <p className="mt-6 text-center text-sm text-neutral-500">در حال بارگذاری صفحهٔ سالن…</p>
+      {slow ? (
+        <div className="mt-6 space-y-3 text-center">
+          <p className="text-sm text-neutral-500">بارگذاری صفحهٔ سالن طول کشید؛ اتصال اینترنت شما را بررسی کنید.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-xl bg-pink-600 px-5 py-2.5 text-sm font-bold text-white"
+          >
+            تلاش دوباره
+          </button>
+        </div>
+      ) : (
+        <p className="mt-6 text-center text-sm text-neutral-500">در حال بارگذاری صفحهٔ سالن…</p>
+      )}
     </main>
   );
 }
@@ -43,8 +63,10 @@ export default function SalonPage({ slug: slugProp }: { slug?: string }) {
   }
 
   return (
-    <Suspense fallback={<Skeleton />}>
-      <SalonExperience slug={slug} />
-    </Suspense>
+    <ChunkErrorBoundary title="صفحهٔ سالن باز نشد">
+      <Suspense fallback={<Skeleton />}>
+        <SalonExperience slug={slug} />
+      </Suspense>
+    </ChunkErrorBoundary>
   );
 }

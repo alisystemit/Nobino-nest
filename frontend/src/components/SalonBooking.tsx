@@ -51,11 +51,16 @@ function localHHMM(iso: string, timeZone: string): string {
   }
 }
 
-/** انتخاب اسلات آزادِ مطابق با ساعت استخراج‌شده از صدا */
+/**
+ * انتخاب اسلات آزادِ مطابق با ساعت استخراج‌شده از صدا.
+ * C13: قبلاً `?? list[0]` باعث می‌شد اگر ساعت گفته‌شده پر بود، اولین وقتِ آن روز
+ * (که «نزدیک‌ترین» هم نیست) جایش بنشیند و همان ثبت و پیامک شود. حالا فقط ساعتِ
+ * دقیقاً گفته‌شده انتخاب می‌شود؛ اگر آزاد نبود، کاربر خودش از لیست انتخاب می‌کند.
+ */
 function matchSlot(wanted: string | null | undefined, list: Slot[], timeZone: string): string | null {
   if (!wanted || list.length === 0) return null;
-  const hit = list.find((s) => toLatinDigits(localHHMM(s.startAt, timeZone)) === wanted) ?? list[0];
-  return hit.startAt;
+  const hit = list.find((s) => toLatinDigits(localHHMM(s.startAt, timeZone)) === wanted);
+  return hit ? hit.startAt : null;
 }
 
 /** تاریخ امروز در منطقه‌زمان سالن (نه منطقه‌زمان مرورگر) */
@@ -181,11 +186,16 @@ export default function SalonBooking({
         if (!cancelled) {
           const list: Slot[] = data.success ? data.slots : [];
           setSlots(list);
-          // اگر صدا ساعتی استخراج کرده بود، اسلات آزاد همان ساعت انتخاب می‌شود
-          const hit = matchSlot(voiceTimeRef.current, list, timezone);
+          // C13: فقط ساعتِ دقیقاً گفته‌شده از صدا انتخاب می‌شود؛ اگر آزاد نبود،
+          // به‌جای جایگزینی بی‌صدا با اولین وقت، خود کاربر از لیست انتخاب می‌کند.
+          const wanted = voiceTimeRef.current;
+          const hit = matchSlot(wanted, list, timezone);
           if (hit) {
             setSlotISO(hit);
             voiceTimeRef.current = null;
+          } else if (wanted && data.success && list.length > 0) {
+            voiceTimeRef.current = null;
+            setMsg({ ok: false, text: `ساعت ${wanted} در ${date} آزاد نیست؛ از فهرست یک ساعت دیگر انتخاب کنید.` });
           }
           if (!data.success && data.error) setMsg({ ok: false, text: data.error });
         }
@@ -333,9 +343,14 @@ export default function SalonBooking({
         if (iso) {
           setSlotISO(iso);
           voiceTimeRef.current = null;
+          setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${data.fieldValue}` });
+        } else if (slots.length > 0) {
+          // C13: ساعتِ گفته‌شده در این روز آزاد نیست — وقت دیگری را جای آن نمی‌گذاریم
+          setMsg({ ok: false, text: `ساعت ${data.fieldValue} در این روز آزاد نیست؛ از فهرست ساعت دلخواه را انتخاب کنید.` });
+        } else {
+          setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${data.fieldValue}` });
         }
-      }
-      if (data.fieldValue) {
+      } else if (data.fieldValue) {
         setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${data.fieldValue}` });
       } else {
         setMsg({ ok: false, text: `${FIELD_LABELS[field]} باز هم قابل تشخیص نبود؛ لطفاً آن را تایپ کنید.` });

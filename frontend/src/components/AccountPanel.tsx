@@ -534,6 +534,7 @@ export default function AccountPanel({ initialMe }: { initialMe: Me }) {
           serviceId={rescheduleTarget.serviceId}
           employeeId={rescheduleTarget.employeeId}
           branchId={rescheduleTarget.branchId}
+          durationMin={Math.round((new Date(rescheduleTarget.endAt).getTime() - new Date(rescheduleTarget.startAt).getTime()) / 60000)}
           timezone={rescheduleTarget.salonTimezone}
           onClose={() => setRescheduleTarget(null)}
           onDone={(text) => {

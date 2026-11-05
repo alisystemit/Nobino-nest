@@ -17,6 +17,7 @@ import {
 } from "@/mini/components/booking";
 import { Button, Field, Icon, Row, SectionTitle, Sheet } from "@/mini/components/ui";
 import { haptic } from "@/mini/lib/bridge";
+import { startDepositPayment } from "@/mini/lib/deposit";
 import { dayLabel, duration, faDigits, isPhone, normalizePhone, timeLabel, toman, weekdayLabel, ymd } from "@/mini/lib/format";
 import { mapi, useMini } from "@/mini/lib/store";
 import type { AvailabilityResponse, MiniService, MiniStaff } from "@/mini/lib/types";
@@ -37,12 +38,17 @@ function localHHMM(iso: string, tz: string): string {
   }
 }
 
-/** اسلات آزادِ مطابق ساعت استخراج‌شده از صوت */
+/**
+ * اسلات آزادِ مطابق ساعت استخراج‌شده از صوت.
+ * C13: `?? list[0]` باعث می‌شد ساعتِ گفته‌شده بی‌صدا با اولین وقتِ روز جایگزین
+ * شود (و در مسیر صوتی مینی‌اپ همان‌طور ثبت و پیامک هم می‌شد). حالا فقط ساعتِ
+ * دقیقاً گفته‌شده انتخاب می‌شود و اگر نبود، خودِ کاربر انتخاب می‌کند.
+ */
 function matchSlot(wanted: string | null, list: { startAt: string }[], tz: string): string | null {
   if (!wanted || !list.length) return null;
   const needle = latinDigits(wanted).slice(0, 5);
-  const hit = list.find((s) => latinDigits(localHHMM(s.startAt, tz)).slice(0, 5) === needle) ?? list[0];
-  return hit.startAt;
+  const hit = list.find((s) => latinDigits(localHHMM(s.startAt, tz)).slice(0, 5) === needle);
+  return hit ? hit.startAt : null;
 }
 
 function addDaysISO(iso: string, days: number): string {
@@ -74,6 +80,7 @@ function SummaryCard({
   when,
   timezone,
   showPrices,
+  depositAmount,
 }: {
   services: string[];
   staffName: string;
@@ -82,6 +89,8 @@ function SummaryCard({
   when: string;
   timezone: string;
   showPrices: boolean;
+  /** C14: بیعانهٔ همین نوبت (از پاسخ availability) — قبل از ثبت هم باید دیده شود */
+  depositAmount?: number | null;
 }) {
   return (
     <div className="mini-card">
@@ -109,6 +118,12 @@ function SummaryCard({
         <div className="mini-row">
           <span>زمان</span>
           <span>{whenLabel(when, timezone)}</span>
+        </div>
+      ) : null}
+      {depositAmount && depositAmount > 0 ? (
+        <div className="mini-row">
+          <span>بیعانه</span>
+          <span>{showPrices ? `${toman(depositAmount)} — پیش از نوبت پرداخت می‌شود` : "این نوبت بیعانه دارد؛ مبلغش پس از ثبت نشان داده می‌شود"}</span>
         </div>
       ) : null}
     </div>
@@ -149,7 +164,8 @@ export default function BookingPanel({
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [finding, setFinding] = useState(false);
   const [waitOpen, setWaitOpen] = useState(false);
-  const [done, setDone] = useState<{ id: string; startAt: string } | null>(null);
+  const [done, setDone] = useState<{ id: string; startAt: string; depositAmount?: number | null } | null>(null);
+  const [depositBusy, setDepositBusy] = useState(false);
 
   // فقط «مشتری» نام/شماره از حسابش پیش‌پر می‌شود؛ سالن‌دار برای مشتریِ دیگری رزرو می‌کند.
   const isCustomer = me?.role === "CUSTOMER";
@@ -216,13 +232,13 @@ export default function BookingPanel({
       toast(res.data?.error || "محاسبهٔ ساعت‌های خالی ممکن نشد", "error");
     } else {
       setAvailability(res.data);
-      // ساعتی که صوت استخراج کرده بود، روی اولین اسلات مطابق نشسته می‌شود
+      // ساعتی که صوت استخراج کرده بود، فقط اگر واقعاً آزاد بود نشسته می‌شود (C13)
       if (voiceTimeRef.current) {
-        const hit = matchSlot(voiceTimeRef.current, res.data.slots ?? [], timezone);
-        if (hit) {
-          setStartAt(hit);
-          voiceTimeRef.current = null;
-        }
+        const wanted = voiceTimeRef.current;
+        const hit = matchSlot(wanted, res.data.slots ?? [], timezone);
+        voiceTimeRef.current = null;
+        if (hit) setStartAt(hit);
+        else toast(`ساعت ${faDigits(wanted)} در ${dayLabel(day, timezone)} آزاد نیست — از لیست یک ساعت دیگر انتخاب کنید.`, "info");
       }
     }
     setSlotsLoading(false);
@@ -286,7 +302,12 @@ export default function BookingPanel({
     if (!isPhone(cleanPhone)) return toast("شماره موبایل معتبر نیست (مثال: ۰۹۱۲۳۴۵۶۷۸۹)", "error");
 
     setSubmitting(true);
-    const res = await mapi<{ success: boolean; error?: string; appointment?: { id: string; startAt: string } }>("/api/appointments", {
+    const res = await mapi<{
+      success: boolean;
+      error?: string;
+      appointment?: { id: string; startAt: string; depositAmount?: number | null };
+      applied?: { depositAmount?: number | null };
+    }>("/api/appointments", {
       method: "POST",
       body: JSON.stringify({
         salonId: salon.id,
@@ -307,10 +328,27 @@ export default function BookingPanel({
     }
     saveProfile({ name: cleanName, phone: cleanPhone });
     haptic("success");
-    setDone(res.data.appointment);
+    // C14: مبلغ بیعانه همراه نوبت به شیت موفقیت می‌رود تا مهمان بداند و بتواند پرداخت کند
+    setDone({
+      id: res.data.appointment.id,
+      startAt: res.data.appointment.startAt,
+      depositAmount: res.data.applied?.depositAmount ?? res.data.appointment.depositAmount ?? null,
+    });
     setNote("");
     setStartAt("");
     onBooked?.();
+  }
+
+  /** C14: پرداخت بیعانه از شیت موفقیت — همان مسیر مینی‌اپ (`POST /api/payments/create`) */
+  async function payDeposit(appointmentId: string) {
+    setDepositBusy(true);
+    const r = await startDepositPayment(appointmentId);
+    setDepositBusy(false);
+    if (r.ok && r.redirectUrl) {
+      window.location.assign(r.redirectUrl);
+      return;
+    }
+    toast(r.error || "پرداخت بیعانه ممکن نشد؛ با سالن تماس بگیرید", "error");
   }
 
   function applyVoice(patch: VoicePatch) {
@@ -499,6 +537,7 @@ export default function BookingPanel({
               timezone={timezone}
               staffName={shownStaff.find((s) => s.id === staffId)?.name ?? ""}
               showPrices={showPrices}
+              depositAmount={availability?.depositAmount}
             />
           </>
         ) : null}
@@ -562,6 +601,26 @@ export default function BookingPanel({
             <Row label="سالن" value={salon.name} />
             <Row label="زمان" value={whenLabel(done.startAt, timezone)} />
             <Row label="پکیج‌ها" value={pickedServices.map((s) => s.name).join("، ") || "—"} />
+            {done.depositAmount && done.depositAmount > 0 ? (
+              <>
+                <Row label="بیعانه" value={toman(Number(done.depositAmount))} />
+                {/* C14: بیعانه باید از همین‌جا قابل پرداخت باشد، نه فقط در پیامک */}
+                <div className="mini-note" style={{ marginTop: 10 }}>
+                  برای تأیید نوبت، بیعانه را همین‌جا بپردازید.
+                  {me ? null : " پرداخت بیعانه نیاز به ورود دارد — با همان شماره موبایل این نوبت وارد شوید تا نوبت‌های شما و دکمهٔ پرداخت بیعانه باز شود."}
+                </div>
+                <div className="mini-btn-row" style={{ marginTop: 10 }}>
+                  {me ? (
+                    <Button onClick={() => void payDeposit(done.id)} loading={depositBusy}>
+                      <Icon name="wallet" size={17} />
+                      پرداخت بیعانه
+                    </Button>
+                  ) : (
+                    <Button onClick={onLoginRequired}>ورود و پرداخت بیعانه</Button>
+                  )}
+                </div>
+              </>
+            ) : null}
             <div className="mini-btn-row" style={{ marginTop: 14 }}>
               <Button variant="ghost" onClick={() => setDone(null)}>
                 بستن

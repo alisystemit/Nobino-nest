@@ -2,17 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "@/router-shim";
-import { useRouter } from "@/router-shim";
+import { useNavigate } from "@/router-shim";
 import Pagination from "@/components/ui/Pagination";
+
+import { fetchMe } from "@/lib/session";
 
 // مشتریان به پکیج‌ها دسترسی ندارند
 async function isCustomer(): Promise<boolean> {
-  try {
-    const me = await (await fetch("/api/auth/me")).json();
-    return me.user?.role === "CUSTOMER";
-  } catch {
-    return false;
-  }
+  const { user } = await fetchMe();
+  return user?.role === "CUSTOMER";
 }
 
 type Feature = { key: string | null; label: string; icon: string };
@@ -22,7 +20,7 @@ type Gateway = { id: string; name: string; sandbox: boolean };
 const PAGE_SIZE = 6;
 
 export default function PackagesPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [packages, setPackages] = useState<Pkg[]>([]);
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [gateway, setGateway] = useState("");
@@ -36,11 +34,15 @@ export default function PackagesPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  // C17/U5: افکت فقط با «صفحه» باید دوباره اجرا شود. پیش‌تر وابستگی `[router, page]`
+  // بود و `useRouter()` هر رندر یک شیء نو می‌ساخت؛ پس هر setState افکت را از نو فعال
+  // می‌کرد و صفحهٔ پکیج‌ها سه درخواست auth/me + packages + gateways را بی‌نهایت تکرار
+  // می‌کرد. `useNavigate` هویت پایدار دارد، پس آن را از وابستگی‌ها هم بیرون گذاشتیم.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (await isCustomer()) {
-        if (!cancelled) router.replace("/dashboard");
+        if (!cancelled) navigate("/dashboard", { replace: true });
         return;
       }
       try {
@@ -66,7 +68,7 @@ export default function PackagesPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, page]);
+  }, [navigate, page]);
 
   async function buy(pkgId: string) {
     setBuying(pkgId);
@@ -82,11 +84,13 @@ export default function PackagesPage() {
         setError(data.error || "خطا در ایجاد پرداخت");
         return;
       }
-      // انتقال به درگاه یا صفحه تست
+      // انتقال به درگاه یا صفحهٔ نتیجه (سفارش رایگان هم از سرور تأیید می‌شود)
       if (data.redirectUrl) {
         window.location.assign(data.redirectUrl);
+      } else if (data.free && data.orderId) {
+        navigate(`/payment/result?order=${encodeURIComponent(data.orderId)}`);
       } else {
-        router.push(`/payment/result?status=success`);
+        setError("پاسخی از درگاه دریافت نشد. دوباره تلاش کنید.");
       }
     } catch {
       setError("خطای شبکه");
