@@ -7,6 +7,7 @@ import AiSettings from "@/components/AiSettings";
 import SalonIcon from "@/components/icons/SalonIcon";
 import { MODULES, findModule, moduleIcon, moduleLabel, normalizeFeatures, type StoredFeature } from "@/lib/plans/modules";
 import Pagination from "@/components/ui/Pagination";
+import AdminBackups from "@/components/AdminBackups";
 
 /* ─── تایپ‌ها ────────────────────────────────────────────────────────── */
 
@@ -3997,6 +3998,7 @@ export default function AdminExtras({ initialTab = "metrics" }: { initialTab?: s
         )}
         {tab === "broadcast" && <BroadcastView ctx={ctx} />}
         {tab === "audit" && <AuditView ctx={ctx} />}
+        {tab === "backup" && <AdminBackups ctx={ctx} />}
         {tab === "security" && <SecurityView ctx={ctx} />}
         {tab === "ai" && <AiSettings />}
         {tab === "settings" && <SystemSettings />}
