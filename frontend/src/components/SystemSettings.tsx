@@ -103,6 +103,7 @@ export default function SystemSettings() {
   const [extras, setExtras] = useState<SettingsPayload["extras"]>([]);
   const [form, setForm] = useState<Record<string, string>>({});
   const [cleared, setCleared] = useState<Set<string>>(new Set());
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -194,6 +195,23 @@ export default function SystemSettings() {
     const skipped = r.data.skipped?.length ? ` — ${toPersianDigits(r.data.skipped.length)} کلید فقط‌محیطی رد شد` : "";
     setMsg({ ok: true, text: `${toPersianDigits(updates.length)} تنظیم ذخیره شد ✅${skipped} (نیاز به تازه‌سازی صفحه برای دیدن مقدار تازه)` });
     setCleared(new Set());
+  }
+
+  /** یافتهٔ A25: کلیدهای یتیم (خارج از کاتالوگ) از همین‌جا حذف می‌شوند، نه با SQL */
+  async function deleteOrphan(key: string) {
+    if (!window.confirm(`کلید «${key}» در کاتالوگ تنظیمات نیست و فقط یک رکورد دیتابیسی است.\nهمین‌جا برای همیشه حذف شود؟`)) return;
+    setDeletingKey(key);
+    const r = await api<{ success: boolean; error?: string }>("/api/admin/settings", {
+      method: "PATCH",
+      body: JSON.stringify({ updates: [{ key, clear: true }] }),
+    });
+    setDeletingKey(null);
+    if (!r.ok || !r.data?.success) {
+      setMsg({ ok: false, text: String(r.data?.error ?? "خطا در حذف کلید") });
+      return;
+    }
+    setExtras((prev) => (prev ?? []).filter((e) => e.key !== key));
+    setMsg({ ok: true, text: `کلید «${key}» حذف شد ✅` });
   }
 
   if (loading) return <div className="py-10 text-center text-neutral-400">در حال بارگیری تنظیمات...</div>;
@@ -351,7 +369,17 @@ export default function SystemSettings() {
             {extras!.map((e) => (
               <div key={e.key} className="flex items-center justify-between gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-[11px] dark:border-neutral-800">
                 <code className="font-mono text-neutral-600 dark:text-neutral-300">{e.key}</code>
-                <span className="text-neutral-400">{e.isSecret ? (e.hasDbValue ? "محرمانه — ست شده" : "محرمانه — خالی") : String(e.value ?? "").slice(0, 60)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-neutral-400">{e.isSecret ? (e.hasDbValue ? "محرمانه — ست شده" : "محرمانه — خالی") : String(e.value ?? "").slice(0, 60)}</span>
+                  <button
+                    type="button"
+                    onClick={() => deleteOrphan(e.key)}
+                    disabled={deletingKey === e.key}
+                    className="rounded-lg border border-red-200 px-2 py-1 font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                  >
+                    {deletingKey === e.key ? "در حال حذف…" : "حذف کلید"}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

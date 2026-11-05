@@ -757,6 +757,11 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
   const [igEditing, setIgEditing] = useState(false);
   const [igValue, setIgValue] = useState("");
   const [igSaving, setIgSaving] = useState(false);
+  // A8: تعلیق/لغو تأیید باید دلیل و تکلیف نوبت‌های آینده را از سوپرادمین بگیرد
+  const [statusTarget, setStatusTarget] = useState<{ salon: Salon; field: "isApproved" | "isActive" } | null>(null);
+  const [statusReason, setStatusReason] = useState("");
+  const [cancelUpcoming, setCancelUpcoming] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending" | "inactive">("all");
   const [planFilter, setPlanFilter] = useState("all");
@@ -861,17 +866,44 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
     }
   }
 
+  /**
+   * A8: اقدامات بازدارنده (لغو تأیید / تعلیق) اول دلیل و تکلیف نوبت‌های آینده را می‌پرسند
+   * و پیام سرور (که اثرات تصمیم را می‌شمارد) را نشان می‌دهند؛ اقدامات مثبت مستقیم اجرا می‌شوند.
+   */
   async function toggle(salon: Salon, field: "isApproved" | "isActive") {
-    const r = await ctx.api(
+    const turningOff = field === "isApproved" ? salon.isApproved : salon.isActive;
+    if (turningOff) {
+      setStatusTarget({ salon, field });
+      setStatusReason("");
+      setCancelUpcoming(false);
+      return;
+    }
+    await applyStatus(salon, { [field]: true });
+  }
+
+  async function applyStatus(salon: Salon, body: Record<string, unknown>) {
+    setStatusBusy(true);
+    const d = await ctx.api<ApiRes & { message?: string; effects?: { upcomingAppointments?: number } }>(
       `/api/admin/salons/${salon.id}/status`,
       "PATCH",
-      { [field]: !salon[field] },
-      field === "isApproved" ? (salon.isApproved ? "تأیید سالن لغو شد" : "سالن تأیید شد ✅") : salon.isActive ? "سالن معلق شد" : "سالن فعال شد ✅"
+      body,
+      ""
     );
-    if (r) {
-      refresh();
-      setVersion((v) => v + 1);
-    }
+    setStatusBusy(false);
+    if (!d) return;
+    const field = body.isApproved !== undefined ? "isApproved" : "isActive";
+    const fallback =
+      field === "isApproved"
+        ? body.isApproved === true
+          ? "سالن تأیید شد ✅"
+          : "تأیید سالن لغو شد"
+        : body.isActive === true
+          ? "سالن فعال شد ✅"
+          : "سالن معلق شد";
+    ctx.setMsg({ ok: true, text: d.message || fallback });
+    setStatusTarget(null);
+    refresh();
+    setVersion((v) => v + 1);
   }
 
   return (
@@ -1274,6 +1306,69 @@ function SalonManagerList({ ctx, salons, refresh }: { ctx: Ctx; salons: Salon[];
       ))}
 
       <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />
+
+      {statusTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          onClick={() => {
+            if (!statusBusy) setStatusTarget(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-neutral-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="text-base font-black text-neutral-900 dark:text-neutral-100">
+              {statusTarget.field === "isApproved" ? "لغو تأیید سالن" : "تعلیق (غیرفعال‌سازی) سالن"}
+            </h4>
+            <p className="mt-1 text-xs leading-6 text-neutral-600 dark:text-neutral-300">
+              «{statusTarget.salon.name}» از دسترس مشتری‌ها خارج می‌شود؛ وب‌هوک‌ها و یادآوری خودکار نوبت‌هایش هم متوقف
+              می‌شوند و مالک سالن با پیامک و اطلاع‌رسانی درون‌اپ مطلع می‌شود.
+            </p>
+            <label className="mt-3 block text-xs font-bold text-neutral-700 dark:text-neutral-200">
+              دلیل (برای لاگ و اطلاع مالک سالن)
+              <input
+                value={statusReason}
+                onChange={(e) => setStatusReason(e.target.value)}
+                maxLength={200}
+                placeholder="مثلاً: عدم رعایت قوانین سامانه"
+                className={`mt-1 ${input}`}
+              />
+            </label>
+            <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-xs text-neutral-700 dark:border-neutral-700 dark:text-neutral-200">
+              <input
+                type="checkbox"
+                checked={cancelUpcoming}
+                onChange={(e) => setCancelUpcoming(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-red-600"
+              />
+              <span>
+                نوبت‌های آیندهٔ این سالن هم لغو شود و به مشتری‌ها پیامک اطلاع‌رسانی ارسال شود.
+                <br />
+                <span className="text-[11px] text-neutral-500">اگر تیکت را نزنید، نوبت‌های برجا دست‌نخورده می‌مانند.</span>
+              </span>
+            </label>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+              <button onClick={() => setStatusTarget(null)} disabled={statusBusy} className={ghostBtn}>
+                انصراف
+              </button>
+              <button
+                onClick={() =>
+                  applyStatus(statusTarget.salon, {
+                    [statusTarget.field]: false,
+                    ...(statusReason.trim() ? { reason: statusReason.trim() } : {}),
+                    ...(cancelUpcoming ? { cancelUpcoming: true } : {}),
+                  })
+                }
+                disabled={statusBusy}
+                className={dangerBtn}
+              >
+                {statusBusy ? "در حال اجرا..." : "تأیید و اجرا"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1439,23 +1534,38 @@ function ReviewManager({ ctx }: { ctx: Ctx }) {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [rating, setRating] = useState("");
+  const [replied, setReplied] = useState("");
+  const [q, setQ] = useState("");
+  const [qInput, setQInput] = useState("");
+  const [counts, setCounts] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/admin/reviews?page=${page}&limit=25`)
+    const params = new URLSearchParams({ page: String(page), limit: "25" });
+    if (rating) params.set("rating", rating);
+    if (replied) params.set("replied", replied);
+    if (q) params.set("q", q);
+    fetch(`/api/admin/reviews?${params}`)
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled && d.success) {
+        if (cancelled) return;
+        if (d.success) {
           setReviews(d.reviews as Review[]);
           setTotal(d.total ?? 0);
           setTotalPages(Math.max(1, Math.ceil((d.total ?? 0) / 25)));
+          if (d.counts) setCounts(d.counts as Record<string, number>);
+        } else {
+          ctx.setMsg({ ok: false, text: String(d.error ?? "خطا در دریافت نظرات") });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) ctx.setMsg({ ok: false, text: "خطا در ارتباط با سرور" });
+      });
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, rating, replied, q, ctx]);
 
   async function remove(id: string) {
     const r = await ctx.api("/api/admin/reviews", "DELETE", { id }, "نظر حذف شد ✅");
@@ -1464,7 +1574,75 @@ function ReviewManager({ ctx }: { ctx: Ctx }) {
 
   return (
     <div className="space-y-2">
-      {reviews.length === 0 && <p className="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">نظری ثبت نشده است.</p>}
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
+        <select
+          className={`${input} w-auto`}
+          value={rating}
+          onChange={(e) => {
+            setRating(e.target.value);
+            setPage(1);
+          }}
+          aria-label="فیلتر بر اساس امتیاز"
+        >
+          <option value="">همهٔ امتیازها</option>
+          {[5, 4, 3, 2, 1].map((n) => (
+            <option key={n} value={String(n)}>
+              ★ {n}
+              {counts ? ` (${faNum(counts[String(n)] ?? 0)})` : ""}
+            </option>
+          ))}
+        </select>
+        <select
+          className={`${input} w-auto`}
+          value={replied}
+          onChange={(e) => {
+            setReplied(e.target.value);
+            setPage(1);
+          }}
+          aria-label="فیلتر پاسخ"
+        >
+          <option value="">پاسخ‌دار و بی‌پاسخ</option>
+          <option value="true">فقط پاسخ‌داده‌شده</option>
+          <option value="false">فقط بی‌پاسخ</option>
+        </select>
+        <input
+          className={`${input} flex-1 min-w-[180px]`}
+          placeholder="جست‌وجو در متن نظر یا نام/تلفن مشتری"
+          value={qInput}
+          onChange={(e) => setQInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              setQ(qInput.trim());
+              setPage(1);
+            }
+          }}
+          aria-label="جست‌وجوی نظر"
+        />
+        <button
+          className={ghostBtn}
+          onClick={() => {
+            setQ(qInput.trim());
+            setPage(1);
+          }}
+        >
+          جست‌وجو
+        </button>
+        {(rating || replied || q) && (
+          <button
+            className={ghostBtn}
+            onClick={() => {
+              setRating("");
+              setReplied("");
+              setQ("");
+              setQInput("");
+              setPage(1);
+            }}
+          >
+            پاک‌کردن فیلترها
+          </button>
+        )}
+      </div>
+      {reviews.length === 0 && <p className="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">نظری با این فیلترها پیدا نشد.</p>}
       {reviews.map((r) => (
         <div key={r.id} className={`${listRow} flex flex-wrap items-center justify-between gap-2`}>
           <div>
@@ -2007,35 +2185,95 @@ function AuditView({ ctx }: { ctx: Ctx }) {
 
 /* ─── پخش پیامک سراسری ───────────────────────────────────────────────── */
 
+type BroadcastPreview = {
+  preview?: boolean;
+  recipients?: number;
+  audienceLabel?: string;
+  sample?: string[];
+  alreadyQueuedToday?: number;
+  dailyCap?: number;
+  remainingToday?: number;
+  overCap?: boolean;
+};
+
 function BroadcastView({ ctx }: { ctx: Ctx }) {
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("ALL_SALONS");
   const [sending, setSending] = useState(false);
+  const [pv, setPv] = useState<BroadcastPreview | null>(null);
+
+  /** پیش‌نمایش: تعداد گیرنده‌ها را از سرور می‌گیرد بدون اینکه چیزی در صف بگذارد */
+  async function preview(silent = false): Promise<BroadcastPreview | null> {
+    if (!message.trim()) {
+      if (!silent) ctx.setMsg({ ok: false, text: "متن پیامک را وارد کنید" });
+      return null;
+    }
+    const d = await ctx.api<ApiRes<BroadcastPreview>>("/api/admin/broadcast", "POST", { message: message.trim(), audience, dryRun: true }, "تعداد گیرنده‌ها محاسبه شد (چیزی ارسال نشد) ✅");
+    if (!d) return null;
+    setPv(d);
+    return d;
+  }
 
   async function send() {
-    if (!message.trim()) return ctx.setMsg({ ok: false, text: "متن پیامک را وارد کنید" });
-    setSending(true);
-    const d = await ctx.api<ApiRes<{ queued?: number }>>("/api/admin/broadcast", "POST", { message: message.trim(), audience });
-    if (d) {
-      ctx.setMsg({ ok: true, text: `پیامک به ${d.queued ?? 0} شماره در صف قرار گرفت ✅` });
-      setMessage("");
+    const p = (await preview(true)) ?? pv;
+    if (!p) return;
+    if (p.overCap) {
+      ctx.setMsg({ ok: false, text: `سقف روزانه پر است؛ ${p.remainingToday ?? 0} گیرنده باقی مانده و این موج ${p.recipients ?? 0} گیرنده دارد.` });
+      return;
     }
+    const ok = window.confirm(
+      `این متن به ${faNum(p.recipients ?? 0)} شماره پیامک می‌شود (${p.audienceLabel ?? ""}) و هزینهٔ واقعی دارد.\n\nامروز ${faNum(p.alreadyQueuedToday ?? 0)} پیامک سراسری صف شده و سقف ${faNum(p.dailyCap ?? 0)} است.\n\nتأیید می‌کنید؟`
+    );
+    if (!ok) {
+      ctx.setMsg({ ok: false, text: "ارسال لغو شد — هیچ پیامکی در صف نرفته است." });
+      return;
+    }
+    setSending(true);
+    const d = await ctx.api<ApiRes<{ queued?: number; duplicates?: number }>>("/api/admin/broadcast", "POST", {
+      message: message.trim(),
+      audience,
+      confirm: true,
+    }, "موج پیامکی در صف قرار گرفت ✅");
     setSending(false);
+    if (!d) return;
+    ctx.setMsg({
+      ok: true,
+      text: `${faNum(d.queued ?? 0)} پیامک به صف رفت${d.duplicates ? ` — ${faNum(d.duplicates)} مورد تکراری نادیده گرفته شد` : ""} ✅ (همان متن در همان روز دوباره ارسال نمی‌شود)`,
+    });
+    setMessage("");
+    setPv(null);
   }
 
   return (
     <div className={`${card} max-w-2xl`}>
       <h4 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-100">پخش پیامک سراسری</h4>
-      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">پیامک از طریق صف اعلان‌ها ارسال می‌شود و به‌صورت تدریجی تحویل می‌گردد.</p>
-      <textarea className={`${input} mt-3 min-h-[90px]`} placeholder="متن پیامک..." aria-label="متن پیامک" value={message} onChange={(e) => setMessage(e.target.value)} />
+      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">پیامک از طریق صف اعلان‌ها ارسال می‌شود و به‌صورت تدریجی تحویل می‌گردد. پیش از ارسال، تعداد گیرنده‌ها را ببینید و تأیید کنید.</p>
+      <textarea className={`${input} mt-3 min-h-[90px]`} placeholder="متن پیامک..." aria-label="متن پیامک" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={600} />
       <select className={`${input} mt-3`} value={audience} onChange={(e) => setAudience(e.target.value)} aria-label="مخاطبان">
         <option value="ALL_SALONS">همه سالن‌ها (فعال)</option>
         <option value="SALON_OWNERS">همه مالکان سالن</option>
         <option value="ACTIVE_SUBS">مشترکین فعال</option>
       </select>
-      <button onClick={send} disabled={sending || !message.trim()} className={`${primaryBtn} mt-3 w-full py-3`}>
-        {sending ? "در حال ارسال..." : "ارسال پیامک سراسری"}
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button onClick={() => void preview()} disabled={sending || !message.trim()} className={`${input} px-4 py-2 text-xs font-bold`}>
+          پیش‌نمایش گیرنده‌ها
+        </button>
+        <button onClick={send} disabled={sending || !message.trim()} className={`${primaryBtn} px-5 py-2.5 text-sm`}>
+          {sending ? "در حال ارسال..." : "ارسال پیامک سراسری"}
+        </button>
+      </div>
+      {pv && (
+        <div className="mt-3 rounded-2xl bg-neutral-50 p-3 text-[11px] text-neutral-600 dark:bg-neutral-800/60 dark:text-neutral-300">
+          <p>
+            مخاطبان: <b>{pv.audienceLabel ?? "-"}</b> — <b>{faNum(pv.recipients ?? 0)}</b> شماره
+          </p>
+          {pv.sample && pv.sample.length > 0 && <p className="mt-1">نمونه: {pv.sample.join("، ")}</p>}
+          <p className="mt-1">
+            امروز صف شده: {faNum(pv.alreadyQueuedToday ?? 0)} — سقف روزانه: {faNum(pv.dailyCap ?? 0)} — باقی‌مانده: {faNum(pv.remainingToday ?? 0)}
+          </p>
+          {pv.overCap && <p className="mt-1 font-bold text-red-600 dark:text-red-400">این موج از سقف روزانه بیشتر است و ارسال نمی‌شود.</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -3295,6 +3533,10 @@ function LimitMatrixPanel({ ctx }: { ctx: Ctx }) {
     }
   }
 
+  /** ارقام فارسی/عربی را به لاتین تبدیل می‌کند تا «۵» یا «۱۲۳۴۵» صفر خوانده نشوند */
+  const toAsciiDigits = (s: string) =>
+    s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+
   function saveDirty() {
     const updates = dirtyKeys.flatMap((key) => {
       const [plan, limitKey] = key.split(":");
@@ -3306,7 +3548,7 @@ function LimitMatrixPanel({ ctx }: { ctx: Ctx }) {
           ? raw === "true"
           : raw.trim() === "" || raw === "null"
             ? null
-            : Number(raw.replace(/[^\d]/g, ""));
+            : Number(toAsciiDigits(raw).replace(/[^\d]/g, ""));
       return [{ plan, key: limitKey, value }];
     });
     void persist(updates, `${faNum(updates.length)} محدودیت به‌روزرسانی شد ✅`);
@@ -3324,6 +3566,7 @@ function LimitMatrixPanel({ ctx }: { ctx: Ctx }) {
       ctx.setMsg({ ok: true, text: "همهٔ سقف‌ها همین حالا روی پیش‌فرض پلن‌ها هستند." });
       return;
     }
+    if (!window.confirm(`همهٔ سقف‌های دستی (${faNum(updates.length)} مورد) به پیش‌فرض پلن‌ها برمی‌گردند. ادامه می‌دهید؟`)) return;
     void persist(updates, `${faNum(updates.length)} سقف به پیش‌فرض پلن برگشت ✅`);
   }
 
