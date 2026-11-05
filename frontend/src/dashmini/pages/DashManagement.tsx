@@ -17,12 +17,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { Area, Button, Chip, EmptyState, Field, Icon, SectionTitle, Sheet, SkeletonList, STATUS_LABEL, Tabs } from "@/mini/components/ui";
-import { faDigits, timeLabel, ymd } from "@/mini/lib/format";
+import { faDigits, faText, timeLabel, ymd } from "@/mini/lib/format";
 import { JALALI_MONTHS, WEEKDAYS_SHORT, formatJalali, formatJalaliWithWeekday, isoToJalali, jalaliMonthDays, jalaliToIso, toPersianDigits, weekdayIndexSaturdayFirst } from "@/lib/time/jalali";
 import { todayInZone, zonedTimeToIso } from "@/lib/time/zoned";
 import { joinLocation } from "@/lib/utils";
 import { dapi, qs } from "../lib/api";
 import { DeleteButton, Pager, SalonSwitcher } from "../lib/parts";
+import { SegmentPanel } from "../lib/segment-panel";
+import { useSegmentBuilder, SEGMENT_LABEL, type SegCall, type SegmentKey } from "@/lib/campaign-segments";
 import { useDash } from "../lib/store";
 
 type Pane = "calendar" | "holidays" | "blocks" | "branches" | "campaigns" | "waitlist" | "data";
@@ -32,7 +34,7 @@ type Ref = { id: string; name: string };
 type Branch = { id: string; name: string; city?: string | null; address?: string | null; phone?: string | null; isActive?: boolean; _count?: { staff?: number; appointments?: number } };
 type Block = { id: string; startAt: string; endAt: string; reason?: string | null; staff?: { name: string } | null };
 type Holiday = { id: string; date: string; isClosed: boolean; openTime?: string | null; closeTime?: string | null; reason?: string | null; branch?: { name: string } | null };
-type Campaign = { id: string; name: string; channel: string; segment: string; status: string; sentCount: number; scheduledAt?: string | null; sentAt?: string | null };
+type Campaign = { id: string; name: string; channel: string; segment: string; segmentSummary?: string; status: string; sentCount: number; scheduledAt?: string | null; sentAt?: string | null };
 type WaitItem = { id: string; customerName: string; customerPhone: string; note?: string | null; status: string };
 type CalAppt = { id: string; startAt: string; customerName: string; employee?: string | null; service?: string | null; status: string; salonId?: string };
 
@@ -841,11 +843,21 @@ function CampaignsPane({ base, tz, salonName, notify }: { base: string; tz: stri
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [channel, setChannel] = useState("SMS");
-  const [segment, setSegment] = useState("ALL");
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("");
   const [tplOpen, setTplOpen] = useState(false);
   const [confirmRun, setConfirmRun] = useState("");
+
+  // همان fetch پنل، در قالبی که سازندهٔ مشترک بخش‌بندی انتظار دارد
+  const call: SegCall = useCallback(
+    (path, init) =>
+      dapi(path, {
+        method: init?.method,
+        body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+      }),
+    []
+  );
+  const seg = useSegmentBuilder(base, call);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -899,7 +911,7 @@ function CampaignsPane({ base, tz, salonName, notify }: { base: string; tz: stri
       body: JSON.stringify({
         name: name.trim(),
         channel: channel === "EMAIL" ? "EMAIL" : "SMS",
-        segment: segment === "RETURNING" ? "RETURNING" : "ALL",
+        ...seg.payload(),
         message: message.trim(),
         ...(scheduledAt ? { scheduledAt } : {}),
       }),
@@ -970,14 +982,8 @@ function CampaignsPane({ base, tz, salonName, notify }: { base: string; tz: stri
           <Chip on={channel === "EMAIL"} onClick={() => setChannel("EMAIL")}>
             ایمیل
           </Chip>
-          <span style={{ width: 8 }} />
-          <Chip on={segment === "ALL"} onClick={() => setSegment("ALL")}>
-            همهٔ مشتریان
-          </Chip>
-          <Chip on={segment === "RETURNING"} onClick={() => setSegment("RETURNING")}>
-            فقط مراجعان
-          </Chip>
         </div>
+        <SegmentPanel seg={seg} />
         <div className="dash-two">
           <DateField
             label="زمان ارسال (اختیاری)"
@@ -1039,7 +1045,7 @@ function CampaignsPane({ base, tz, salonName, notify }: { base: string; tz: stri
                   <span className="mini-item-main">
                     <span className="mini-item-title">{c.name}</span>
                     <span className="mini-item-sub">
-                      {c.channel === "EMAIL" ? "ایمیل" : "پیامک"} · {c.segment === "RETURNING" ? "مراجعان" : "همه"} ·{" "}
+                      {c.channel === "EMAIL" ? "ایمیل" : "پیامک"} · {faText(c.segmentSummary) || SEGMENT_LABEL[(c.segment as SegmentKey)] || c.segment} ·{" "}
                       {faDigits(c.sentCount)} ارسال
                       {c.scheduledAt ? ` · زمان ارسال ${timeLabel(c.scheduledAt, tz)} ${formatJalali(ymd(new Date(c.scheduledAt), tz))}` : ""}
                       {c.sentAt ? ` · رفت ${formatJalali(ymd(new Date(c.sentAt), tz))}` : ""}

@@ -796,3 +796,50 @@ label.mini-btn {
   color: #6ee7b7;
 }
 
+
+/* ── سازندهٔ بخش‌بندی مخاطب کمپین (/dash/management → کمپین) ────────── */
+
+.seg-panel {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.seg-chips {
+  margin-bottom: 0;
+}
+
+.seg-sub {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--m-muted);
+}
+
+/* رقم شمارش همان رنگ چیپ را به‌ارث می‌برد؛ opacity کنتراست را زیر ۴.۵ می‌برد */
+.seg-count {
+  margin-inline-start: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  color: inherit;
+}
+
+.seg-toggle,
+.seg-reset {
+  width: 100%;
+}
+
+.seg-count-box {
+  display: grid;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.seg-sample {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.seg-fields {
+  margin-top: 2px;
+}
