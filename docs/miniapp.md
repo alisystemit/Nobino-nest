@@ -566,19 +566,19 @@ SALON_OWNER (چون ورود ادمین با OTP وقتی `passwordHash` ست ش
 - باز شدن همین آدرس در دور قبلی تست شده بود: خانه = همان سالن و افزودن خودکار به
   علاقه‌مندی‌ها (`docs/miniapp.md` §۳.۵ و دور تستی بالایی).
 
-**وضعیت build**: بعد از افزودن تشخیص نشانی، `npx tsc -p tsconfig.check.json` بدون خطا بود و
+**وضعیت build**: بعد از افزودن تشخیص نشانی، `npx tsc -p tsconfig.json --noEmit` بدون خطا بود و
 `npm run build` هم یک دور کامل سبز شد (`MiniApp-*.js` از 264.42 → 265.8 کیلوبایت، gzip
 84.5 → 85.0 — یعنی `lib/host.ts` حدود یک کیلوبایت اضافه کرده) و prerender دوباره ۲۵۱ صفحه
 نوشت؛ همان باندل روی `:3100` با ساب‌دامین تست شد. دو تغییر بعدی — گارد «سالن خودِ کاربر ثبت
 نمی‌شود» در `MiniHome.tsx` و آدرس تازهٔ کیو‌آر در `SalonQrCard.tsx` — پس از آن build آمدند و
-باندل تازه‌شان هنوز ساخته نشده، چون `npm run build` روی `tsc -b` کل `src` را بررسی می‌کند و
-در این فاصله کارِ ناتمامِ نشست موازی خطا می‌دهد: `src/dashmini/pages/DashHome.tsx:202` تابع
-`requestClassic` را صدا می‌زند بدون اینکه import شده باشد (`TS2304`)؛ خطاهای قبلی همان
-نشست (`SalonManager.tsx` و `dashmini/lib/sections.ts`) در این دور برطرف شده بودند. کد خودم
-با `tsc -p tsconfig.check.json` صفر خطا دارد و build فقط منتظر آن کار است؛ وقتی درست شد،
-یک `cd frontend && npm run build` گارد و آدرس کیو‌آر را هم داخل `dist` می‌آورد. تا آن لحظه
-روی `:3100` (باندل کهنه) کیو‌آر همان `…/mini?salon=<slug>` را نشان می‌دهد — که همچنان کار
-می‌کند، چون پارامتر کوئری بر تشخیص میزبان اولویت دارد.
+در آن لحظه `npm run build` منتظر کار ناتمامِ نشست موازی بود (`src/dashmini/pages/DashHome.tsx`
+تابع `requestClassic` را import نکرده بود → `TS2304`). در دور بازبینی بعدی همان بررسی دوباره
+اجرا شد و الان سبز است: `cd frontend && npx tsc -p tsconfig.json --noEmit` با کد خروجی ۰،
+پس `cd frontend && npm run build` گارد و آدرس کیو‌آر را هم داخل `dist` می‌آورد.
+توجه: در آن روز برای جدا کردن خطاهای نشست موازی از خطاهای خودم، یک فایل موقت
+`frontend/tsconfig.check.json` (همین `src/mini` و `src/components` را compile می‌کرد) استفاده
+شد؛ آن فایل عمداً در مخزن نیست (`.gitignore`: `frontend/tsconfig.check.json`) و معیار رسمی
+همان `tsconfig.json` کل پروژه یا `npm run verify` است.
 
 ---
 
