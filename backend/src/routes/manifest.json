@@ -84,6 +84,30 @@
     ]
   },
   {
+    "path": "admin/ops",
+    "url": "/api/admin/ops",
+    "module": "@/routes/api/admin__ops",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/ops/logs",
+    "url": "/api/admin/ops/logs",
+    "module": "@/routes/api/admin__ops__logs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "admin/ops/deploy",
+    "url": "/api/admin/ops/deploy",
+    "module": "@/routes/api/admin__ops__deploy",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
     "path": "admin/packages",
     "url": "/api/admin/packages",
     "module": "@/routes/api/admin__packages",

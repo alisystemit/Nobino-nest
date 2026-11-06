@@ -11,22 +11,25 @@ import * as R6 from "@/routes/api/admin__discounts__id";
 import * as R7 from "@/routes/api/admin__invoices";
 import * as R8 from "@/routes/api/admin__limits";
 import * as R9 from "@/routes/api/admin__notifications";
-import * as R10 from "@/routes/api/admin__packages";
-import * as R11 from "@/routes/api/admin__payouts";
-import * as R12 from "@/routes/api/admin__payouts__id";
-import * as R13 from "@/routes/api/admin__reviews";
-import * as R14 from "@/routes/api/admin__saas-metrics";
-import * as R15 from "@/routes/api/admin__salons__id";
-import * as R16 from "@/routes/api/admin__salons__id__status";
-import * as R17 from "@/routes/api/admin__settings";
-import * as R18 from "@/routes/api/admin__sms__test";
-import * as R19 from "@/routes/api/admin__subscriptions";
-import * as R20 from "@/routes/api/admin__support";
-import * as R21 from "@/routes/api/admin__users";
-import * as R124 from "@/routes/api/admin__backups";
-import * as R125 from "@/routes/api/admin__backups__name";
-import * as R126 from "@/routes/api/admin__backups__name__download";
-import * as R127 from "@/routes/api/admin__backups__name__restore";
+import * as R10 from "@/routes/api/admin__ops";
+import * as R11 from "@/routes/api/admin__ops__logs";
+import * as R12 from "@/routes/api/admin__ops__deploy";
+import * as R13 from "@/routes/api/admin__packages";
+import * as R14 from "@/routes/api/admin__payouts";
+import * as R15 from "@/routes/api/admin__payouts__id";
+import * as R16 from "@/routes/api/admin__reviews";
+import * as R17 from "@/routes/api/admin__saas-metrics";
+import * as R18 from "@/routes/api/admin__salons__id";
+import * as R19 from "@/routes/api/admin__salons__id__status";
+import * as R20 from "@/routes/api/admin__settings";
+import * as R21 from "@/routes/api/admin__sms__test";
+import * as R22 from "@/routes/api/admin__subscriptions";
+import * as R23 from "@/routes/api/admin__support";
+import * as R24 from "@/routes/api/admin__users";
+import * as R127 from "@/routes/api/admin__backups";
+import * as R128 from "@/routes/api/admin__backups__name";
+import * as R129 from "@/routes/api/admin__backups__name__download";
+import * as R130 from "@/routes/api/admin__backups__name__restore";
 
 @Controller()
 export class AdminController {
@@ -96,138 +99,153 @@ export class AdminController {
     await runRoute(req, res, (r, c) => R9.POST(r as never, c as never));
   }
 
+  @Get("/api/admin/ops")
+  async getAdminOpsRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R10.GET(r as never, c as never));
+  }
+
+  @Get("/api/admin/ops/logs")
+  async getAdminOpsLogsRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R11.GET(r as never, c as never));
+  }
+
+  @Post("/api/admin/ops/deploy")
+  async postAdminOpsDeployRoute(@Req() req: Request, @Res() res: Response) {
+    await runRoute(req, res, (r, c) => R12.POST(r as never, c as never));
+  }
+
   @Get("/api/admin/packages")
   async getAdminPackagesRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R10.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R13.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/packages")
   async patchAdminPackagesRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R10.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R13.PATCH(r as never, c as never));
   }
 
   @Post("/api/admin/packages")
   async postAdminPackagesRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R10.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R13.POST(r as never, c as never));
   }
 
   @Delete("/api/admin/packages")
   async deleteAdminPackagesRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R10.DELETE(r as never, c as never));
+    await runRoute(req, res, (r, c) => R13.DELETE(r as never, c as never));
   }
 
   @Get("/api/admin/payouts")
   async getAdminPayoutsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R11.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R14.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/payouts/:id")
   async patchAdminPayoutsIdRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R12.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R15.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/reviews")
   async getAdminReviewsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R13.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R16.GET(r as never, c as never));
   }
 
   @Delete("/api/admin/reviews")
   async deleteAdminReviewsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R13.DELETE(r as never, c as never));
+    await runRoute(req, res, (r, c) => R16.DELETE(r as never, c as never));
   }
 
   @Get("/api/admin/saas-metrics")
   async getAdminSaasMetricsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R14.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R17.GET(r as never, c as never));
   }
 
   @Get("/api/admin/salons/:id")
   async getAdminSalonsIdRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R15.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R18.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/salons/:id")
   async patchAdminSalonsIdRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R15.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R18.PATCH(r as never, c as never));
   }
 
   @Patch("/api/admin/salons/:id/status")
   async patchAdminSalonsIdStatusRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R16.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R19.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/settings")
   async getAdminSettingsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R17.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R20.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/settings")
   async patchAdminSettingsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R17.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R20.PATCH(r as never, c as never));
   }
 
   @Post("/api/admin/sms/test")
   async postAdminSmsTestRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R18.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R21.POST(r as never, c as never));
   }
 
   @Get("/api/admin/subscriptions")
   async getAdminSubscriptionsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R19.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R22.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/subscriptions")
   async patchAdminSubscriptionsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R19.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R22.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/support")
   async getAdminSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R20.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R23.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/support")
   async patchAdminSupportRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R20.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R23.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/users")
   async getAdminUsersRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R21.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R24.GET(r as never, c as never));
   }
 
   @Patch("/api/admin/users")
   async patchAdminUsersRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R21.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R24.PATCH(r as never, c as never));
   }
 
   @Get("/api/admin/backups")
   async getAdminBackupsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R124.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R127.GET(r as never, c as never));
   }
 
   @Post("/api/admin/backups")
   async postAdminBackupsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R124.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R127.POST(r as never, c as never));
   }
 
   @Patch("/api/admin/backups")
   async patchAdminBackupsRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R124.PATCH(r as never, c as never));
+    await runRoute(req, res, (r, c) => R127.PATCH(r as never, c as never));
   }
 
   @Delete("/api/admin/backups/:name")
   async deleteAdminBackupsNameRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R125.DELETE(r as never, c as never));
+    await runRoute(req, res, (r, c) => R128.DELETE(r as never, c as never));
   }
 
   @Get("/api/admin/backups/:name/download")
   async getAdminBackupsNameDownloadRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R126.GET(r as never, c as never));
+    await runRoute(req, res, (r, c) => R129.GET(r as never, c as never));
   }
 
   @Post("/api/admin/backups/:name/restore")
   async postAdminBackupsNameRestoreRoute(@Req() req: Request, @Res() res: Response) {
-    await runRoute(req, res, (r, c) => R127.POST(r as never, c as never));
+    await runRoute(req, res, (r, c) => R130.POST(r as never, c as never));
   }
 }

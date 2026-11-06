@@ -52,6 +52,14 @@ sudo bash deploy/install.sh --domain nobino.ir --tls
 sudo bash deploy/update.sh
 ```
 
+**حلقهٔ گیت (push = استقرار خودکار) و کنسول عملیات پنل:**
+```bash
+sudo bash deploy/install-git-remote.sh        # روی سرور، یک‌بار
+# روی سیستم خودتان:  git remote add deploy root@<IP>:/var/repo/nobino.git && git push deploy main
+```
+> جزئیات کامل: [docs/ops-console.md](docs/ops-console.md) — سوییچ «کنسول عملیات سرور» در
+> تنظیمات پنل سوپرادمین + تب «عملیات» (وضعیت سرور، دم لاگ، دکمهٔ استقرار).
+
 **اجرای کامل با داکر (اپ + PostgreSQL) روی یک سرور:**
 ```bash
 git clone <repo-url> nobino && cd nobino
@@ -353,6 +361,7 @@ rsync -a public/uploads/ /backups/uploads/
 | `deploy/bootstrap.sh` | نصب صفر‌تا‌صد روی VPS خام (Node/PM2/Postgres/.env/ufw/سوپرادمین + اجرای install.sh) |
 | `scripts/create-admin.mjs` | ساخت اولین سوپرادمین با موبایل/رمز دلخواه (idempotent، با `--force-reset`) |
 | `deploy/update.sh` | به‌روزرسانی (pull → بیلد → migrate → restart) |
+| `deploy/install-git-remote.sh` | راه‌اندازی مخزن bare + هوک push برای استقرار خودکار (docs/ops-console.md) |
 | `deploy/ecosystem.config.cjs.template` | قالب سرویس PM2 |
 | `deploy/nginx/*.conf.*` | vhost دامنه + wildcard، بلوک TLS، upstream |
 | `deploy/env.production.example` | چک‌لیست متغیرهای پروداکشن |

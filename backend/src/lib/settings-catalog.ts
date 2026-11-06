@@ -550,6 +550,66 @@ const uploadSection = (): CatalogSection => ({
   ],
 });
 
+/* ─── ۱۱) کنسول عملیات سرور ──────────────────────────────────────── */
+
+const opsSection = (): CatalogSection => ({
+  id: "ops",
+  title: "کنسول عملیات سرور",
+  emoji: "🖥️",
+  description:
+    "مسیرهای /api/admin/ops/* فقط برای سوپرادمین و فقط وقتی این سوییچ «فعال» باشد کار می‌کنند: وضعیت سرور (پروسه، دیتابیس، گیت، PM2، دیسک)، دم لاگ سرویس و دکمهٔ اجرای استقرار. شروع و پایان هر استقرار در حسابرسی ثبت می‌شود.",
+  activeKey: "ops.console.enabled",
+  activeLabels: [
+    { value: "true", label: "فعال" },
+    { value: "false", label: "غیرفعال" },
+  ],
+  cards: [
+    {
+      id: "ops-console",
+      title: "کنسول عملیات",
+      fields: [
+        boolField("ops.console.enabled", "کنسول عملیات فعال باشد", {
+          defaultValue: "false",
+          hint: "خاموش = همهٔ مسیرهای /api/admin/ops (وضعیت، لاگ، استقرار) با 403 بسته می‌شوند و تب «عملیات» پنل همین را نشان می‌دهد.",
+        }),
+        {
+          key: "ops.console.deploy_cmd",
+          label: "دستور استقرار (دکمهٔ تب عملیات)",
+          type: "string",
+          defaultValue: "deploy/update.sh",
+          placeholder: "deploy/update.sh",
+          hint: "اسکریپتی که دکمهٔ «اجرای استقرار» روی سرور صدا می‌زند. فقط مسیر نسبی داخل پروژه با پسوند .sh و گزینه‌های --… مجاز است (مثلاً deploy/update.sh --no-pull).",
+        },
+        {
+          key: "ops.console.rate_per_minute",
+          label: "سقف درخواست وضعیت/لاگ در دقیقه (هر IP)",
+          type: "number",
+          defaultValue: "20",
+          placeholder: "20",
+          hint: "۰ = بدون سقف.",
+        },
+        {
+          key: "ops.console.deploy_per_hour",
+          label: "سقف اجرای استقرار در ساعت (هر IP)",
+          type: "number",
+          defaultValue: "3",
+          placeholder: "3",
+          hint: "۰ = بدون سقف.",
+        },
+      ],
+    },
+    {
+      id: "ops-env",
+      title: "مسیرهای سرور (فقط‌خواندنی)",
+      description: "در زمان بوت از .env خوانده می‌شوند و از پنل قابل تغییر نیستند.",
+      fields: [
+        { key: "env:OPS_CONSOLE_APP_ROOT", label: "OPS_CONSOLE_APP_ROOT (ریشهٔ پروژه)", type: "string", env: "OPS_CONSOLE_APP_ROOT", readOnly: true, hint: "خالی = پوشهٔ کاری پروسه" },
+        { key: "env:OPS_CONSOLE_LOG_FILE", label: "OPS_CONSOLE_LOG_FILE (فایل لاگ برای نمایش)", type: "string", env: "OPS_CONSOLE_LOG_FILE", readOnly: true, hint: "خالی = لاگ PM2 سرویس nobino-api" },
+      ],
+    },
+  ],
+});
+
 export function settingsSections(): CatalogSection[] {
   const sections = [
     smsSection(),
@@ -562,13 +622,14 @@ export function settingsSections(): CatalogSection[] {
     crmSection(),
     uploadSection(),
     miniappsSection(),
+    opsSection(),
   ];
   // فیلد select «سرویس/درگاه فعال» به‌صورت یکنواخت از activeLabels ساخته می‌شود
   for (const s of sections) {
     if (!s.activeKey) continue;
     s.activeField = {
       key: s.activeKey,
-      label: s.id === "payments" ? "درگاه پیش‌فرض" : s.id === "sms" ? "سرویس فعال" : "درایور فعال",
+      label: s.id === "payments" ? "درگاه پیش‌فرض" : s.id === "sms" ? "سرویس فعال" : s.id === "ops" ? "وضعیت کنسول عملیات" : "درایور فعال",
       type: "select",
       options: (s.activeLabels ?? []).map((o) => o.value),
       hint: s.id === "payments" ? "درگاه انتخابی در صفحهٔ پرداخت اگر کاربر چیزی انتخاب نکند." : undefined,
