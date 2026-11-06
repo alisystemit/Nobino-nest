@@ -1,9 +1,9 @@
 // کنسول عملیات — وضعیت سرور (فقط‌خواندنی، فقط سوپرادمین، پشت سوییچ و سقف نرخ)
 import { hostname } from "node:os";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { json } from "@/lib/utils";
 import { nodeEnv } from "@/lib/env";
-import { dbPing, deployState, opsAppRoot, opsDeployLogPath, opsGate, runCmd } from "@/lib/ops-console";
+import { dbPing, opsAppRoot, opsDeployLogPath, opsGate, readDeployLock, runCmd, tailLines } from "@/lib/ops-console";
 
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   const g = await opsGate(req);
@@ -78,12 +78,13 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
   }
 
   const deployLog = opsDeployLogPath();
+  const lock = readDeployLock();
   out.deploy = {
-    running: deployState.running,
-    startedAt: deployState.startedAt,
-    pid: deployState.pid,
-    cmd: deployState.cmd,
-    tail: existsSync(deployLog) ? readFileSync(deployLog, "utf8").split("\n").filter(Boolean).slice(-20) : [],
+    running: lock.running,
+    startedAt: lock.startedAt,
+    pid: lock.pid,
+    cmd: lock.cmd,
+    tail: existsSync(deployLog) ? tailLines(deployLog, 20) : [],
   };
 
   return json(out);

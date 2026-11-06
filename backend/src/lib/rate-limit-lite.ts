@@ -30,21 +30,32 @@ export function checkRate(key: string, limit: number, windowMs: number): RateChe
   return { ok: true, retryAfterSec: 0 };
 }
 
-/** IP مشتری از هدرهای پروکسی (nginx جلوی اپ است و trust proxy روشن) */
+/**
+ * IP مشتری از هدرهای پروکسی (nginx جلوی اپ است).
+ * ترتیب عمداً معکوسِ «اولین ورودی XFF» است: nginx با proxy_add_x_forwarded_for
+ * آدرس واقعی را به انتهای لیست اضافه می‌کند و ورودی‌های ابتدای لیست را
+ * کلاینت می‌تواند جعل کند. X-Real-IP (که nginx بازنویسی می‌کند) امن‌ترین است.
+ */
 export function clientIpFromRequest(req: Request): string {
+  const real = req.headers.get("x-real-ip")?.trim();
+  if (real) return real;
   const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim() || "unknown";
-  return req.headers.get("x-real-ip")?.trim() || "unknown";
+  if (fwd) {
+    const parts = fwd.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  return "unknown";
 }
 
 /**
  * سقف عددی از تنظیمات سراسری (Setting KV) و در نبودش از متغیر محیطی؛
- * مقدار ۰ به معنی «بدون سقف» است.
+ * مقدار ۰ به معنی «بدون سقف» و مقدار منفی/نامعتبر = fallback است
+ * (تا «تنظیم اشتباه» بی‌صدا محدودساز را خاموش نکند).
  */
 export async function numericSettingOrEnv(settingKey: string, envValue: string | undefined, fallback: number): Promise<number> {
   const raw = await getSetting(settingKey).catch(() => undefined);
   const settingTxt = String(raw ?? "").trim();
-  if (settingTxt !== "" && Number.isFinite(Number(settingTxt))) return Number(settingTxt);
+  if (settingTxt !== "" && Number.isFinite(Number(settingTxt)) && Number(settingTxt) >= 0) return Number(settingTxt);
   // نکته: Number("") برابر صفر است، پس متغیر محیطی خالی باید صریح رد شود؛
   // وگرنه «تنظیم‌نشده» با «سقف صفر = بدون سقف» اشتباه گرفته می‌شود و محدود‌ساز
   // بی‌صدا خاموش می‌ماند.

@@ -7,6 +7,7 @@ type Pm2Item = { name: string; id: number | null; status: string; restarts: numb
 
 type OpsStatus = {
   success?: boolean;
+  code?: string;
   error?: string;
   enabled?: boolean;
   server?: { node: string; platform: string; arch: string; pid: number; uptimeSec: number; memoryMb: number; cwd: string; hostname: string; env: string };
@@ -36,6 +37,8 @@ function fmtKb(kb: number): string {
   if (kb >= 1048576) return `${toPersianDigits(Math.round(kb / 1048576))} گیگ`;
   return `${toPersianDigits(Math.round(kb / 1024))} مگ`;
 }
+
+const stripAnsi = (s: string) => s.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "");
 
 function StatusDot({ ok }: { ok: boolean }) {
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? "bg-emerald-500" : "bg-red-500"}`} />;
@@ -140,6 +143,11 @@ export default function AdminOps() {
           attemptsRef.current += 1;
           const s = await loadStatus();
           const running = Boolean(s?.deploy?.running);
+          if (!running) {
+            setDeployNote("استقرار پایان یافت؛ نتیجه در «آخرین خروجی استقرار» و تب «حسابرسی» ثبت شد.");
+          } else if (attemptsRef.current > 180) {
+            setDeployNote("پیگیری خودکار پس از ۳۰ دقیقه متوقف شد؛ وضعیت در کارت «استقرار» همچنان به‌روز می‌شود.");
+          }
           if (!running || attemptsRef.current > 180) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
@@ -155,7 +163,7 @@ export default function AdminOps() {
   };
 
   if (status && !status.success && status.error) {
-    const disabled = status.error.includes("غیرفعال");
+    const disabled = status.code === "OPS_DISABLED" || status.error.includes("غیرفعال");
     return (
       <div className="space-y-4">
         <div className={`${card} border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/40`}>
@@ -281,7 +289,7 @@ export default function AdminOps() {
         <div className={card}>
           <h3 className="text-sm font-extrabold text-neutral-900 dark:text-neutral-100">آخرین خروجی استقرار</h3>
           <pre className="mt-3 max-h-64 overflow-auto rounded-xl bg-neutral-950 p-4 text-[11px] leading-relaxed text-neutral-300" dir="ltr">
-            {s?.deploy?.tail?.join("\n")}
+            {stripAnsi(s?.deploy?.tail?.join("\n") ?? "")}
           </pre>
         </div>
       )}
@@ -298,7 +306,7 @@ export default function AdminOps() {
           <div className="mt-3">
             {logs.success && logs.found && logs.lines ? (
               <pre className="max-h-96 overflow-auto rounded-xl bg-neutral-950 p-4 text-[11px] leading-relaxed text-neutral-300" dir="ltr">
-                {logs.lines.join("\n")}
+                {stripAnsi(logs.lines.join("\n"))}
               </pre>
             ) : (
               <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">

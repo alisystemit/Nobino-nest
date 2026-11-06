@@ -55,7 +55,7 @@ sudo bash deploy/update.sh
 **حلقهٔ گیت (push = استقرار خودکار) و کنسول عملیات پنل:**
 ```bash
 sudo bash deploy/install-git-remote.sh        # روی سرور، یک‌بار
-# روی سیستم خودتان:  git remote add deploy root@<IP>:/var/repo/nobino.git && git push deploy main
+# روی سیستم خودتان:  git remote add deploy root@<IP>:/var/repo/nobino.git && git push deploy master
 ```
 > جزئیات کامل: [docs/ops-console.md](docs/ops-console.md) — سوییچ «کنسول عملیات سرور» در
 > تنظیمات پنل سوپرادمین + تب «عملیات» (وضعیت سرور، دم لاگ، دکمهٔ استقرار).
