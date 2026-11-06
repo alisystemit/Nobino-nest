@@ -39,10 +39,12 @@ command -v git >/dev/null 2>&1 || die "git نیست؛ «apt-get install git» ن
 [[ -d "$APP_DIR" && -f "$APP_DIR/package.json" ]] || die "پوشهٔ پروژه پیدا نشد: $APP_DIR"
 
 # ۱) مخزن bare روی سرور
+# (--bare الزامی است: بدون آن، push به شاخهٔ HEAD با «refusing to update
+# checked out branch» رد می‌شود و هوک هرگز اجرا نمی‌شود.)
 if [[ -d "$REPO_DIR" ]]; then
   ok "مخزن bare از قبل هست: $REPO_DIR"
 else
-  git init "$REPO_DIR"
+  git init --bare "$REPO_DIR"
   git -C "$REPO_DIR" symbolic-ref HEAD "refs/heads/$BRANCH"
   ok "مخزن bare ساخته شد: $REPO_DIR"
 fi
@@ -69,6 +71,9 @@ BRANCH="$BRANCH"
 LOG="\$APP_DIR/logs/ops-deploy-last.log"
 LOCK="\$APP_DIR/logs/ops-deploy.lock"
 mkdir -p "\$APP_DIR/logs"
+# receive-pack این متغیرها را برای هوک تنظیم می‌کند؛ بدون پاک‌کردنشان،
+# «git -C APP_DIR» روی مخزن bare اجرا می‌شود و fetch شکست می‌خورد.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE 2>/dev/null || true
 
 acquire_lock() {
   # قفل اتمی با mkdir؛ قفلی که pid آن مرده باشد باز می‌شود تا

@@ -1,5 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { httpError } from "@/lib/utils";
+import { randomInt } from "node:crypto";
+
+/**
+ * تولید کد OTP تصادفی ۶ رقمی
+ */
+function generateOtp(): string {
+  return Array.from({ length: 6 }, () => randomInt(0, 10)).join("");
+}
 
 /**
  * محدودیت تلاش ناموفق ورود با رمز عبور (ضد brute-force).
@@ -29,7 +37,7 @@ export async function recordFailedLogin(login: string) {
   await prisma.otp.create({
     data: {
       phone: login,
-      code: "0000",
+      code: generateOtp(), // تغییر: کد تصادفی به جای ثابت
       purpose: "PASSWORD_FAIL",
       expiresAt: new Date(Date.now() + FAIL_WINDOW_MS),
     },

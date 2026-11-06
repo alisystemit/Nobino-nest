@@ -27,9 +27,15 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     await assertLoginAllowed(login);
 
-    const isEmail = login.includes("@");
+    // اصلاح تایمینگ اتک: یک کوئری واحد با OR به جای دو کوئری جداگانه
+    const normalizedPhone = login.startsWith("0") ? login : `0${login}`;
     const user = await prisma.user.findFirst({
-      where: isEmail ? { email: login } : { phone: login.startsWith("0") ? login : `0${login}` },
+      where: {
+        OR: [
+          { email: { equals: login, mode: "insensitive" } },
+          { phone: normalizedPhone },
+        ],
+      },
     });
 
     if (!user || !user.passwordHash) {

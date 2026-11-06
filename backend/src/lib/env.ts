@@ -34,7 +34,10 @@ export function isDevelopmentEnv(): boolean {
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
-  JWT_SECRET: z.string().min(16).default("dev-secret-change-me"),
+  JWT_SECRET: z.string().min(32).refine(
+    (val) => val !== "dev-secret-change-me",
+    { message: "JWT_SECRET باید یک رمز تصادفی حداقل ۳۲ کاراکتری باشد (نه پیش‌فرض)" }
+  ),
   JWT_EXPIRES_IN: z.string().default("7d"),
   APP_URL: z.string().url().default("http://localhost:5175"),
   SITE_URL: z.string().url().optional(),

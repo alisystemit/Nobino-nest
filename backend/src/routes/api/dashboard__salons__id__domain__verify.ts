@@ -2,13 +2,19 @@
 import { resolveTxt } from "node:dns/promises";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { checkRate, tooManyRequests, numericSettingOrEnv, clientIpFromRequest } from "@/lib/rate-limit-lite";
 import { json, apiError } from "@/lib/utils";
 
 /** تأیید مالکیت دامنه از طریق رکورد TXT */
-export async function POST(_req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: { id: string } | Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     await requireSalonManage(id);
+
+    // اصلاح: Rate limiting برای جلوگیری از DNS amplification
+    const ip = clientIpFromRequest(req);
+    const rate = checkRate(`dns-verify:${ip}`, 10, 60_000); // 10 درخواست در دقیقه
+    if (!rate.ok) return tooManyRequests(rate.retryAfterSec, "درخواست‌های DNS بیش از سقف است");
 
     const salon = await prisma.salon.findUnique({ where: { id }, select: { customDomain: true, domainToken: true } });
     if (!salon) return json({ success: false, error: "salon not found" }, { status: 404 });
@@ -16,6 +22,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } |
       return json({ success: false, error: "domain config not initialized" }, { status: 400 });
     }
 
+    // اصلاح: فقط دامنه متعلق به سالن مجاز است (جلوگیری از قریزه‌گویی به سایر دامنه‌ها)
     const expected = `nobino-verify=${salon.domainToken}`;
     let records: string[][] = [];
     try {

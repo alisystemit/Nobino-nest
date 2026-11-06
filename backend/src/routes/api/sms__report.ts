@@ -2,13 +2,18 @@
 
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { json, apiError, getPagination } from "@/lib/utils";
+import { json, apiError, getPagination, tooManyRequests } from "@/lib/utils";
+import { checkRate } from "@/lib/rate-limit-lite";
 
-export async function GET(_req: Request, _ctx: { params: Record<string, string> }) {
+export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const user = await requireRole(["ADMIN"]);
     
-    const { page, limit, skip, take } = getPagination(_req.url, 25, 200);
+    // اصلاح: Rate limiting را قبل از DB query اجرا می‌کنیم
+    const rate = checkRate(`sms-report:${user.id}`, 10, 60_000); // 10 درخواست در دقیقه
+    if (!rate.ok) return tooManyRequests(rate.retryAfterSec, "درخواست‌های گزارش پیامک بیش از سقف است");
+
+    const { page, limit, skip, take } = getPagination(req.url, 25, 200);
     const where = { channel: "SMS" as const };
 
     // دریافت پیامک‌های همین صفحه + آمار کلی از پایگاه داده (نه از صفحات دیده‌شده)
