@@ -38,6 +38,23 @@ die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 # اجرای فرمانِ تغییردهنده (در --dry-run فقط چاپ می‌شود)
 run()  { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else "$@"; fi; }
 
+# ME-8: شکست آماده‌سازی schema فقط هشدار نیست — نصب با دیتابیس نیمه‌آماده در اولین
+# کوئری می‌میرد. در dry-run هیچ فرمانی اجرا نمی‌شود (run صفر برمی‌گرداند) پس نمی‌تواند بمیرد.
+db_setup_or_die() {
+  local label="$1"; shift
+  if ! run "$@"; then
+    warn "  $label ناموفق بود. اگر پریزما روی حذف ستون/جدول اخطار داده، اول بکاپ بگیرید و آگاهانه دستی اجرا کنید:"
+    warn "    $* --accept-data-loss"
+    die "  بدون schema سالم نصب کامل نمی‌شود (برای رد شدن از این مرحله: DB_SETUP=skip)."
+  fi
+}
+
+# گزینهٔ مقداردار بدون مقدار نباید با «$2: unbound variable» بمیرد (ME-5).
+need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
+
+# مقدار را برای سمتِ راست sed فرار می‌کند: \  &  و جداکنندهٔ | (HI-7 از همین خانواده).
+sed_esc() { local s="${1:-}"; s="${s//\\/\\\\}"; s="${s//&/\\&}"; s="${s//|/\\|}"; printf '%s' "$s"; }
+
 # ── مقادیر پیش‌فرض ─────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -54,17 +71,17 @@ DO_COPY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --domain) DOMAIN="$2"; shift 2 ;;
-    --port) PORT="$2"; shift 2 ;;
-    --app-dir) APP_DIR="$2"; shift 2 ;;
-    --user) SERVICE_USER="$2"; shift 2 ;;
+    --domain) need_value "$@"; DOMAIN="$2"; shift 2 ;;
+    --port) need_value "$@"; PORT="$2"; shift 2 ;;
+    --app-dir) need_value "$@"; APP_DIR="$2"; shift 2 ;;
+    --user) need_value "$@"; SERVICE_USER="$2"; shift 2 ;;
     --copy) DO_COPY=true; shift ;;
     --skip-build) SKIP_BUILD=true; shift ;;
     --skip-nginx) SKIP_NGINX=true; shift ;;
     --tls) ENABLE_TLS=true; shift ;;
     --demo-seed) DEMO_SEED=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
-    -h|--help) sed -n '1,32p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *) die "گزینهٔ ناشناخته: $1 (با --help لیست گزینه‌ها را ببینید)" ;;
   esac
 done
@@ -200,9 +217,16 @@ if ! $SKIP_BUILD; then
 else
   warn "بیلد رد شد (--skip-build)"
 fi
-[[ -f "$APP_DIR/backend/dist/main.js" ]] || die "backend/dist/main.js نیست؛ بدون --skip-build اجرا کنید."
-[[ -f "$APP_DIR/frontend/dist/index.html" ]] || die "frontend/dist/index.html نیست؛ بیلد فرانت انجام نشده."
-ok "خروجی بیلد آماده است"
+# در --dry-run هیچ بیلدی انجام نشده و dist/ هم در گیت نیست؛ پس این بررسی فقط
+# مسیر واقعی را می‌سنجد (HI-5: پیش‌تر dry-run همیشه همین‌جا می‌مرد و ابزار
+# «پیش‌آزمون روی سرور خام» عملاً بی‌استفاده بود).
+if $DRY_RUN; then
+  warn "dry-run: وجود backend/dist و frontend/dist بررسی نشد (بیلدی انجام نشده)."
+else
+  [[ -f "$APP_DIR/backend/dist/main.js" ]] || die "backend/dist/main.js نیست؛ بدون --skip-build اجرا کنید."
+  [[ -f "$APP_DIR/frontend/dist/index.html" ]] || die "frontend/dist/index.html نیست؛ بیلد فرانت انجام نشده."
+  ok "خروجی بیلد آماده است"
+fi
 
 # ── ۴) آماده‌سازی schema دیتابیس ───────────────────────────────────
 # DB_SETUP=auto (پیش‌فرض) | push (همیشه db push) | skip (اصلاً دست نزن)
@@ -214,21 +238,22 @@ if [[ ! -f "$PRISMA_CLI" ]]; then
 elif [[ "$DB_SETUP" == "skip" ]]; then
   warn "  DB_SETUP=skip → schema دیتابیس تغییر نکرد"
 elif [[ "$DB_SETUP" == "push" ]]; then
-  run node "$PRISMA_CLI" db push --skip-generate --schema "$APP_DIR/prisma/schema.prisma" || warn "db push ناموفق بود"
+  db_setup_or_die "db push" node "$PRISMA_CLI" db push --skip-generate --schema "$APP_DIR/prisma/schema.prisma"
 elif [[ -d "$APP_DIR/prisma/migrations" ]]; then
   if ! run node "$PRISMA_CLI" migrate deploy --schema "$APP_DIR/prisma/schema.prisma"; then
     warn "  migrate deploy ناموفق بود. اگر این دیتابیس قبلاً با db push ساخته شده،"
     warn "  جدول‌ها از قبل موجودند و baseline فقط باید علامت بزند (داده نمی‌پرد):"
     warn "    node $PRISMA_CLI migrate resolve --applied 0_init --schema $APP_DIR/prisma/schema.prisma"
     warn "  یا برای رفتار سابق: DB_SETUP=push  و برای دست نزدن به دیتابیس: DB_SETUP=skip"
+    die "  بدون schema سالم نصب کامل نمی‌شود (دیتابیسِ آماده‌نشده = سرور ۵۰۰ در اولین کوئری)."
   fi
 else
   warn "  prisma/migrations نیست → db push"
-  run node "$PRISMA_CLI" db push --skip-generate --schema "$APP_DIR/prisma/schema.prisma" || warn "db push ناموفق بود"
+  db_setup_or_die "db push" node "$PRISMA_CLI" db push --skip-generate --schema "$APP_DIR/prisma/schema.prisma"
 fi
 if $DEMO_SEED; then
   warn "  بذر دیمو — فقط روی دیتابیس خالی اجراش کنید"
-  run node "$APP_DIR/prisma/seed.mjs" || warn "seed ناموفق بود"
+  run node "$APP_DIR/prisma/seed.mjs" || warn "seed ناموفق بود — روی NODE_ENV=production گارد seed فقط با ALLOW_PROD_SEED=1 باز می‌شود"
 fi
 
 # ── ۵) سرویس PM2 ───────────────────────────────────────────────────
@@ -236,14 +261,16 @@ say "— سرویس PM2 —"
 ECOSYSTEM="$APP_DIR/deploy/ecosystem.config.cjs"
 TPL="$SCRIPT_DIR/ecosystem.config.cjs.template"
 [[ -f "$TPL" ]] || die "قالب PM2 نیست: $TPL"
+# مقادیر جای‌گزین‌شونده در sed فرار می‌شوند: مسیر نصب می‌تواند `&` یا `|` داشته باشد.
+APP_DIR_X="$(sed_esc "$APP_DIR")"; PORT_X="$(sed_esc "$PORT")"; USER_X="$(sed_esc "$SERVICE_USER")"
 if $DRY_RUN; then
   # در dry-run دیسک را تغییر نمی‌دهیم؛ خروجی را به فایل موقت می‌نویسیم و نشان می‌دهیم
   ECOSYSTEM="$(mktemp /tmp/nobino-ecosystem.XXXXXX.cjs)"
-  sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__PORT__|$PORT|g" -e "s|__USER__|$SERVICE_USER|g" "$TPL" > "$ECOSYSTEM"
+  sed -e "s|__APP_DIR__|$APP_DIR_X|g" -e "s|__PORT__|$PORT_X|g" -e "s|__USER__|$USER_X|g" "$TPL" > "$ECOSYSTEM"
   printf '%s[dry] pm2 start %s%s\n' "$C_DIM" "$ECOSYSTEM" "$C_OFF"
 else
   mkdir -p "$APP_DIR/logs"
-  sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__PORT__|$PORT|g" -e "s|__USER__|$SERVICE_USER|g" "$TPL" > "$ECOSYSTEM"
+  sed -e "s|__APP_DIR__|$APP_DIR_X|g" -e "s|__PORT__|$PORT_X|g" -e "s|__USER__|$USER_X|g" "$TPL" > "$ECOSYSTEM"
   pm2 start "$ECOSYSTEM" --update-env
   pm2 save
   # HOME_DIR بدون set -e را بشکند: اگر کاربر سرویس موجود نیست، به daemon ریشه برگرد
@@ -280,39 +307,53 @@ if ! $SKIP_NGINX; then
   fi
 
   TMP_CONF="$(mktemp /tmp/nobino-vhost.XXXXXX.conf)"
-  { cat "$UP_PART"; cat "$BODY"; } | sed -e "s|__DOMAIN__|$DOMAIN|g" \
-      -e "s|__PORT__|$PORT|g" \
-      -e "s|__SPA_DIST__|$APP_DIR/frontend/dist|g" \
-      -e "s|__UPLOADS__|$APP_DIR/public/uploads|g" \
-      -e "s|__VOICE__|$APP_DIR/public/voice|g" \
-      -e "s|__TLS_CRT__|$CRT|g" \
-      -e "s|__TLS_KEY__|$KEY|g" > "$TMP_CONF"
+  { cat "$UP_PART"; cat "$BODY"; } | sed -e "s|__DOMAIN__|$(sed_esc "$DOMAIN")|g" \
+      -e "s|__PORT__|$(sed_esc "$PORT")|g" \
+      -e "s|__SPA_DIST__|$(sed_esc "$APP_DIR/frontend/dist")|g" \
+      -e "s|__UPLOADS__|$(sed_esc "$APP_DIR/public/uploads")|g" \
+      -e "s|__VOICE__|$(sed_esc "$APP_DIR/public/voice")|g" \
+      -e "s|__TLS_CRT__|$(sed_esc "$CRT")|g" \
+      -e "s|__TLS_KEY__|$(sed_esc "$KEY")|g" > "$TMP_CONF"
   ok "  vhost در $TMP_CONF ساخته شد"
 
   if $DRY_RUN; then
     printf '%s[dry] cp %s /etc/nginx/sites-available/nobino.conf && nginx -t && systemctl reload nginx%s\n' \
       "$C_DIM" "$TMP_CONF" "$C_OFF"
   else
-    # B8: اعتبارسنجی پیش از فعال‌سازی. بلوک symlink موقت فقط برای همین تست است؛
-    # اگر nginx -t خطا داد، همان لحظه پاک می‌شود تا پیکربندی خراب در
-    # sites-enabled نماند (واریز در ریستارت بعدی کل nginx را می‌اندازد).
-    PREEXISTING_SYMLINK=false
-    if [[ -e /etc/nginx/sites-enabled/nobino.conf ]]; then
-      PREEXISTING_SYMLINK=true
-      warn "  nobino.conf از قبل در sites-enabled بود؛ در صورت شکست همان حالت برگردانده می‌شود"
+    # HI-10: نسخهٔ قبلی روی دیسک قبل از بازنویستی کنار گذاشته می‌شود. اگر
+    # nginx -t خطا بدهد (حتا به دلیلی که به نوبینو ربط ندارد) همان نسخهٔ قبلی
+    # برمی‌گردد و reload انجام نمی‌شود — پس پروسهٔ در حال اجرا هنوز پیکربندی
+    # سالمِ خودش را در حافظه دارد و دیسک هم با آن هم‌خوان می‌شود.
+    NG_AVAIL="/etc/nginx/sites-available/nobino.conf"
+    NG_ENABLED="/etc/nginx/sites-enabled/nobino.conf"
+    NG_BAK=""
+    if [[ -f "$NG_AVAIL" ]]; then
+      NG_BAK="$(mktemp /tmp/nobino-vhost-prev.XXXXXX.conf)"
+      cp "$NG_AVAIL" "$NG_BAK"
     fi
-    cp "$TMP_CONF" /etc/nginx/sites-available/nobino.conf
-    ln -sf /etc/nginx/sites-available/nobino.conf /etc/nginx/sites-enabled/nobino.conf
+    HAD_ENABLED=false
+    if [[ -e "$NG_ENABLED" || -L "$NG_ENABLED" ]]; then
+      HAD_ENABLED=true
+      say "  نسخهٔ قبلی $NG_AVAIL پشتیبان گرفته شد؛ در شکست همان بازمی‌گردد"
+    fi
+    cp "$TMP_CONF" "$NG_AVAIL"
+    ln -sf "$NG_AVAIL" "$NG_ENABLED"
     if nginx -t 2>/tmp/nobino-nginx-test.log; then
       systemctl reload nginx
       ok "vhost نوبینو فعال شد (نصب‌های دیگر nginx دست نمی‌خورند)"
+      if [[ -n "$NG_BAK" ]]; then rm -f "$NG_BAK"; fi
     else
       cat /tmp/nobino-nginx-test.log >&2 || true
-      rm -f /etc/nginx/sites-enabled/nobino.conf
-      if [[ "$PREEXISTING_SYMLINK" == "true" ]]; then
-        warn "  symlink قبلی بازیابی نمی‌شود؛ از نسخهٔ backup خود استفاده کنید"
+      if [[ -n "$NG_BAK" ]]; then
+        mv -f "$NG_BAK" "$NG_AVAIL"
+      else
+        rm -f "$NG_AVAIL"
       fi
-      die "vhost نامعتبر بود و از sites-enabled حذف شد؛ فایل $TMP_CONF را بررسی و دوباره اجرا کنید."
+      if ! $HAD_ENABLED; then
+        # پیش از این اجرا نوبینو در sites-enabled نبود → symlink تازه‌ساخته پاک می‌شود
+        rm -f "$NG_ENABLED"
+      fi
+      die "vhost نامعتبر بود؛ پیکربندی قبلی روی دیسک بازیابی شد و reload انجام نشد. $TMP_CONF را بررسی و دوباره اجرا کنید — اگر خطا به بلوک سایت دیگری مربوط است، اول همان را درست کنید."
     fi
   fi
 else
@@ -325,13 +366,34 @@ HEALTH_URL="http://127.0.0.1:$PORT/api/health?db=1"
 if $DRY_RUN; then
   printf '%s[dry] curl %s%s\n' "$C_DIM" "$HEALTH_URL" "$C_OFF"
 else
-  sleep 3
-  if HEALTH="$(curl -fsS --max-time 12 "$HEALTH_URL" 2>/dev/null)"; then
-    say "$HEALTH"
-    ok "سرور روی پورت $PORT پاسخ می‌دهد"
-  else
-    warn "پاسخی از $HEALTH_URL گرفته نشد — «pm2 logs nobino-api --lines 60» را ببینید."
+  # HI-3: سلامت دروازه است، نه هشدار. (۱) تا ۹۰ ثانیه تلاش مجدد — اولین بوت با
+  # prisma generate و db push از ۳ ثانیه خیلی طولانی‌تر است؛ (۲) pidِ نگه‌دارندهٔ
+  # پورت با pid سرویس مقصد تطبیق داده می‌شود تا پاسخِ یک پروسهٔ دیگر روی همان
+  # پورت این نصب را «موفق» نشان ندهد؛ (۳) شکست → خروج ۱.
+  EXPECT_PID=""
+  if command -v pm2 >/dev/null 2>&1; then
+    EXPECT_PID="$(pm2 pid nobino-api 2>/dev/null | tr -dc '0-9')"
   fi
+  HEALTH=""
+  waited=0
+  while [[ -z "$HEALTH" && $waited -lt 90 ]]; do
+    HEALTH="$(curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null || true)"
+    if [[ -z "$HEALTH" ]]; then sleep 3; waited=$((waited + 3)); fi
+  done
+  if [[ -z "$HEALTH" ]]; then
+    say "   لاگ سرویس: pm2 logs nobino-api --lines 60"
+    say "   اگر دیتابیس بالا نیست: «$HEALTH_URL» را دستی بگیرید و DATABASE_URL را بررسی کنید."
+    die "سرویس در ۹۰ ثانیه به $HEALTH_URL پاسخ نداد؛ نصب ناتمام است."
+  fi
+  OWNER=""
+  if [[ -n "$EXPECT_PID" ]] && command -v ss >/dev/null 2>&1; then
+    OWNER="$(ss -ltnp "sport = :$PORT" 2>/dev/null | grep -oE 'pid=[0-9]+' | head -1 | sed 's/pid=//')"
+    if [[ -n "$OWNER" && "$OWNER" != "$EXPECT_PID" ]]; then
+      die "پورت $PORT را پروسهٔ $OWNER پاسخ داد، نه nobino-api (pid $EXPECT_PID). آن پروسه را متوقف کنید و دوباره اجرا کنید؛ نسخهٔ تازه در حال سرو نیست."
+    fi
+  fi
+  say "$HEALTH"
+  if [[ -n "$OWNER" ]]; then ok "سرور سالم است (pid $OWNER روی پورت $PORT)"; else ok "سرور روی پورت $PORT پاسخ می‌دهد"; fi
 fi
 
 say ""
@@ -345,5 +407,5 @@ say "       sudo bash deploy/install.sh --domain ${DOMAIN} --tls"
 say "  ۳) در .env این‌ها را تنظیم کنید: SITE_URL=${SPA_PROTO}://${DOMAIN}  APP_URL=${SPA_PROTO}://${DOMAIN}  ROOT_DOMAIN=${DOMAIN}"
 say "  ۴) به‌روزرسانی بعدی:  sudo bash deploy/update.sh"
 say "  ۵) اگر دیتابیس تازه و خالی است، اولین سوپرادمین را بسازید:"
-say "       cd ${APP_DIR} && node scripts/create-admin.mjs --phone 09xxxxxxxxx --password '…'   (حداقل ۸ کاراکتر)"
+say "       cd ${APP_DIR} && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs   (رمز حداقل ۸ کاراکتر)"
 say "  لاگ: pm2 logs nobino-api — وضعیت: pm2 status — تست: curl ${HEALTH_URL}"

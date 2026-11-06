@@ -25,8 +25,13 @@
 #   --app-dir <مسیر>      مسیر نصب (پیش‌فرض /opt/nobino؛ اگر مخزن جاری همان جا نیست کلون/کپی می‌شود)
 #   --port <پورت>         پورت داخلی (پیش‌فرض 3100)
 #   --pg-password <رمز>   رمز یوزر دیتابیس (پیش‌فرض: تصادفی؛ در .env و پیام پایانی می‌بینید)
+#   --database-url <نشانی>  نشانی دیتابیس آماده؛ وقتی Postgres همین سرور هست و
+#                        نمی‌خواهید سؤال بپرسد (CI و curl|bash از این گزینه استفاده کنند)
 #   --admin-phone <موبایل>   شمارهٔ سوپرادمین اولیه (هم‌شکل ورود مدیران، ۱۱ رقم با 0)
 #   --admin-password <رمز>   رمز سوپرادمین اولیه (حداقل ۸ کاراکتر)
+#                        — اگر تا می‌توانید به‌جای این دو پرچم، متغیرهای محیطی
+#                          ADMIN_PHONE و ADMIN_PASSWORD را بدهید تا رمز در `ps`
+#                          و تاریخچهٔ shell نماند
 #   --no-admin            ساخت سوپرادمین را انجام نده (بعداً دستی: scripts/create-admin.mjs)
 #   --no-firewall         ufw را لمس نکن
 #   --with-postgres       حتی اگر Postgres هست، یوزر/دیتابیس nobino بساز (بدون نصب دوباره)
@@ -46,9 +51,14 @@ die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 run()  { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else "$@"; fi; }
 # runsh: اجرای فرمان با پوستهٔ فرعی (برای پایپ/ریدایرکت/append)
 runsh() { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else bash -c "$*"; fi; }
+# گزینهٔ مقداردار بدون مقدار نباید با «$2: unbound variable» بمیرد (ME-5).
+need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
 
 DOMAIN="" REPO_URL="" APP_DIR="/opt/nobino" PORT="3100" PG_PASSWORD=""
-ADMIN_PHONE="" ADMIN_PASSWORD="" NO_ADMIN=false
+# رمز/شمارهٔ سوپرادمین از محیط هم پذیرفته می‌شود تا روی argv (در `ps`) و در
+# تاریخچهٔ shell نماند (HG-2).
+ADMIN_PHONE="${ADMIN_PHONE:-}" ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+DBURL_CLI="" NO_ADMIN=false
 ADMIN_SET=false ADMIN_HINT=false
 NO_FIREWALL=false FORCE_PG=false DRY_RUN=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,30 +66,48 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --domain) DOMAIN="$2"; shift 2 ;;
-    --repo) REPO_URL="$2"; shift 2 ;;
-    --app-dir) APP_DIR="$2"; shift 2 ;;
-    --port) PORT="$2"; shift 2 ;;
-    --pg-password) PG_PASSWORD="$2"; shift 2 ;;
-    --admin-phone) ADMIN_PHONE="$2"; shift 2 ;;
-    --admin-password) ADMIN_PASSWORD="$2"; shift 2 ;;
+    --domain) need_value "$@"; DOMAIN="$2"; shift 2 ;;
+    --repo) need_value "$@"; REPO_URL="$2"; shift 2 ;;
+    --app-dir) need_value "$@"; APP_DIR="$2"; shift 2 ;;
+    --port) need_value "$@"; PORT="$2"; shift 2 ;;
+    --pg-password) need_value "$@"; PG_PASSWORD="$2"; shift 2 ;;
+    --database-url) need_value "$@"; DBURL_CLI="$2"; shift 2 ;;
+    --admin-phone) need_value "$@"; ADMIN_PHONE="$2"; shift 2 ;;
+    --admin-password) need_value "$@"; ADMIN_PASSWORD="$2"; shift 2 ;;
     --no-admin) NO_ADMIN=true; shift ;;
     --no-firewall) NO_FIREWALL=true; shift ;;
     --with-postgres) FORCE_PG=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
-    -h|--help) sed -n '1,40p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *) die "گزینهٔ ناشناخته: $1 (--help را ببینید)" ;;
   esac
 done
 
 [[ -n "$DOMAIN" ]] || die "دامنه لازم است:  sudo bash deploy/bootstrap.sh --domain nobino.ir"
+# HI-7: دامنه همان چیزی است که در .env نوشته می‌شود، پس پیش از هر جای‌گزینی
+# نرمال و اعتبارسنجی می‌شود (پیش‌فرض install.sh هم همین برش است).
+DOMAIN="${DOMAIN#*://}"; DOMAIN="${DOMAIN%%/*}"; DOMAIN="${DOMAIN%%:*}"
+[[ "$DOMAIN" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$DOMAIN» — فقط حروف/عدد/نقطه/خط تیره (مثلاً nobino.ir)."
+[[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT >= 1024 && PORT <= 65535 )) || die "--port یک عدد بین 1024 و 65535 است (دادید: $PORT)."
 [[ "$(id -u)" == "0" ]] || die "با sudo اجرا کنید."
 command -v apt-get >/dev/null 2>&1 || die "این اسکریپت برای Ubuntu/Debian (apt) است."
 command -v systemctl >/dev/null 2>&1 || die "systemctl لازم است (روی LXC قدیمی/WSL ممکن نیست)."
 
-rand_secret() { openssl rand -hex 32 2>/dev/null || { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; } || true; }
-# توجه: pipefail + head روی /dev/urandom سیگنال SIGPIPE به tr می‌دهد؛ `|| true` لازم است
-rand_pg()     { { tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24; } || true; }
+# HI-8: بدون `|| true` پایانی — اگر هیچ‌یک از دو مسیر مقداری نساخت، تابع
+# ناموفق برمی‌گردد و caller با die می‌ایستد (رمز خالی در .env مجاز نیست).
+rand_secret() {
+  local s
+  s="$(openssl rand -hex 32 2>/dev/null || true)"
+  [[ -n "$s" ]] || s="$(head -c 48 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' || true)"
+  [[ ${#s} -ge 64 ]] || return 1
+  printf '%s' "$s"
+}
+rand_pg() {
+  local s
+  s="$(head -c 96 /dev/urandom 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 24 || true)"
+  [[ ${#s} -ge 24 ]] || return 1
+  printf '%s' "$s"
+}
 # در ایمیج‌های مینیمال ممکن است sudo نباشد — runuser (util-linux) جایگزین است
 if command -v sudo >/dev/null 2>&1; then PGRUN="sudo -u postgres"; else PGRUN="runuser -u postgres --"; fi
 [[ -z "$PG_PASSWORD" || "$PG_PASSWORD" =~ ^[A-Za-z0-9]+$ ]] || die "رمز --pg-password فقط می‌تواند حروف لاتین/عدد باشد (بدون علامت خاص)."
@@ -171,7 +199,7 @@ else
   fi
   run systemctl enable --now postgresql
   PG_MODE="local"
-  [[ -n "$PG_PASSWORD" ]] || PG_PASSWORD="$(rand_pg)"
+  [[ -n "$PG_PASSWORD" ]] || PG_PASSWORD="$(rand_pg)" || die "  رمز تصادفی دیتابیس ساخته نشد (/dev/urandom در دسترس نیست)؛ با --pg-password <رمز> بدهید."
   # یوزر/دیتابیس اختصاصی (idempotent — اگر هست، فقط رمز را ست نمی‌کند دوباره)
   runsh "$PGRUN psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='nobino'\" | grep -q 1 || $PGRUN psql -qc \"CREATE ROLE nobino LOGIN PASSWORD '$PG_PASSWORD'\""
   runsh "$PGRUN psql -tAc \"SELECT 1 FROM pg_database WHERE datname='nobino'\" | grep -q 1 || $PGRUN psql -qc \"CREATE DATABASE nobino OWNER nobino\""
@@ -207,37 +235,72 @@ if [[ -f "$ENVF" ]]; then
   ok "  .env از قبل وجود دارد؛ دست نمی‌زنیم."
 else
   [[ -f "$APP_DIR/deploy/env.production.example" ]] || die "  قالب env.production.example نیست."
-  JWT="$(rand_secret)"; CS="$(rand_secret)"
+  # HI-8: اگر ساخت رمز تصادفی نشد، باید ایستاد — وگرنه .env با JWT_SECRET=""
+  # نوشته می‌شود، گیت CHANGE_ME رد می‌شود و سرویس در boot کرش‌لوپ می‌گیرد.
+  JWT="$(rand_secret)" || die "  JWT تصادفی ساخته نشد (openssl و /dev/urandom هر دو ناموفق)؛ .env را دستی بسازید."
+  CS="$(rand_secret)"  || die "  CRON_SECRET تصادفی ساخته نشد؛ .env را دستی بسازید."
   if [[ "$PG_MODE" == "local" ]]; then
     DBURL="postgresql://nobino:${PG_PASSWORD}@localhost:5432/nobino?schema=public"
+  elif [[ -n "$DBURL_CLI" ]]; then
+    DBURL="$DBURL_CLI"
+  elif $DRY_RUN; then
+    # HI-6: dry-run هرگز نباید منتظر ورودی بماند (CI و `curl | bash` stdin
+    # غیرتعاملی دارند)؛ نشانی نمایشی کافی است چون چیزی نوشته نمی‌شود.
+    DBURL="postgresql://USER:PASS@localhost:5432/nobino"
+    warn "  dry-run: برای دیدن نشانی واقعی در نقشه، --database-url بدهید."
   else
     printf '  DATABASE_URL موجود این سرور را وارد کنید: '
     read -r DBURL_IN || true
     DBURL="${DBURL_IN:-}"
-    [[ -n "$DBURL" ]] || die "  برای Postgres موجود سرور باید DATABASE_URL داده شود (یا --with-postgres برای ساخت یوزر/دیتابیس nobino)."
+    [[ -n "$DBURL" ]] || die "  برای Postgres موجود سرور باید DATABASE_URL داده شود (--database-url یا --with-postgres برای ساخت یوزر/دیتابیس nobino)."
   fi
+  case "$DBURL" in postgresql*://*) ;; *) die "  DATABASE_URL باید با postgresql:// شروع شود: «${DBURL:0:24}…»" ;; esac
+  [[ "$DBURL" != *'"'* ]] || die "  DATABASE_URL نمی‌تواند کاراکتر نقل‌قول («) داشته باشد؛ مقدار در .env داخل کووت نوشته می‌شود."
+  if [[ "$PG_MODE" != "local" ]]; then
+    say "  (Postgres همین سرور: POSTGRES_PASSWORD در .env خالی می‌ماند — فقط docker-compose به آن نیاز دارد.)"
+  fi
+
+  # HI-7: خط‌به‌خط و بر پایهٔ کلید جای‌گزینی می‌شود — نه sed (که `&` و `|` و `\`
+  # در مقدار معنای ویژه دارند) و نه `${line//توکن/مقدار}` (که در bash ≥5.2 همان
+  # کار `&` را می‌کند). هر کلید، مقدار خودشان را کامل می‌نویسد، پس هیچ کاراکتری
+  # از دامنه/نشانی نمی‌تواند خط را خراب کند. نوشتن هم اتمی است: فایل کامل در
+  # .env.new ساخته و بعد mv می‌شود؛ اگر چیزی می‌شکست .env نیمه‌کاره (یا صفر
+  # بایت) باقی نمی‌ماند که اجرای بعدی بگوید «.env هست، دست نمی‌زنیم».
+  gen_env() {
+    local src="$1" dst="$2" line key
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line%$'\r'}"
+      key="${line%%=*}"
+      case "$key" in
+        DATABASE_URL)      line="DATABASE_URL=\"$DBURL\"" ;;
+        JWT_SECRET)        line="JWT_SECRET=\"$JWT\"" ;;
+        CRON_SECRET)       line="CRON_SECRET=\"$CS\"" ;;
+        POSTGRES_PASSWORD) line="POSTGRES_PASSWORD=\"${PG_PASSWORD:-}\"" ;;
+        APP_URL | SITE_URL | AUTOMATION_BASE_URL | VITE_SITE_URL | VITE_APP_URL)
+          line="$key=\"https://$DOMAIN\"" ;;
+        ROOT_DOMAIN | VITE_ROOT_DOMAIN) line="$key=\"$DOMAIN\"" ;;
+        PAYMENT_CALLBACK_BASE) line="PAYMENT_CALLBACK_BASE=\"https://$DOMAIN/api/payments/callback\"" ;;
+        PORT)   line="PORT=$PORT" ;;
+        SMS_PROVIDER | VOICE_PROVIDER) line="$key=\"mock\"" ;;
+      esac
+      printf '%s\n' "$line"
+    done <"$src" >"$dst"
+  }
+
   if $DRY_RUN; then
-    printf '%s[dry] generate .env from example (domain=%s, secrets=random)%s\n' "$C_DIM" "$DOMAIN" "$C_OFF"
+    printf '%s[dry] generate .env از قالب example (domain=%s, port=%s, رمزهای تصادفی, DATABASE_URL از %s)%s\n' \
+      "$C_DIM" "$DOMAIN" "$PORT" "$([[ "$PG_MODE" == "local" ]] && echo "postgres محلی" || echo "--database-url/پرسش")" "$C_OFF"
   else
-    sed -e "s|CHANGE_ME_openssl_rand_base64_32|$JWT|" \
-        -e "s|CHANGE_ME_another_random_secret|$CS|" \
-        -e "s|CHANGE_ME_strong_password|$PG_PASSWORD|" \
-        -e "s|^DATABASE_URL=.*|DATABASE_URL=\"$DBURL\"|" \
-        -e "s|^APP_URL=.*|APP_URL=\"https://$DOMAIN\"|" \
-        -e "s|^SITE_URL=.*|SITE_URL=\"https://$DOMAIN\"|" \
-        -e "s|^ROOT_DOMAIN=.*|ROOT_DOMAIN=\"$DOMAIN\"|" \
-        -e "s|^AUTOMATION_BASE_URL=.*|AUTOMATION_BASE_URL=\"https://$DOMAIN\"|" \
-        -e "s|^PAYMENT_CALLBACK_BASE=.*|PAYMENT_CALLBACK_BASE=\"https://$DOMAIN/api/payments/callback\"|" \
-        -e "s|^VITE_ROOT_DOMAIN=.*|VITE_ROOT_DOMAIN=\"$DOMAIN\"|" \
-        -e "s|^VITE_SITE_URL=.*|VITE_SITE_URL=\"https://$DOMAIN\"|" \
-        -e "s|^VITE_APP_URL=.*|VITE_APP_URL=\"https://$DOMAIN\"|" \
-        -e "s|^PORT=.*|PORT=$PORT|" \
-        -e "s|^SMS_PROVIDER=.*|SMS_PROVIDER=\"mock\"|" \
-        -e "s|^VOICE_PROVIDER=.*|VOICE_PROVIDER=\"mock\"|" \
-        "$APP_DIR/deploy/env.production.example" > "$ENVF"
-    chmod 600 "$ENVF"
-    grep -q "CHANGE_ME" "$ENVF" && die "  هنوز CHANGE_ME در .env هست — الگوی env.example عوض شده؛ دستی پر کنید."
-    ok "  .env ساخته شد (رمزهای تصادفی، دامنهٔ $DOMAIN، پورت $PORT) — مجوز 600"
+    ENV_TMP="$(mktemp "$APP_DIR/.env.new.XXXXXX")"
+    if gen_env "$APP_DIR/deploy/env.production.example" "$ENV_TMP"; then
+      chmod 600 "$ENV_TMP"
+      mv -f "$ENV_TMP" "$ENVF"
+      grep -q "CHANGE_ME" "$ENVF" && die "  هنوز CHANGE_ME در .env هست — الگوی env.example عوض شده؛ دستی پر کنید."
+      ok "  .env ساخته شد (رمزهای تصادفی، دامنهٔ $DOMAIN، پورت $PORT) — مجوز 600"
+    else
+      rm -f "$ENV_TMP"
+      die "  ساخت .env ناتمام ماند؛ $ENVF نوشته نشد (دلیلی نبود که اجرای بعدی آن را «موجود» حساب کند)."
+    fi
   fi
 fi
 # SMS/پرداخت/STT عمداً خالی می‌مانند؛ بعداً از پنل سوپرادمین پر می‌شوند.
@@ -272,7 +335,7 @@ say "— ۹) ساخت اولین سوپرادمین —"
 if $NO_ADMIN; then
   say "  --no-admin → از این مرحله رد می‌شود."
 elif $DRY_RUN; then
-  printf '%s[dry] node scripts/create-admin.mjs --phone <موبایل> --password <رمز>%s\n' "$C_DIM" "$C_OFF"
+  printf '%s[dry] node scripts/create-admin.mjs با ADMIN_PHONE/ADMIN_PASSWORD از محیط%s\n' "$C_DIM" "$C_OFF"
 else
   AP="$ADMIN_PHONE"; AW="$ADMIN_PASSWORD"
   if [[ -z "$AP" ]] && [[ -t 0 ]]; then
@@ -287,13 +350,14 @@ else
   if [[ -z "$AP" ]]; then
     ADMIN_HINT=true
     warn "  سوپرادمین ساخته نشد؛ هر وقت خواستید اجرا کنید:"
-    say "    cd $APP_DIR && node scripts/create-admin.mjs --phone 09xxxxxxxxx --password '…'"
+    say "    cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs"
   elif [[ ${#AW} -lt 8 ]]; then
     ADMIN_HINT=true
     warn "  رمز داده‌نشده/کوتاه است — مرحلهٔ سوپرادمین رد شد. بعداً: node scripts/create-admin.mjs (داخل $APP_DIR)"
   else
     # در سرورهای SSHِ غیرتعاملی (exec بدون TTY) read کار نمی‌کند؛ flag لازم است.
-    if (cd "$APP_DIR" && APP_DIR="$APP_DIR" node scripts/create-admin.mjs --phone "$AP" --password "$AW"); then
+    # HG-2: اعتبارنامه‌ها از محیط می‌روند، نه argv — در `ps` و تاریخچهٔ shell نمی‌مانند.
+    if (cd "$APP_DIR" && APP_DIR="$APP_DIR" ADMIN_PHONE="$AP" ADMIN_PASSWORD="$AW" node scripts/create-admin.mjs); then
       ok "  ورود مدیران: https://$DOMAIN با $AP"
       ADMIN_SET=true
     else
@@ -313,7 +377,7 @@ say "  .env:    $APP_DIR/.env (رمزها همین‌جا؛ اگر PG تازه �
 if $ADMIN_SET; then
   say "  ورود مدیران: https://$DOMAIN با $AP (رمزی که دادید)"
 elif $ADMIN_HINT; then
-  say "  ورود مدیران: هنوز سوپرادمین ندارید — cd $APP_DIR && node scripts/create-admin.mjs --phone 09xxxxxxxxx --password '…'"
+  say "  ورود مدیران: هنوز سوپرادمین ندارید — cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs"
 fi
 say ""
 say "  باقی‌ماندهٔ دستی (اختیاری):"

@@ -18,6 +18,8 @@ backend/public/uploads/
 .env.production
 .env.production.local
 deploy/ecosystem.config.cjs
+# logs/ = خراشگاه (ممکن است توکن/رمز داشته باشد). ابزارهای تشخیصیِ قابل
+# استفادهٔ مجدد را به scripts/tools/ ببرید تا review و بکاپ گیت شوند.
 logs/
 .pm2/
 

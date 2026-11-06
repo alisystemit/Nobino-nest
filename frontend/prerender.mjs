@@ -8,11 +8,14 @@
  * دیتای سئوی سالن‌ها از بک‌اند گرفته می‌شود:
  *   GET /api/pages/seo-salons  → فهرست {path,title,description,images}
  *   GET /api/pages/salon?slug= → JSON-LD (HairSalon) برای هر صفحه
- * اگر بک‌اند در دسترس نباشد فقط صفحات استاتیک prerender می‌شوند (هشدار لاگ).
+ * اگر بک‌اند در دسترس نباشد فقط صفحات استاتیک prerender می‌شوند و خروج با کد ۱
+ * تمام می‌شود (صفر صفحهٔ سالن = شکست، نه موفقیت)؛ برای ساخت عمدیِ بدون بک‌اند
+ * PRERENDER_ALLOW_NO_API=1.
  *
  * متغیرها:
  *   PRERENDER_API  (پیش‌فرض VITE_API_PROXY یا http://localhost:3100)
  *   VITE_SITE_URL / VITE_APP_URL — دامنهٔ نهایی برای canonical/sitemap
+ *   PRERENDER_ALLOW_NO_API=1 — بدون بک‌اند هم با کد ۰ خارج شود
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -148,14 +151,21 @@ export function buildPage(template, { head, ld, noscript }) {
   return html;
 }
 
-async function fetchJson(path, timeoutMs = 8000) {
+/** چرا بک‌اند فهرست سئو را نداد (برای پیام صادقانهٔ ME-11) */
+let apiIssue = "";
+
+async function fetchJson(path, timeoutMs = 8000, isProbe = false) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(API + path, { signal: ctrl.signal });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (isProbe) apiIssue = `HTTP ${res.status} از ${API}${path}`;
+      return null;
+    }
     return await res.json();
-  } catch {
+  } catch (e) {
+    if (isProbe) apiIssue = e?.name === "AbortError" ? `timeout ${timeoutMs}ms از ${API}${path}` : `${e?.message || e} (${API}${path})`;
     return null;
   } finally {
     clearTimeout(timer);
@@ -184,8 +194,10 @@ async function main() {
 
   /* صفحات سالن‌ها از بک‌اند */
   let salonEntries = [];
-  const list = await fetchJson("/api/pages/seo-salons");
+  let apiOk = false;
+  const list = await fetchJson("/api/pages/seo-salons", 8000, true);
   if (list?.success && Array.isArray(list.data)) {
+    apiOk = true;
     for (const s of list.data) {
       const one = await fetchJson(`/api/pages/salon?slug=${encodeURIComponent(s.path.split("/").pop())}`);
       const salon = one?.data?.found ? one.data.salon : null;
@@ -208,13 +220,21 @@ async function main() {
     }
     console.log(`prerender: ${salonEntries.length} صفحه سالن + نسخه wa`);
   } else {
-    console.warn(`prerender هشدار: بک‌اند ${API} در دسترس نبود — فقط صفحات استاتیک prerender شدند.`);
+    console.error(`prerender خطا: فهرست سئو از بک‌اند گرفته نشد (${apiIssue || `پاسخ نامعتبر از ${API}/api/pages/seo-salons`}) — فقط صفحات استاتیک prerender شدند.`);
   }
 
-  /* sitemap.xml و robots.txt — معادل src/app/sitemap.ts و robots.ts */
+  /* sitemap.xml و robots.txt — معادل src/app/sitemap.ts و robots.ts
+     LO-1: فقط صفحه‌های indexable (noindex=false) در sitemap؛ /login و /offline
+     که noindex هستند اینجا نیامده‌اند (سیگنال متضاد به خزنده). */
   const today = new Date().toISOString().slice(0, 10);
-  const urls = ["/", "/login", "/packages", "/wa", "/help", "/salons", ...salonEntries, ...salonEntries.map((p) => p.replace(/^\/s/, "/wa/salon"))];
-  if (SITE_IS_PUBLIC) {
+  const urls = [
+    ...STATIC_PAGES.filter((p) => !p.noindex).map((p) => p.path),
+    ...salonEntries,
+    ...salonEntries.map((p) => p.replace(/^\/s/, "/wa/salon")),
+  ];
+  if (SITE_IS_PUBLIC && !apiOk) {
+    console.warn("prerender هشدار: sitemap.xml/robots.txt بازنویسی نشد — بدون فهرست سالن‌ها همهٔ آدرس‌های /s/ از sitemap پاک می‌شد.");
+  } else if (SITE_IS_PUBLIC) {
     const sitemap =
       `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
       urls.map((u) => `  <url><loc>${SITE}${u}</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq></url>`).join("\n") +
@@ -222,10 +242,10 @@ async function main() {
     writeFileSync(join(DIST, "sitemap.xml"), sitemap, "utf8");
     writeFileSync(
       join(DIST, "robots.txt"),
-      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /dashboard/\nDisallow: /payment/result\n\nSitemap: ${SITE}/sitemap.xml\n`,
+      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /dashboard/\nDisallow: /admin/\nDisallow: /payment/result\n\nSitemap: ${SITE}/sitemap.xml\n`,
       "utf8",
     );
-    console.log("prerender: sitemap.xml + robots.txt نوشته شدند");
+    console.log(`prerender: sitemap.xml (${urls.length} آدرس) + robots.txt نوشته شدند`);
   } else {
     // نوشتن نشانی لوکال در sitemap یعنی سوختن آدرس غلط روی دیسک؛ در حالت لوکال
     // هر sitemap.xml/robots.txt موجودی را دور می‌ریزیم — این دو فایل فقط همین‌جا
@@ -240,14 +260,28 @@ async function main() {
     }
     console.warn("prerender: sitemap.xml/robots.txt نوشته نشد (مبنا لوکال) — با VITE_SITE_URL دوباره اجرا کنید.");
   }
+
+  return { staticPages: STATIC_PAGES.length + NOINDEX_SHELLS.length, salonPages: salonEntries.length, apiOk };
 }
 
 // وقتی فایل مستقیماً اجرا شود کار می‌کند؛ import شدنش (تست‌ها) بی‌اثر است —
 // هیچ فایلی نمی‌نویسد و هیچ درخواستی به بک‌اند نمی‌زند.
 const invokedDirectly = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
-  main().catch((err) => {
-    console.error("prerender failed:", err);
-    process.exit(1);
-  });
+  main()
+    .then((r) => {
+      // ME-11: «صفر صفحهٔ سالن چون بک‌اند نبود» موفقیت نیست؛ تا کد غیرصفر نباشد،
+      // build-release/paas-start همان را با warn رد می‌کنند و در PM2 گم می‌شود.
+      console.log(`prerender تمام شد: ${r.staticPages} صفحهٔ استاتیک + ${r.salonPages} سالن (با نسخهٔ wa).`);
+      const allowNoApi = /^(1|true|yes)$/i.test(String(process.env.PRERENDER_ALLOW_NO_API || ""));
+      if (!r.apiOk && !allowNoApi) {
+        console.error("❌ prerender: دادهٔ سئوی سالن‌ها از بک‌اند گرفته نشد. بک‌اند را بالا بیاورید و دوباره اجرا کنید");
+        console.error(`   (اگر عمداً بدون بک‌اند می‌سازید: PRERENDER_ALLOW_NO_API=1)`);
+        process.exitCode = 1;
+      }
+    })
+    .catch((err) => {
+      console.error("prerender failed:", err);
+      process.exit(1);
+    });
 }

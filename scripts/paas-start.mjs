@@ -16,8 +16,9 @@
  * AUTO_SEED=1 → اجرای prisma/seed.mjs (بذر دیمو). روی production بی‌اثر است
  * مگر ALLOW_PROD_SEED=1، چون seed کاربر ادمین با رمز پیش‌فرض معلوم می‌سازد.
  */
-import { spawn, execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -85,21 +86,62 @@ const hasMigrations = existsSync(join(ROOT, "prisma", "migrations"));
 let mode = DB_SETUP;
 if (mode === "auto") mode = hasMigrations ? "migrate" : "push";
 
-if (mode !== "skip" && envValue("DATABASE_URL")) {
-  const args =
-    mode === "migrate"
-      ? [prismaCli, "migrate", "deploy", "--schema", join("prisma", "schema.prisma")]
-      : [prismaCli, "db", "push", "--skip-generate", "--schema", join("prisma", "schema.prisma")];
-  log(`آماده‌سازی دیتابیس (${mode === "migrate" ? "migrate deploy" : "db push"})...`);
+// db push در هر بوت، هر بار schema دیتابیس را دست‌کاری می‌کند. چون این مخزن
+// migration ندارد، مسیر درست همین است؛ پس فقط وقتی تکرار می‌شود که
+// schema.prisma از آخرین push موفق تغییر کرده باشد.
+const SCHEMA_FILE = join(ROOT, "prisma", "schema.prisma");
+const SCHEMA_STAMP = join(ROOT, "node_modules", ".cache", "nobino-schema-stamp");
+function schemaChanged() {
   try {
-    execFileSync(process.execPath, args, { stdio: "inherit", cwd: ROOT });
+    const hash = createHash("sha256").update(readFileSync(SCHEMA_FILE)).digest("hex");
+    const last = existsSync(SCHEMA_STAMP) ? readFileSync(SCHEMA_STAMP, "utf8").trim() : "";
+    return { hash, changed: last !== hash };
   } catch {
-    console.error(`⚠️  آماده‌سازی دیتابیس (${mode}) ناموفق بود — سرور باز هم بالا می‌آید و لاگ می‌گیرد.`);
-    if (mode === "migrate") {
-      console.error(
-        "    اگر این دیتابیس قبلاً با db push ساخته شده، یک‌بار baseline را علامت بزنید:\n" +
-          `    node ${prismaCli} migrate resolve --applied 0_init --schema prisma/schema.prisma`,
-      );
+    return { hash: "", changed: true };
+  }
+}
+
+if (mode !== "skip" && envValue("DATABASE_URL")) {
+  const stamp = mode === "push" ? schemaChanged() : { changed: true, hash: "" };
+  if (mode === "push" && !stamp.changed) {
+    log("db push رد شد — schema.prisma از آخرین آماده‌سازی تغییر نکرده است (DB_SETUP=push برای اجرا اجباری)");
+  } else {
+    const args =
+      mode === "migrate"
+        ? [prismaCli, "migrate", "deploy", "--schema", join("prisma", "schema.prisma")]
+        : [prismaCli, "db", "push", "--skip-generate", "--schema", join("prisma", "schema.prisma")];
+    log(`آماده‌سازی دیتابیس (${mode === "migrate" ? "migrate deploy" : "db push"})...`);
+    // ME-8: زیر PM2/داکر stdin تTY نیست و با `stdio:"inherit"` پرامپت تخریبیِ
+    // `db push` (حذف ستون/جدول) می‌تواند بوت را معلق کند. stdin را ignore می‌دهیم
+    // تا EOF بگیرد و پریزما همان لحظه خطا بدهد؛ `--accept-data-loss` هرگز اضافه
+    // نمی‌شود، چون حذف بی‌سرویس داده در بوت خودکار قابل قبول نیست.
+    const interactive = Boolean(process.stdin.isTTY);
+    try {
+      execFileSync(process.execPath, args, {
+        stdio: interactive ? "inherit" : ["ignore", "inherit", "inherit"],
+        cwd: ROOT,
+      });
+      if (mode === "push" && stamp.hash) {
+        try {
+          mkdirSync(dirname(SCHEMA_STAMP), { recursive: true });
+          writeFileSync(SCHEMA_STAMP, stamp.hash, "utf8");
+        } catch {
+          console.warn("⚠️  مُهر schema نوشته نشد — در بوت بعدی دوباره db push اجرا می‌شود.");
+        }
+      }
+    } catch {
+      console.error(`❌ آماده‌سازی دیتابیس (${mode}) ناموفق بود — سرور بالا می‌آید ولی اسکیما به‌روز نیست.`);
+      if (mode === "migrate") {
+        console.error(
+          "    اگر این دیتابیس قبلاً با db push ساخته شده، یک‌بار baseline را علامت بزنید:\n" +
+            `    node ${prismaCli} migrate resolve --applied 0_init --schema prisma/schema.prisma`,
+        );
+      } else {
+        console.error(
+          "    اگر پریزما روی حذف ستون/جدول اخطار داده، آگاهانه و دستی تصمیم بگیرید:\n" +
+            `    node ${prismaCli} db push --schema prisma/schema.prisma   (با --accept-data-loss فقط پس از بکاپ)`,
+        );
+      }
     }
   }
   if (mode === "migrate" && !hasMigrations) {
@@ -137,13 +179,19 @@ const child = spawn(process.execPath, [distMain], {
   stdio: "inherit",
 });
 
+let requestedStop = false;
 child.on("exit", (code, signal) => {
-  console.log(`⏹  سرور با ${signal || "کد " + code} بسته شد.`);
+  if (signal) {
+    console.log(`⏹  سرور با سیگنال ${signal} بسته شد (${requestedStop ? "توقف درخواستی" : "غیردرخواستی"}).`);
+    // سیگنال غیردرخواستی (OOM، کرش) نباید مثل توقف تمیز با کد ۰ دیده شود
+    process.exit(requestedStop ? 0 : 1);
+  }
   process.exit(code ?? 0);
 });
 
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(sig, () => {
+    requestedStop = true;
     if (!child.killed) child.kill(sig);
   });
 }
@@ -164,16 +212,26 @@ if (/^(0|false|no)$/i.test(env.PRERENDER_ON_BOOT || "")) {
       }
     }
     if (!existsSync(distIndex)) return;
-    log("prerender صفحات سئو (سالن‌ها)...");
-    try {
-      execFileSync(process.execPath, ["prerender.mjs"], {
-        cwd: join(ROOT, "frontend"),
-        stdio: "ignore",
-        env: { ...env, PRERENDER_API: env.PRERENDER_API || base, VITE_SITE_URL: env.VITE_SITE_URL || env.SITE_URL || base },
-      });
-      log("prerender انجام شد");
-    } catch {
-      console.warn("⚠️  prerender کامل نشد (بی‌خطر: صفحات عمومی با shell سرو می‌شوند)");
+    // مبنای سئو از محیط یا فایل .env خوانده می‌شود؛ آدرس لوکالِ خودِ سرور
+    // هرگز جانشین دامنه نمی‌شود (در آن حالت prerender sitemap/robots را پاک می‌کند).
+    const site = envValue("VITE_SITE_URL") || envValue("SITE_URL") || envValue("VITE_APP_URL") || envValue("APP_URL");
+    if (!site) {
+      console.warn("⚠️  مبنای سئو مشخص نیست (VITE_SITE_URL/SITE_URL در env یا .env) — prerender انجام نشد تا sitemap/robots کهنه یا لوکال نوشته نشود.");
+      return;
     }
+    log("prerender صفحات سئو (سالن‌ها)...");
+    // ME-11: هر دو stream را می‌گیریم و چاپ می‌کنیم — با stdio:"ignore" هشدارها
+    // (و «۰ صفحه سالن») در لاگ PM2 هرگز دیده نمی‌شدند.
+    const r = spawnSync(process.execPath, ["prerender.mjs"], {
+      cwd: join(ROOT, "frontend"),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...env, PRERENDER_API: env.PRERENDER_API || base, VITE_SITE_URL: site },
+    });
+    const lines = `${r.stdout || ""}\n${r.stderr || ""}`.split(/\r?\n/).filter((l) => /prerender/.test(l));
+    for (const line of lines) (r.status === 0 ? log : console.warn)("   " + line);
+    if (r.status === 0) log("prerender انجام شد");
+    else if (r.error) console.warn(`⚠️  prerender اجرا نشد: ${r.error.message}`);
+    else console.warn("⚠️  prerender کامل نشد — بک‌اند دادهٔ سئو نداد (صفحات سالن ساخته نشدند).");
   })();
 }

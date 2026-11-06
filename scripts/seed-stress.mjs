@@ -14,19 +14,40 @@
  *    شماره‌های بالا استفاده می‌شود تا با دیتای قبلی برخورد نکند.
  *
  * اجرا:  node scripts/seed-stress.mjs
- * پاک‌سازی تنظیمات:  node scripts/seed-stress.mjs --clean-settings
+ * پاک‌سازی تنظیمات:  node scripts/seed-stress.mjs --clean-settings --yes
  *   فقط ردیف‌های Setting با کلید stress.key.* را می‌برد (همان‌ها که در پنل ادمین
  *   به‌عنوان «تنظیم» مزاحم می‌شوند — A7). بقیهٔ دیتای استرس عمداً حذف نمی‌شود؛
  *   جدول‌ها به هم وابسته‌اند و پاک‌شان کردن باید با آگاهی و دستی باشد.
+ *   پرچم صریح --yes لازم است؛ بدون آن فقط شمار ردیف‌ها گزارش می‌شود.
+ * راهنما: node scripts/seed-stress.mjs --help
+ * گارد:  روی NODE_ENV=production (هر نگارشی) بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود —
+ *        این اسکریپت ۲۵۰ رکورد در **هر** جدول می‌سازد و روی سرور واقعی فاجعه است.
  */
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, randomInt } from "node:crypto";
+import { seedGuard } from "./lib/seed-guard.mjs";
+
+// HI-9/ME-12/ME-13/ME-14: گارد مشترک، پیش از ساخت PrismaClient
+const { has } = seedGuard(
+  import.meta.url,
+  ["--clean-settings", "--yes"],
+  "۲۵۰ رکورد در **هر** جدول می‌سازد و حجم کاتالوگ پروداکشن را چند صد برابر می‌کند"
+);
+const YES = has("--yes");
+const CLEAN_SETTINGS = has("--clean-settings");
 
 const prisma = new PrismaClient();
 const TARGET = 250;
 
-/** A7: پاک‌سازی ردیف‌های تنظیمِ ساخته‌شده توسط همین اسکریپت */
+/** A7: پاک‌سازی ردیف‌های تنظیمِ ساخته‌شده توسط همین اسکریپت — فقط با تأیید صریح */
 async function cleanSettings() {
+  if (!YES) {
+    const found = await prisma.setting.count({ where: { key: { startsWith: "stress.key." } } });
+    console.error(`🛑 ${found} ردیف Setting با کلید stress.key.* حذف خواهد شد.`);
+    console.error("   تأیید صریح لازم است: node scripts/seed-stress.mjs --clean-settings --yes");
+    process.exitCode = 1;
+    return;
+  }
   const r = await prisma.setting.deleteMany({ where: { key: { startsWith: "stress.key." } } });
   const left = await prisma.setting.count();
   console.log(`🧹 ${r.count} ردیف استرس از جدول Setting حذف شد؛ ${left} ردیف باقی مانده است.`);
@@ -93,7 +114,7 @@ const PAYOUT_STATUS = ["REQUESTED", "PROCESSING", "PAID", "REJECTED"];
 const TK_STATUS = ["OPEN", "IN_PROGRESS", "CLOSED"];
 
 async function main() {
-  if (process.argv.includes("--clean-settings")) {
+  if (CLEAN_SETTINGS) {
     await cleanSettings();
     return;
   }

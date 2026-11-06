@@ -16,17 +16,21 @@ git clone <repo-url> /opt/nobino
 sudo bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir
 
 # شکل غیرتعاملی (مثلاً در script یا CI) — سوپرادمین هم خودکار ساخته می‌شود:
-sudo bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir \
-     --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
+sudo ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' \
+     bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir
+# (پرچم‌های --admin-phone/--admin-password هم کار می‌کنند، ولی رمز روی argv
+#  در `ps` و تاریخچهٔ shell می‌ماند؛ شکل محیطی را ترجیح دهید.)
 ```
 > bootstrap همه‌چیز را اتوماتیک می‌سازد: NodeSource 24، PM2، PostgreSQL + دیتابیس
 > `nobino` با رمز تصادفی، فایل `.env` کامل (بدون CHANGE_ME؛ پیامک/ویس روی mock تا
 > کلیدها از پنل سوپرادمین پر شوند)، swap روی رم‌های زیر ۲ گیگ، ufw روی
 > SSH/80/443/8443 — و در آخر `install.sh` را کامل اجرا می‌کند.
 > اگر Postgres روی سرور از قبل هست، دست به آن نمی‌زند (مگر `--with-postgres`)؛
+> در آن حالت `DATABASE_URL` را با `--database-url postgresql://…` بدهید؛ اگر ندهید
+> در اجرای تعاملی از شما پرسیده می‌شود و در `--dry-run`/CI هیچ پرسشی انجام نمی‌شود.
 > برای دیدن مراحل بدون تغییر سرور `--dry-run` را اضافه کنید.
 > **اولین سوپرادمین:** در پایان همان مرحله می‌پرسد (موبایل + رمز مخفی؛ حداقل ۸ کاراکتر).
-> اگر رد کنید بعداً با `cd /opt/nobino && node scripts/create-admin.mjs --phone … --password …`
+> اگر رد کنید بعداً با `cd /opt/nobino && ADMIN_PHONE=09… ADMIN_PASSWORD='…' node scripts/create-admin.mjs`
 > بسازید. با `--no-admin` هم می‌توان کلاً رد کرد.
 
 **سرور Ubuntu/Debian (نصب کامل، وقتی .env را خودتان آماده کرده‌اید):**
@@ -167,9 +171,10 @@ pm2 status && pm2 logs nobino-api --lines 40     # وضعیت و لاگ
 curl -s "http://127.0.0.1:3100/api/health?db=1"  # سلامت + وضعیت DB
 
 # اگر دیتابیس تازه و خالی است، اولین سوپرادمین (idempotent — اگر ADMIN باشد دست نمی‌زند):
-cd /opt/nobino && node scripts/create-admin.mjs --phone 09121110000 --password 'YourStrong#Pass'
+cd /opt/nobino && ADMIN_PASSWORD='YourStrong#Pass' node scripts/create-admin.mjs --phone 09121110000
+# (رمز را در متغیر محیطی بدهید تا در `ps` و تاریخچهٔ shell نماند)
 # گم‌شدن رمز سوپرادمین (بازنش فقط با شمارهٔ خودِ ادمین موجود و فلگ صریح):
-node scripts/create-admin.mjs --phone <همان‌شماره> --password 'رمز#جدید' --force-reset
+ADMIN_PASSWORD='رمز#جدید' node scripts/create-admin.mjs --phone <همان‌شماره> --force-reset
 ```
 
 **بازگشت به حالت قبل (بدون حذف اپ‌های دیگر):**

@@ -11,8 +11,10 @@
 #   sudo bash deploy/update.sh --rollback=/path/x.dump
 #   sudo bash deploy/update.sh --yes               # بدون پرسش (لازم برای --rollback غیرتعاملی)
 #   sudo bash deploy/update.sh --dry-run           # فقط نشان بده؛ هیچ دستوری اجرا نمی‌شود
-# در --dry-run نشانی دیتابیس با رمز مخفی (postgresql://user:***@host/db) چاپ می‌شود؛
-# دستورهای واقعی همان نشانی کامل را می‌گیرند.
+# نشانی دیتابیس در هر حالت با رمز مخفی چاپ می‌شود (postgresql://user:***@host/db)؛
+# رمز هرگز به argv نمی‌رود — از همان DATABASE_URL به PGPASSWORD/PGUSER/… تبدیل
+# می‌شود و بلافاصله پس از pg_dump/pg_restore پاک می‌گردد، تا در `ps auxe` و لاگ
+# ابزارهای مانیتورینگ قابل خواندن نباشد.
 #
 # دیتابیس: هیچ داده‌ای پاک یا بازنویسی نمی‌شود؛ فقط schema هم‌راستا می‌شود
 # (migrate deploy اگر prisma/migrations باشد، وگرنه db push). درست پیش از آن
@@ -84,11 +86,56 @@ DB_URL="$(env_value DATABASE_URL)"; [[ -n "$DB_URL" ]] || DB_URL="${DATABASE_URL
 # فقط نشانی خالصِ دیتابیس لازم است.
 DB_TARGET="${DB_URL%%\?*}"
 DB_NAME="$(printf '%s' "$DB_TARGET" | sed -E 's#.*/([^/?]+).*#\1#')"
-# آنچه در stdout چاپ می‌شود. در --dry-run همین رشته به دید می‌آید، پس رمز را
-# مخفی می‌کنیم؛ در اجرای واقعی DB_DISPLAY همان DB_TARGET است و pg_dump/pg_restore
-# نشانی کامل و درست می‌گیرند.
-DB_DISPLAY="$DB_TARGET"
-if $DRY_RUN; then DB_DISPLAY="$(mask_url "$DB_TARGET")"; fi
+# آنچه در stdout چاپ می‌شود همیشه ماسک‌شده است؛ در اجرای واقعی هم دیگر نشانی
+# کامل به argv نمی‌رود (HI-1): اعتبارنامه‌ها فقط با متغیرهای libpq منتقل می‌شوند.
+DB_DISPLAY="$(mask_url "$DB_TARGET")"
+PG_ARGS=()
+
+# %XX → کاراکتر (رمزهای URL-encode‌شده در DATABASE_URL).
+url_decode() {
+  local s="${1:-}"
+  if [[ "$s" == *%* ]]; then printf '%b' "${s//%/\\x}"; else printf '%s' "$s"; fi
+}
+
+# DATABASE_URL را به PGPASSWORD/PGUSER/PGHOST/PGPORT/PGDATABASE تبدیل و PG_ARGS را
+# می‌سازد، تا هیچ رمز روی خط فرمان (و در `ps auxe`) دیده نشود. نشانی خالی یا
+# غیراستاندارد → همان نشانی به --dbname می‌رود (تا dry-run نقشه را نشان دهد).
+prepare_pg() {
+  local u="$DB_TARGET" rest="" cred="" hp=""
+  PG_ARGS=()
+  if [[ -z "$u" ]]; then
+    PG_ARGS=(--dbname="postgresql://USER:PASS@HOST:5432/nobino")
+    return 0
+  fi
+  if [[ "$u" != *"://"* ]]; then
+    PG_ARGS=(--dbname="$u")
+    return 0
+  fi
+  rest="${u#*://}"
+  if [[ "$rest" == *"@"* ]]; then
+    cred="${rest%@*}"
+    rest="${rest##*@}"
+    if [[ "$cred" == *:* ]]; then export PGPASSWORD="$(url_decode "${cred#*:}")"; fi
+    if [[ -n "${cred%%:*}" ]]; then export PGUSER="${cred%%:*}"; fi
+  fi
+  if [[ "$rest" == */* ]]; then
+    hp="${rest%%/*}"
+    export PGDATABASE="${rest#*/}"
+  else
+    hp="$rest"
+  fi
+  if [[ -n "$hp" ]]; then
+    if [[ "$hp" == *:* ]]; then export PGHOST="${hp%:*}" PGPORT="${hp#*:}"; else export PGHOST="$hp"; fi
+  fi
+  if [[ -n "${PGDATABASE:-}" ]]; then
+    PG_ARGS=(--dbname="$PGDATABASE")
+  else
+    PG_ARGS=(--dbname="$u")
+  fi
+  return 0
+}
+clear_pg_env() { unset PGPASSWORD PGUSER PGHOST PGPORT PGDATABASE; }
+prepare_pg
 
 # ── ۰) بازگشت به عقب (اگر خواسته شده، پیش از هر کاری) ──────────────
 latest_dump() { ls -1t "$BACKUP_DIR"/nobino-*.dump 2>/dev/null | head -1; }
@@ -105,7 +152,7 @@ confirm_destructive() {
 }
 
 rollback() {
-  local dump commit base
+  local dump commit base cur_branch tables untracked
   dump="$ROLLBACK_DUMP"
   [[ -n "$dump" ]] || dump="$(latest_dump || true)"
   [[ -n "$dump" && -f "$dump" ]] || die "بکاپی در \"$BACKUP_DIR\" نیست. مسیر پوشه را با --backup-dir بدهید یا --rollback=/path/to.dump."
@@ -122,23 +169,60 @@ rollback() {
     $DRY_RUN || die "pg_restore نیست؛ «apt-get install postgresql-client» نصبش می‌کند."
     warn "pg_restore نیست؛ روی سرور واقعی باید نصب باشد."
   fi
-  if [[ -n "$(git -C "$APP_DIR" status --porcelain 2>/dev/null || true)" ]]; then
-    die "working tree کثیف است؛ اول کامیت یا stash کنید تا «git checkout» کارِ کسی را خراب نکند."
+  # فقط تغییرات *ثبت‌نشدهٔ فایل‌های گیت‌شده* جلوی checkout را می‌گیرند؛ فایل‌های
+  # untracked (از جمله بکاپ‌هایی که خود این اسکریپت داخل مخزن می‌سازد) با
+  # checkout نمی‌سوزند و نباید مسیر بازگشت را قفل کنند.
+  if [[ -n "$(git -C "$APP_DIR" status --porcelain --untracked-files=no 2>/dev/null || true)" ]]; then
+    die "working tree کثیف است (تغییرات ثبت‌نشده)؛ اول کامیت یا stash کنید تا «git checkout» کارِ کسی را خراب نکند."
   fi
+  untracked="$(git -C "$APP_DIR" status --porcelain --untracked-files=only 2>/dev/null || true)"
+  if [[ -n "$untracked" ]]; then
+    warn "$(printf '%s\n' "$untracked" | grep -c . || true) فایل untracked هست؛ «git checkout» آن‌ها را دست نمی‌زند."
+  fi
+  cur_branch="$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '-')"
   say "— بازگشت به حالت قبل از آخرین ارتقا —"
   say "  بکاپ  : $dump"
   say "  کامیت : $commit"
+  say "  دیتابیس: $DB_DISPLAY"
   [[ -f "$dump.meta" ]] && sed 's/^/    /' "$dump.meta"
   confirm_destructive "دیتابیس «$DB_NAME» با محتوای این بکاپ بازنویسی و کد به $commit برمی‌گردد."
   if command -v pm2 >/dev/null 2>&1; then
     # نوشتن موقع restore باعث دادهٔ نیمه‌کاره می‌شود
     run pm2 stop nobino-api
   fi
-  run pg_restore --clean --if-exists --no-owner --no-privileges --dbname="${DB_DISPLAY:-postgresql://USER:PASS@HOST:5432/nobino}" "$dump" \
-    || die "pg_restore ناموفق بود؛ ادامه ندهید و وضعیت را با «pm2 logs nobino-api» بررسی کنید."
+  # --exit-on-error + --single-transaction: با هر خطا کل بازگردانی rollback
+  # می‌شود و دیتابیس دقیقاً همان وضعیت قبلی را نگه می‌دارد؛ بدون این دو،
+  # pg_restore با کد ۰ خارج می‌شد در حالی که نصف جدول‌ها خالی مانده بودند.
+  run pg_restore --clean --if-exists --no-owner --no-privileges --exit-on-error --single-transaction \
+    "${PG_ARGS[@]}" "$dump" \
+    || { clear_pg_env; die "pg_restore ناموفق بود؛ به‌خاطر --single-transaction هیچ تغییری اعمال نشد و کد دست‌نخورده است. با «pm2 logs nobino-api» و اجرای دستی pg_restore وضعیت را بررسی کنید."; }
+  if $DRY_RUN; then
+    clear_pg_env
+  else
+    if command -v psql >/dev/null 2>&1; then
+      tables="$(psql -tAc "select count(*) from pg_tables where schemaname='public'" "${PG_ARGS[@]}" 2>/dev/null || true)"
+      clear_pg_env
+      if [[ "$tables" =~ ^[0-9]+$ ]]; then
+        [[ "$tables" -gt 0 ]] || die "بازگردانی هیچ جدولی در schema public نساخت؛ سرویس ری‌استارت نمی‌شود. وضعیت دیتابیس را دستی بررسی کنید."
+        ok "بازگردانی تأیید شد: $tables جدول در schema public"
+      else
+        warn "تعداد جدول‌ها بعد از بازگردانی خوانده نشد؛ قبل از ری‌استارت دیتابیس را دستی بررسی کنید."
+      fi
+    else
+      clear_pg_env
+      warn "psql نصب نیست؛ صحتِ بازگردانی فقط به کد خروج pg_restore محدود است."
+    fi
+  fi
   if [[ -n "$commit" && "$commit" != "-" ]]; then
     run git -C "$APP_DIR" checkout "$commit" || die "checkout به $commit نشد؛ کد دست‌نخورده ماند (دیتابیس بازگردانی شده)."
+    # checkout روی کامیت، HEAD را معلق می‌کند و اجرای بعدی update.sh روی HEAD
+    # معلق شکست می‌خورد؛ شاخهٔ قبلی را کنار گذاشتیم تا همان اجرا برگرداند.
+    if ! $DRY_RUN && [[ -d "$APP_DIR/.git" && "$cur_branch" != "HEAD" && "$cur_branch" != "-" ]]; then
+      printf '%s\n' "$cur_branch" >"$APP_DIR/.git/nobino-deploy-branch" ||
+        warn "شاخهٔ بازگشت ($cur_branch) ذخیره نشد؛ بعد از rollback دستی «git checkout $cur_branch» بزنید."
+    fi
   else
+    clear_pg_env
     warn "کامیتِ بکاپ در نام فایل نیست؛ فقط دیتابیس بازگردانی می‌شود. کد را دستی به نسخهٔ قبل ببرید."
   fi
   DO_PULL=false
@@ -152,6 +236,22 @@ BRANCH="$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '-')
 BEFORE="$(git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || echo '-')"
 
 if $DO_PULL; then
+  # بعد از یک --rollback، HEAD روی کامیت معلق است و `git pull --ff-only` روی آن
+  # می‌میرد («You are not currently on a branch»). شاخهٔ ذخیره‌شده را برمی‌گردانیم.
+  if ! $DRY_RUN && ! git -C "$APP_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    attach=""
+    if [[ -f "$APP_DIR/.git/nobino-deploy-branch" ]]; then
+      attach="$(head -1 "$APP_DIR/.git/nobino-deploy-branch" 2>/dev/null || true)"
+    fi
+    if [[ -z "$attach" ]]; then
+      attach="$(git -C "$APP_DIR" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
+    fi
+    if [[ -z "$attach" || "$attach" == "HEAD" ]]; then
+      die "HEAD روی کامیت معلق است و شاخهٔ بازگشت مشخص نیست. دستی شاخهٔ اصلی را انتخاب کنید:  git checkout <branch>  سپس این دستور را دوباره اجرا کنید."
+    fi
+    warn "HEAD معلق است (احتمالاً بعد از --rollback)؛ به شاخهٔ «$attach» برمی‌گردیم."
+    run git -C "$APP_DIR" checkout "$attach" || die "بازگشت به شاخهٔ «$attach» نشد."
+  fi
   say "— git pull ($BRANCH) —"
   if ! $DRY_RUN && [[ -n "$(git -C "$APP_DIR" status --porcelain)" ]]; then
     warn "تغییرات ثبت‌نشده در working tree هست؛ pull فقط اگر conflict ندهد انجام می‌شود."
@@ -194,7 +294,8 @@ if $DO_BACKUP; then
   fi
   DUMP="$BACKUP_DIR/nobino-${BEFORE}-$(date +%Y%m%d-%H%M%S).dump"
   run mkdir -p "$BACKUP_DIR"
-  run pg_dump --no-owner --no-privileges --format=custom --file="$DUMP" --dbname="${DB_DISPLAY:-postgresql://USER:PASS@HOST:5432/nobino}"
+  run pg_dump --no-owner --no-privileges --format=custom --file="$DUMP" "${PG_ARGS[@]}"
+  clear_pg_env
   if ! $DRY_RUN; then
     [[ -s "$DUMP" ]] || die "بکاپ \"$DUMP\" ساخته نشد؛ قبل از تغییر schema می‌ایستیم."
     printf 'commit=%s\nbranch=%s\ndb=%s\nbytes=%s\nutc=%s\n' \
@@ -243,13 +344,37 @@ PORT="$(env_value PORT)"; [[ -n "$PORT" ]] || PORT="${PORT:-3100}"  # نبود �
 if $DRY_RUN; then
   printf '%s[dry] curl http://127.0.0.1:%s/api/health?db=1%s\n' "$C_DIM" "$PORT" "$C_OFF"
 else
-  sleep 3
-  if H="$(curl -fsS --max-time 12 "http://127.0.0.1:$PORT/api/health?db=1" 2>/dev/null)"; then
-    say "$H"; ok "سرور سالم است"
-  else
-    warn "سلامت تأیید نشد — «pm2 logs nobino-api --lines 60»"
-    [[ -n "$DUMP" ]] && warn "اگر نسخهٔ تازه خراب است: sudo bash deploy/update.sh --rollback --yes (بکاپ: $DUMP)"
+  # بررسی سلامت = دروازهٔ واقعی استقرار، نه هشدار. (۱) تا ۹۰ ثانیه تلاش مجدد، چون
+  # بوت با prisma generate/migrate طول می‌کشد؛ (۲) اگر pm2 و ss در دسترس باشند،
+  # pidِ نگه‌دارندهٔ پورت با pid سرویس مقصد تطبیق داده می‌شود تا سلامتِ یک پروسهٔ
+  # دیگر روی همان پورت، این استقرار را «موفق» نشان ندهد؛ (۳) شکست → خروج ۱.
+  EXPECT_PID=""
+  if command -v pm2 >/dev/null 2>&1; then
+    EXPECT_PID="$(pm2 pid nobino-api 2>/dev/null | tr -dc '0-9')"
   fi
+  HEALTH_URL="http://127.0.0.1:$PORT/api/health?db=1"
+  H=""
+  waited=0
+  while [[ -z "$H" && $waited -lt 90 ]]; do
+    H="$(curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null || true)"
+    if [[ -z "$H" ]]; then sleep 3; waited=$((waited + 3)); fi
+  done
+  if [[ -z "$H" ]]; then
+    say "   لاگ سرویس:  pm2 logs nobino-api --lines 60"
+    if [[ -n "$DUMP" ]]; then
+      warn "اگر نسخهٔ تازه خراب است: sudo bash deploy/update.sh --rollback --yes (بکاپ: $DUMP)"
+    fi
+    die "سرویس در ۹۰ ثانیه به $HEALTH_URL پاسخ نداد؛ استقرار ناموفق است."
+  fi
+  OWNER=""
+  if [[ -n "$EXPECT_PID" ]] && command -v ss >/dev/null 2>&1; then
+    OWNER="$(ss -ltnp "sport = :$PORT" 2>/dev/null | grep -oE 'pid=[0-9]+' | head -1 | sed 's/pid=//')"
+    if [[ -n "$OWNER" && "$OWNER" != "$EXPECT_PID" ]]; then
+      die "پورت $PORT را پروسهٔ $OWNER پاسخ داد، نه nobino-api (pid $EXPECT_PID). قبل از ادامه آن پروسه را متوقف کنید؛ نسخهٔ تازه‌ای که build شد در حال سرو نیست."
+    fi
+  fi
+  say "$H"
+  if [[ -n "$OWNER" ]]; then ok "سرور سالم است (pid $OWNER روی پورت $PORT)"; else ok "سرور سالم است (پورت $PORT)"; fi
 fi
 say ""
 say "${C_OK}به‌روزرسانی پایان یافت.${C_OFF} (کمیت: ${BEFORE} → ${AFTER}) بکاپ: ${DUMP:-—}"

@@ -9,11 +9,21 @@
  *  - از upsert / top-up استفاده می‌کند تا اجرای دوباره امن باشد.
  *
  * اجرا:  node scripts/seed-demo.mjs   (یا: npm run seed:demo)
- * گارد:  روی NODE_ENV=production بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود، چون
- *        کاربرهای نمونه با رمز معلوم (Demo@1234) می‌سازد.
+ *   --purge-extra-staff  در سالن‌های دمو، پرسنلی که در فهرستانداری این اسکریپت
+ *                        نیستند حذف می‌شوند (شمار پرسنل دقیقاً ۵ می‌ماند).
+ *                        بدون آن، پرسنلی که سالن‌دار از داشبورد اضافه کرده
+ *                        دست‌نخورده می‌ماند (CR-3).
+ * راهنما: node scripts/seed-demo.mjs --help
+ * گارد:  روی NODE_ENV=production (هر نگارشی) بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود،
+ *        چون کاربرهای نمونه با رمز معلوم (Demo@1234) می‌سازد.
  */
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, scryptSync, randomInt } from "node:crypto";
+import { seedGuard } from "./lib/seed-guard.mjs";
+
+// ME-12/ME-13/ME-14: گارد مشترک، پیش از ساخت PrismaClient
+const { has } = seedGuard(import.meta.url, ["--purge-extra-staff"], "کاربرهای نمونه با رمز معلوم «Demo@1234» و سالن‌های نمونه می‌سازد");
+const PURGE_EXTRA_STAFF = has("--purge-extra-staff");
 
 const prisma = new PrismaClient();
 
@@ -204,10 +214,17 @@ async function seedSalons(owners) {
       staff.push(existing);
     }
 
-    // حذف کارکنان اضافیِ غیراستاندارد (از اجراهای قبلی) — چون هنوز نوبتی به آن‌ها
-    // اشاره نکرده، حذف‌شان امن است و عدد را دقیق و ثابت نگه می‌دارد.
     const canonicalStaffIds = staff.map((s) => s.id);
-    await prisma.staff.deleteMany({ where: { salonId: salon.id, NOT: { id: { in: canonicalStaffIds } } } });
+    // CR-3: این شرط هر پرسنلی جز ۵ نفرِ استاندارد را می‌بَرید — از جمله کسانی که
+    // سالن‌دار واقعی از داشبورد اضافه کرده (بدون نوبتِ امروز هم حذف می‌شد).
+    // پیش‌فرض نگه داشته می‌شود؛ برای یکدست کردن شمار پرسنل: --purge-extra-staff
+    if (PURGE_EXTRA_STAFF) {
+      const r = await prisma.staff.deleteMany({ where: { salonId: salon.id, NOT: { id: { in: canonicalStaffIds } } } });
+      if (r.count) console.log(`   🧹 ${salon.slug}: ${r.count} پرسنل خارج از فهرست استاندارد حذف شد`);
+    } else {
+      const extra = await prisma.staff.count({ where: { salonId: salon.id, NOT: { id: { in: canonicalStaffIds } } } });
+      if (extra) console.log(`   ℹ️ ${salon.slug}: ${extra} پرسنلِ اضافه نگه داشته شد (برای حذف: --purge-extra-staff)`);
+    }
 
     // بلوک‌های زمانی (۳)
     await topUp("timeBlock", { salonId: salon.id }, 3, (i) => {
@@ -585,16 +602,6 @@ async function seedCashAndVoice(salons) {
 
 // ═══ اجرا ══════════════════════════════════════════════════════════════
 async function main() {
-  // ⚠️ گارد پروداکشن: این اسکریپت کاربرهای نمونه با رمز معلوم «Demo@1234» و
-  // سالن‌های نمونه می‌سازد و home.sample_salons را بازنویسی می‌کند. روی
-  // NODE_ENV=production بدون ALLOW_PROD_SEED=1 هیچ چیزی نمی‌نویسد.
-  const isProd = (process.env.NODE_ENV || "").trim().toLowerCase() === "production";
-  const allowed = !isProd || /^(1|true|yes)$/i.test(process.env.ALLOW_PROD_SEED || "");
-  if (!allowed) {
-    console.error("❌ دیتای نمونه روی production اجرا نمی‌شود (رمز پیش‌فرض Demo@1234).");
-    console.error("   اگر واقعاً می‌خواهید: ALLOW_PROD_SEED=1 node scripts/seed-demo.mjs");
-    process.exit(1);
-  }
   console.log("🚀 شروع تزریق دیتای نمونه...");
   const users = await seedUsers();
   console.log(`   ✅ کاربران: ${users.owners.length} مالک + ۱ نماینده + ${users.customers.length} مشتری`);

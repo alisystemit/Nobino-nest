@@ -11,6 +11,7 @@ import { createServer } from "node:net";
 import { request as rawRequest } from "node:http";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { requireArtifact } from "./lib/test-guard.mjs";
 
 const require = createRequire(import.meta.url);
 const ROOT = join(import.meta.dirname, "..");
@@ -22,10 +23,8 @@ const dist = (rel) => require(join(ROOT, "backend", "dist", rel));
 
 // ───────────────────────── منطق خالص (نیازمند فقط بیلد بک‌اند) ─────────────────────────
 const distReady = existsSync(DIST_MAIN);
-const skipIfNoBuild = (t) => {
-  if (!distReady) t.skip("backend/dist وجود ندارد — با «npm run build:backend» ساخته می‌شود");
-  return !distReady;
-};
+// ME-9: نبودِ بیلد با skip بی‌صدا «سبز» نیست — شکست می‌خورد مگر SKIP_MISSING_ARTIFACTS=1
+const skipIfNoBuild = (t) => !requireArtifact(t, DIST_MAIN, "npm run build:backend");
 
 test("رمز عبور: هش scrypt و راستی‌آزمایی دوسویه", async (t) => {
   if (skipIfNoBuild(t)) return;
@@ -289,6 +288,9 @@ describe("سرور ساخته‌شده (backend/dist/main.js)", () => {
   });
 
   const gated = (t) => {
+    // ME-9: نبودِ بیلد شکست است (skip فقط با SKIP_MISSING_ARTIFACTS=1)؛ نبودِ دیتابیس
+    // یا بالا نیامدن سرور همان skip می‌ماند — آن شرایط محیطی است، نه تستِ نجاریده.
+    if (!requireArtifact(t, DIST_MAIN, "npm run build:backend")) return true;
     if (skipReason) t.skip(skipReason + " — برای این بخش بیلد و دیتابیس لازم است");
     return Boolean(skipReason);
   };
@@ -390,10 +392,7 @@ describe("سرور ساخته‌شده (backend/dist/main.js)", () => {
 
   test("SPA سرو شده و fallback مسیر عمیق کار می‌کند", async (t) => {
     if (gated(t)) return;
-    if (!existsSync(DIST_INDEX)) {
-      t.skip("frontend/dist/index.html نیست (npm run build:frontend)");
-      return;
-    }
+    if (!requireArtifact(t, DIST_INDEX, "npm run build:frontend")) return;
     const root = await get("/");
     assert.equal(root.status, 200);
     assert.match(root.ct, /text\/html/);

@@ -2,36 +2,50 @@
 /**
  * seed-real.mjs — پاک‌سازی محتوای تست و جایگزینی آن با محتوای واقع‌نمای فارسی
  *
- * چه چیزی پاک می‌شود (فاز پاک‌سازی):
- *  - سالن‌های استرسی (slug با پیشوند stress یا نام «… استرس N») و سالن‌های بی‌نام تستی
- *  - تمام فرزندان آن سالن‌ها و همچنین فرزندان ۸ سالن دمو (نام‌های «لمینت مژه 2-1»)
- *  - کاربرهای تستی (0999/0998، ایمیل @nobino.ir برای مشتری‌ها) و ردیف‌های وابسته
- *  - پکیج‌های «بسته استرس N» و ردیف‌های Setting با کلید stress.*
- * چه چیزی دست‌نخورده می‌ماند:
- *  - حساب ادمین و نماینده‌ها، تنظیمات واقعی پنل، پلن‌های واقعی SaaS (پلن پایه/حرفه‌ای/سازمانی)
+ * چه چیزی پاک می‌شود (پیش‌فرض — فقط نشانه‌های قطعیِ دادهٔ تست):
+ *  - ردیف‌های خودِ همین اسکریپت در دور قبل (id با پیشوند `nr`)
+ *  - سالن‌های استرسی: slug با پیشوند `stress-` یا نام با پیشوند «سالن استرس»
+ *  - پکیج‌های «بسته استرس …»، کلیدهای Setting با پیشوند `stress.`،
+ *    کدهای STRESS-DISC-/STRESS-GC-، وب‌هوک‌های webhook.stress
+ *  - فرزندان ۸ سالن دمو (slugهای mah/rose/…) که دوباره ساخته می‌شوند
+ * چه چیزی پیش‌فرض دست‌خورده می‌ماند:
+ *  - کاربر/تیکت/کیف پول/اطلاعیهٔ هر شمارهٔ واقعی — حتی با پیش‌شمارهٔ 0999/0998،
+ *    چون این‌ها پیش‌شمارهٔ واقعی اپراتورهای ایران‌اند (CR-3)
+ *  - کوپن‌های WELCOME…، ایمیل‌های @nobino.ir، شهرهای شامل رشتهٔ «تست»
+ *  - حساب ادمین و نماینده‌ها، تنظیمات واقعی پنل، پلن‌های واقعی SaaS
  *  - سالن‌هایی که دستی در پنل ساخته شده‌اند (مثل پردیسان کاج)
  *
  * اجرا:
- *   node scripts/seed-real.mjs              پاک‌سازی + سید
- *   node scripts/seed-real.mjs --dry-run    فقط گزارش، بدون نوشتن
+ *   node scripts/seed-real.mjs                 پاک‌سازی ایمن + سید
+ *   node scripts/seed-real.mjs --dry-run       فقط گزارش، بدون نوشتن
  *   node scripts/seed-real.mjs --clean-only | --seed-only
- * گارد: روی NODE_ENV=production بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود.
+ *   node scripts/seed-real.mjs --purge-test-phones
+ *       حدس‌های قدیمی هم اجرا شوند: کاربر 0999/0998، مشتری با ایمیل @nobino.ir،
+ *       تیکت با موضوع «موضوع تیکت …»، کوپن WELCOME*، شهر شامل «تست»،
+ *       اطلاعیه/ممیزی با پیش‌شمارهٔ 099. فقط روی دیتابیس تست؛ روی سرور
+ *       واقعی همین‌هاست که دادهٔ مشتری را می‌بَرَند.
+ *   node scripts/seed-real.mjs --help          همین راهنما
+ * گارد: روی NODE_ENV=production (هر نگارشی) بدون ALLOW_PROD_SEED=1/true/yes اجرا نمی‌شود.
  */
 import { PrismaClient } from "@prisma/client";
 import { createHash, randomBytes, randomInt, scryptSync } from "node:crypto";
+import { seedGuard } from "./lib/seed-guard.mjs";
 
-const prisma = new PrismaClient();
-
-const args = process.argv.slice(2);
-const DRY = args.includes("--dry-run");
-const ONLY_CLEAN = args.includes("--clean-only");
-const ONLY_SEED = args.includes("--seed-only");
+// ME-12/ME-13/ME-14: گارد مشترک (بی‌حساسیت به بزرگی/کوچکی، پیش از PrismaClient،
+// ردِّ پرچم ناشناخته و --help) — الگوبرداری از create-admin.mjs و update.sh.
+const { has } = seedGuard(
+  import.meta.url,
+  ["--dry-run", "--clean-only", "--seed-only", "--purge-test-phones"],
+  "پاک‌سازی + بازنویسی دیتابیس با دادهٔ نمونه"
+);
+const DRY = has("--dry-run");
+const ONLY_CLEAN = has("--clean-only");
+const ONLY_SEED = has("--seed-only");
+/** CR-3: حذف‌های «بر پایهٔ حدس» فقط با پرچم صریح — وگرنه دادهٔ واقعی می‌رود */
+const PURGE_HINTS = has("--purge-test-phones");
 const SALON_TARGET = 100; // slug‌های دمو + سالن‌های تازه
 
-if (process.env.NODE_ENV === "production" && process.env.ALLOW_PROD_SEED !== "1") {
-  console.error("🛑 روی production اجرا نمی‌شود (ALLOW_PROD_SEED=1 را ست کنید اگر واقعاً می‌خواهید).");
-  process.exit(1);
-}
+const prisma = new PrismaClient();
 
 /* ── ابزارها ─────────────────────────────────────────────────────── */
 let seq = 0;
@@ -360,10 +374,19 @@ async function clean() {
     log.push(`${label}: ${n}`);
   };
 
-  const stressSalons = await prisma.salon.findMany({
-    where: { OR: [{ slug: { startsWith: "stress" } }, { name: { contains: "استرس" } }, { city: { contains: "تست" } }, { slug: { in: ["iiiiiiiiiii"] } }] },
-    select: { id: true, slug: true },
-  });
+  // CR-3: هیچ‌کدام از این پریکَت‌ها نباید رشتهٔ آزادِ دادهٔ واقعی را بَرَد.
+  // seed-stress این نشانه‌ها را می‌نویسد: slug `stress-salon-…`، name `سالن استرس N`،
+  // phone کاربر `0999…`/`0998…`، package `بسته استرس N`، code `STRESS-DISC-/STRESS-GC-`،
+  // subject `موضوع تیکت N`، url `https://webhook.stress/…`، key `stress.key.…`.
+  // پیش‌شماره‌های 0999/0998 و ایمیل @nobino.ir پیش‌شماره/دامنهٔ **واقعی**اند، پس
+  // فقط با پرچم صریح --purge-test-phones استفاده می‌شوند.
+  const stressSalonOr = [
+    { slug: { startsWith: "stress-" } },
+    { name: { startsWith: "سالن استرس" } },
+    { slug: { in: ["iiiiiiiiiii"] } },
+  ];
+  if (PURGE_HINTS) stressSalonOr.push({ city: { contains: "تست" } });
+  const stressSalons = await prisma.salon.findMany({ where: { OR: stressSalonOr }, select: { id: true, slug: true } });
   const stressSalonIds = stressSalons.map((s) => s.id);
   const demoSlugs = DEMO_SALONS.map(([slug]) => slug);
   const demoSalons = await prisma.salon.findMany({ where: { slug: { in: demoSlugs } }, select: { id: true } });
@@ -371,19 +394,21 @@ async function clean() {
   /** همهٔ فرزندانی که از نو ساخته می‌شوند: سالن‌های استرسی + ۸ سالن دمو */
   const scopeIds = [...stressSalonIds, ...demoSalonIds];
 
-  const stressUsers = await prisma.user.findMany({
-    where: {
-      OR: [
+  const stressUserOr = PURGE_HINTS
+    ? [
         { phone: { startsWith: "0999" } },
         { phone: { startsWith: "0998" } },
-        { email: { contains: "stress" } },
-        { name: { contains: "استرس" } },
+        { email: { startsWith: "stress" } },
         { role: "CUSTOMER", email: { endsWith: "@nobino.ir" } },
-      ],
-    },
-    select: { id: true },
-  });
+      ]
+    : [];
+  const stressUsers = stressUserOr.length
+    ? await prisma.user.findMany({ where: { OR: stressUserOr }, select: { id: true } })
+    : [];
   const stressUserIds = stressUsers.map((u) => u.id);
+  if (!PURGE_HINTS) {
+    console.log("   ℹ️ کاربرهای 0999/0998 و مشتری @nobino.ir بررسی نشدند (پیش‌فرض ایمن) — برای آن‌ها: --purge-test-phones");
+  }
 
   // ردیف‌های فرزند — فرزند به والد، به ترتیب معکوس وابستگی
   await kill("webhookDelivery", { config: { salonId: { in: scopeIds } } }, "WebhookDelivery(salon)");
@@ -419,21 +444,32 @@ async function clean() {
   if (stressSalonIds.length && !DRY) await prisma.salon.deleteMany({ where: { id: { in: stressSalonIds } } });
   log.push(`Salon(stress): ${stressSalonIds.length}`);
 
-  // ردیف‌های سراسریِ تستی
-  await kill("giftCard", { OR: [{ ownerId: { in: stressUserIds } }, { code: { contains: "stress", mode: "insensitive" } }] }, "GiftCard");
-  await kill("discount", { OR: [{ code: { startsWith: "WELCOME" } }, { code: { contains: "stress", mode: "insensitive" } }] }, "Discount(تستی)");
-  await kill("supportTicket", { OR: [{ userId: { in: stressUserIds } }, { phone: { startsWith: "0999" } }, { phone: { startsWith: "0998" } }, { subject: { contains: "موضوع تیکت" } }] }, "SupportTicket");
+  // ردیف‌های سراسریِ تستی (CR-3: فقط نشانهٔ قطعی مگر با --purge-test-phones)
+  const stressPhoneOr = (field) => [
+    { [field]: { startsWith: "0999" } },
+    { [field]: { startsWith: "0998" } },
+  ];
+  await kill("giftCard", { OR: [{ ownerId: { in: stressUserIds } }, { code: { startsWith: "STRESS-GC" } }] }, "GiftCard");
+  const discOr = [{ code: { startsWith: "STRESS-DISC" } }];
+  if (PURGE_HINTS) discOr.push({ code: { startsWith: "WELCOME" } });
+  await kill("discount", { OR: discOr }, "Discount(stress)");
+  const ticketOr = [{ userId: { in: stressUserIds } }, { subject: { startsWith: "موضوع تیکت" } }];
+  if (PURGE_HINTS) ticketOr.push(...stressPhoneOr("phone"));
+  await kill("supportTicket", { OR: ticketOr }, "SupportTicket");
   await kill("transaction", { wallet: { ownerId: { in: stressUserIds } } }, "Transaction");
   await kill("payout", { wallet: { ownerId: { in: stressUserIds } } }, "Payout");
   await kill("wallet", { ownerId: { in: stressUserIds } }, "Wallet");
   await kill("session", { userId: { in: stressUserIds } }, "Session");
-  await kill("notification", { recipient: { startsWith: "099" } }, "Notification(stress)");
-  await kill("otp", { OR: [{ phone: { startsWith: "0999" } }, { phone: { startsWith: "0998" } }] }, "Otp(stress)");
-  await kill("auditLog", { actorPhone: { startsWith: "099" } }, "AuditLog(stress)");
-  await kill("webhookDelivery", { config: { url: { contains: "stress" } } }, "WebhookDelivery(url)");
+  if (PURGE_HINTS) {
+    // پیش‌شمارهٔ 099 به‌تنهایی خطرناک است (0990/0991/… واقعی‌اند) → 0999/0998
+    await kill("notification", { OR: stressPhoneOr("recipient") }, "Notification(stress-phone)");
+    await kill("otp", { OR: stressPhoneOr("phone") }, "Otp(stress-phone)");
+    await kill("auditLog", { OR: stressPhoneOr("actorPhone") }, "AuditLog(stress-phone)");
+  }
+  await kill("webhookDelivery", { config: { url: { contains: "webhook.stress" } } }, "WebhookDelivery(url)");
 
   // پکیج‌های استرسی: Order/Subscription آن‌ها را RESTRICT نگه می‌دارند → اول فرزند‌ها
-  const stressPackages = await prisma.package.findMany({ where: { name: { contains: "استرس" } }, select: { id: true } });
+  const stressPackages = await prisma.package.findMany({ where: { name: { startsWith: "بسته استرس" } }, select: { id: true } });
   const stressPackageIds = stressPackages.map((x) => x.id);
   if (stressPackageIds.length) {
     await kill("payment", { order: { packageId: { in: stressPackageIds } } }, "Payment(order:pkg-stress)");
@@ -1389,10 +1425,26 @@ async function seed() {
     ["supportTicket", "tickets"], ["payment", "payments"], ["notification", "notifications"],
     ["otp", "otps"], ["session", "sessions"], ["auditLog", "audits"],
   ];
-  // Wallet.ownerId یکتاست؛ مالک‌های دمو ممکن است کیف‌پولِ دورِ قبل را نگه داشته باشند
+  // Wallet.ownerId یکتاست. کیف‌پول کهنه فقط از مالک‌های خودِ این اسکریپت (پیشوند nr)
+  // حذف می‌شود؛ مالکِ از پیش موجود (نماینده، یا کاربر واقعی با همان شماره) کیف‌پول و
+  // تاریخچهٔ تراکنشش را نگه می‌دارد و از این دور بیرون می‌رود (CR-3).
   if (R.wallets.length) {
-    const stale = await prisma.wallet.deleteMany({ where: { ownerId: { in: R.wallets.map((w) => w.ownerId) } } });
-    if (stale.count) console.log(`   ♻ ${stale.count} کیف‌پول کهنه حذف شد (تراکنش/برداشت‌ها cascade)`);
+    const ownerIds = [...new Set(R.wallets.map((w) => w.ownerId))];
+    const existing = await prisma.wallet.findMany({ where: { ownerId: { in: ownerIds } }, select: { id: true, ownerId: true } });
+    const foreign = existing.filter((w) => !w.ownerId.startsWith("nr"));
+    if (foreign.length) {
+      const dropOwners = new Set(foreign.map((w) => w.ownerId));
+      const dropWallets = new Set(foreign.map((w) => w.id));
+      R.wallets = R.wallets.filter((w) => !dropOwners.has(w.ownerId));
+      R.txs = (R.txs || []).filter((t) => !dropWallets.has(t.walletId));
+      R.payouts = (R.payouts || []).filter((p) => !dropWallets.has(p.walletId));
+      console.log(`   ⏭ ${dropOwners.size} مالکِ از پیش موجود کیف‌پول دارد → کیف‌پول/تراکنش/برداشتِ او ساخته و حذف نشد`);
+    }
+    const staleIds = existing.filter((w) => w.id.startsWith("nr")).map((w) => w.id);
+    if (staleIds.length) {
+      const stale = await prisma.wallet.deleteMany({ where: { id: { in: staleIds } } });
+      if (stale.count) console.log(`   ♻ ${stale.count} کیف‌پول کهنه حذف شد (تراکنش/برداشت‌ها cascade)`);
+    }
   }
   for (const [model, key] of INSERT_ORDER) {
     const data = R[key] || [];

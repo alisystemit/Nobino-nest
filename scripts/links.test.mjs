@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import { readdirSync, readFileSync, statSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, extname } from "node:path";
+import { requireDep } from "./lib/test-guard.mjs";
 
 const require = createRequire(import.meta.url);
 const ROOT = join(import.meta.dirname, "..");
@@ -96,10 +97,8 @@ exports.useParams = () => ({});
 `;
 
 test("Linkِ router-shim: نشانی میزبانِ دیگر با <a> واقعی، مسیر داخل‌سایت با RouterLink", async (t) => {
-  if (!esbuildPath) {
-    t.skip("esbuild در frontend/node_modules نیست");
-    return;
-  }
+  // ME-9: بی‌esbuild این تست هرگز اجرا نمی‌شود؛ skip بی‌صدا سبز نگهش می‌داشت
+  if (!requireDep(t, "esbuild", "frontend")) return;
   const dir = mkdtempSync(join(tmpdir(), "nobino-links-"));
   const reactStub = join(dir, "react-stub.cjs");
   const rrdStub = join(dir, "rrd-stub.cjs");

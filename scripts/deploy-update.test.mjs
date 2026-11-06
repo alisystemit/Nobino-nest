@@ -21,6 +21,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, utime
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ALLOW_SKIP } from "./lib/test-guard.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const REAL_SCRIPT = join(REPO, "deploy", "update.sh");
@@ -79,7 +80,11 @@ wlog(){ printf '%s\\n' "$*" >> "$W_LOG"; }
 git(){ wlog "git $*"; case "$*" in
   *"--abbrev-ref HEAD"*) printf 'main\\n' ;;
   *"--short HEAD"*) printf '%s\\n' "\${W_HEAD:-c1}" ;;
+  *"status --porcelain --untracked-files=no"*) [[ "\${W_DIRTY:-}" == "1" ]] && printf ' M src/x.ts\\n' ;;
+  *"status --porcelain --untracked-files=only"*) [[ "\${W_UNTRACKED:-}" == "1" ]] && printf '?? backups/x.dump\\n' ;;
   *"status --porcelain"*) [[ "\${W_DIRTY:-}" == "1" ]] && printf ' M src/x.ts\\n' ;;
+  *"refs/remotes/origin/HEAD"*) [[ "\${W_DETACHED:-}" == "2" ]] && return 1; printf 'refs/remotes/origin/main\\n' ;;
+  *"symbolic-ref -q HEAD"*) [[ -n "\${W_DETACHED:-}" ]] && return 1 ;;
 esac; return 0; }
 # «sh -c "cd … && npm ci"» — تا npm واقعی هرگز اجرا نشود
 sh(){ wlog "sh $*"; return 0; }
@@ -87,11 +92,19 @@ node(){ wlog "node $*"; case "$*" in
   *"migrate deploy"*) [[ "\${W_NODE_FAIL:-}" == "migrate" ]] && return 1 ;;
   *"db push"*) [[ "\${W_NODE_FAIL:-}" == "push" ]] && return 1 ;;
 esac; return 0; }
-pg_dump(){ wlog "pg_dump $*"; local f=""; for a in "$@"; do case "$a" in --file=*) f="\${a#--file=}";; esac; done
+# رمز باید از محیط بیاید، نه argv؛ خط pgenv نشان می‌دهد چه چیزی واقعاً ست شده
+pg_dump(){ wlog "pgenv PGPASSWORD=\${PGPASSWORD:-} PGUSER=\${PGUSER:-} PGHOST=\${PGHOST:-} PGPORT=\${PGPORT:-} PGDATABASE=\${PGDATABASE:-}"
+  wlog "pg_dump $*"; local f=""; for a in "$@"; do case "$a" in --file=*) f="\${a#--file=}";; esac; done
   [[ -n "$f" ]] && printf 'PGDMP\\x03stub\\n' > "$f"; return 0; }
-pg_restore(){ wlog "pg_restore $*"; return 0; }
-pm2(){ wlog "pm2 $*"; return 0; }
-curl(){ wlog "curl $*"; printf '{"ok":true}\\n'; return 0; }
+pg_restore(){ wlog "pgenv PGPASSWORD=\${PGPASSWORD:-} PGDATABASE=\${PGDATABASE:-}"; wlog "pg_restore $*"
+  [[ "\${W_RESTORE_FAIL:-}" == "1" ]] && return 1
+  return 0; }
+psql(){ wlog "psql $*"; printf '%s\\n' "\${W_TABLES:-14}"; return 0; }
+pm2(){ wlog "pm2 $*"; case "$*" in
+  *"pid nobino-api"*) printf '%s\\n' "\${W_PM2_PID:-}" ;;
+esac; return 0; }
+ss(){ wlog "ss $*"; printf 'LISTEN 0 511 0.0.0.0:3977 0.0.0.0:* users:(("node",pid=%s,fd=18))\\n' "\${W_SS_PID:-}"; return 0; }
+curl(){ wlog "curl $*"; [[ "\${W_CURL_FAIL:-}" == "1" ]] && return 1; printf '{"ok":true}\\n'; return 0; }
 sleep(){ :; }
 # command -v ربوده می‌شود: W_MISSING وجود ابزار را لغو می‌کند و مسیرِ واقعیِ
 # سیستم (مثلاً pm2 نصب‌شده روی این ماشین) هرگز بررسی/اجرا نمی‌شود.
@@ -137,8 +150,18 @@ const at = (log, needle) => log.findIndex((l) => l.includes(needle));
 const count = (log, prefix) => log.filter((l) => l.startsWith(prefix)).length;
 const dumpsIn = (dir) => (existsSync(dir) ? readdirSync(dir) : []).filter((f) => f.endsWith(".dump")).sort();
 
-describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false : "bash در دسترس نیست" }, () => {
-  test("فایل با bash -n سالم است", () => {
+// ME-9: نبودِ bash یعنی کل دستهٔ بالا skip و `npm test` سبز — این تست همان را
+// بی‌صدا رد نمی‌کند (مگر با SKIP_MISSING_ARTIFACTS=1).
+test("پیش‌نیاز: bash برای تست‌های deploy/update.sh در PATH است", (t) => {
+  if (bashOk) return;
+  if (ALLOW_SKIP) {
+    t.skip("bash نیست ولی SKIP_MISSING_ARTIFACTS=1");
+    return;
+  }
+  t.fail("bash در PATH نیست → هیچ‌کدام از تست‌های update.sh اجرا نشد؛ Git Bash را نصب/در PATH بگذارید یا SKIP_MISSING_ARTIFACTS=1");
+});
+
+describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false : "bash در دسترس نیست" }, () => {  test("فایل با bash -n سالم است", () => {
     const r = spawnSync("bash", ["-n", px(REAL_SCRIPT)], { encoding: "utf8" });
     assert.equal(r.status, 0, `bash -n: ${r.stderr}`);
   });
@@ -172,12 +195,14 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.match(c.out, /--keep/);
   });
 
-  test("--dry-run: بکاپ را با نشانی پاک‌شده نشان می‌دهد و هیچ چیزی اجرا/ساخته نمی‌شود", () => {
+  test("--dry-run: بکاپ را نشان می‌دهد و هیچ چیزی اجرا/ساخته نمی‌شود", () => {
     const { rc, out, log, box } = runUpdate(["--dry-run"]);
     assert.equal(rc, 0, out);
     const line = out.split(/\r?\n/).find((l) => l.includes("--dbname="));
     assert.ok(line, "خط pg_dump در dry-run چاپ نشد");
-    assert.match(line, /--dbname=postgresql:\/\/nobino:\*\*\*@localhost:5433\/nobino$/);
+    // HI-1: نشانی به pg_dump دیگر رمز ندارد؛ اعتبارنامه از محیط می‌آید
+    assert.match(line, /--dbname=nobino$/);
+    assert.ok(!line.includes("@"), "نشانی argv نباید میزبان/رمز داشته باشد");
     assert.ok(!line.includes("?schema="), "پرس‌وجوی Prisma نباید به libpq برود");
     assert.match(line, /--file=\S*\/backups\/nobino-c1-\d{8}-\d{6}\.dump(?= )/);
     // dry-run فقط خواندنی است: git rev-parse برای گزارش مجاز است، هیچ دستور
@@ -186,28 +211,40 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.equal(existsSync(box.backupDir), false, "dry-run نباید پوشهٔ بکاپ بسازد");
   });
 
-  test("dry-run رمز دیتابیس را چاپ نمی‌کند؛ اجرای واقعی همان نشانی کامل را می‌فرستد", () => {
-    // stdout در --dry-run چیزی است که اپراتور (و لاگ CI) می‌بیند؛ .env نباید
-    // از آن بیرون برود. در اجرای واقعی DB_DISPLAY == DB_TARGET است.
+  test("هیچ رمز دیتابیزی به argv یا stdout نمی‌رسد؛ فقط PGPASSWORD", () => {
+    // HI-1: قبلاً در اجرای واقعی نشانی کامل (با رمز) روی خط فرمان می‌رفت و در
+    // `ps auxe` خوانده می‌شد. حالا argv فقط نام دیتابیس است و رمز در محیط می‌ماند.
     const plain = runUpdate(["--dry-run"]);
     assert.equal(plain.rc, 0, plain.out);
     assert.ok(!plain.out.includes("secret"), "رمز در خروجی dry-run لو رفت");
-    assert.match(plain.out, /--dbname=postgresql:\/\/nobino:\*\*\*@/);
+    assert.match(plain.out, /--dbname=nobino/);
     const rb = runUpdate(["--rollback", "--yes", "--dry-run"], { box: fixture({ oldDumps: true }) });
     assert.equal(rb.rc, 0, rb.out);
     assert.ok(!rb.out.includes("secret"), "رمز در خروجی dry-runِ rollback لو رفت");
-    assert.match(rb.out, /--dbname=postgresql:\/\/nobino:\*\*\*@/);
+    assert.match(rb.out, /postgresql:\/\/nobino:\*\*\*@localhost:5433\/nobino/, "نمایش ماسک‌شدهٔ نشانی");
     const real = runUpdate(["--no-pull"]);
     assert.equal(real.rc, 0, real.out);
-    assert.ok(real.log.some((l) => l.startsWith("pg_dump") && l.includes("nobino:secret@")),
-      "pg_dump باید نشانی کامل بگیرد، نه نشانی نمایشی");
-    // رمزی که خودش «@» دارد: مخفی‌سازی باید تا آخرین «@» برود، نه اولینش
-    const atSign = runUpdate(["--dry-run"], {
+    const dumpLine = real.log.find((l) => l.startsWith("pg_dump"));
+    assert.ok(dumpLine && dumpLine.includes("--dbname=nobino"), `pg_argv: ${dumpLine}`);
+    assert.ok(!real.log.some((l) => l.startsWith("pg_dump") && l.includes("secret")), "رمز در argv pg_dump");
+    assert.ok(real.log.some((l) => l.startsWith("pgenv") && l.includes("PGPASSWORD=secret")), "رمز به PGPASSWORD نرفت");
+    assert.ok(!real.out.includes("secret"), "رمز در stdout اجرای واقعی لو رفت");
+    // رمزی که خودش «@» دارد: تجزیه باید تا آخرین «@» برود، نه اولینش
+    const atSign = runUpdate([], {
       box: fixture({ envText: 'DATABASE_URL="postgresql://ad@min:hunt3r2@db:5433/nobino?schema=public"\nPORT="3977"\n' }),
     });
     assert.equal(atSign.rc, 0, atSign.out);
-    assert.ok(!atSign.out.includes("hunt3r2"), "بخشی از رمز در dry-run لو رفت");
-    assert.match(atSign.out, /--dbname=postgresql:\/\/ad@min:\*\*\*@db:5433\/nobino$/m);
+    assert.ok(!atSign.log.some((l) => l.startsWith("pg_dump") && l.includes("hunt3r2")), "رمز در argv");
+    assert.ok(atSign.log.some((l) => l.startsWith("pgenv") && l.includes("PGPASSWORD=hunt3r2") && l.includes("PGUSER=ad@min")),
+      `تجزیهٔ نشانی با @ در نام‌کاربری: ${atSign.log.find((l) => l.startsWith("pgenv"))}`);
+    assert.ok(!atSign.out.includes("hunt3r2"), "بخشی از رمز در خروجی لو رفت");
+    // رمز URL-encode شده (%40) باید قبل از export بازکدگشایی شود
+    const enc = runUpdate([], {
+      box: fixture({ envText: 'DATABASE_URL="postgresql://nobo:pa%40ss@localhost:5433/nobino"\nPORT="3977"\n' }),
+    });
+    assert.equal(enc.rc, 0, enc.out);
+    assert.ok(enc.log.some((l) => l.startsWith("pgenv") && l.includes("PGPASSWORD=pa@ss")),
+      `decode نشد: ${enc.log.find((l) => l.startsWith("pgenv"))}`);
   });
 
   test("جریان عادی: بکاپ پیش از migrate و پیش از restart؛ dump و .meta روی دیسک", () => {
@@ -313,8 +350,14 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.ok(iStop >= 0 && iStop < iRestore, "قبل از restore سرویس متوقف می‌شود");
     assert.ok(iRestore >= 0, "pg_restore اجرا نشد");
     assert.match(log[iRestore], /--clean --if-exists/);
-    assert.match(log[iRestore], /--dbname=postgresql:\/\/nobino:secret@localhost:5433\/nobino /);
+    // CR-2: بدون این دو فلگ، pg_restore با کد ۰ خارج می‌شد در حالی که نصف
+    // جدول‌ها خالی مانده بود و اسکریپت «بازگشت موفق» می‌گفت.
+    assert.match(log[iRestore], /--exit-on-error/);
+    assert.match(log[iRestore], /--single-transaction/);
+    assert.match(log[iRestore], /--dbname=nobino /, "رمز نباید در argv باشد");
     assert.ok(!log[iRestore].includes("?schema="), "پرس‌وجوی Prisma به pg_restore نمی‌رود");
+    assert.ok(log.some((l) => l.startsWith("pgenv") && l.includes("PGPASSWORD=secret")), "pg_restore رمز را در محیط گرفت");
+    assert.ok(log.some((l) => l.startsWith("psql")), "بعد از restore وضعیت دیتابیس شمرده شد");
     assert.ok(iCheckout > iRestore, "کد بعد از بازگردانی دیتابیس به کامیت بکاپ می‌رود");
     assert.ok(iMig > iCheckout, "بیلد/migrate بعد از checkout همان نسخهٔ قدیمی می‌رود");
     assert.ok(iRestart > iMig);
@@ -352,7 +395,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     const a = runUpdate(["--dry-run"], { env: { W_MISSING: "pg_dump" } });
     assert.equal(a.rc, 0, a.out);
     assert.match(a.out, /pg_dump نیست/);
-    assert.ok(a.out.split(/\r?\n/).some((l) => l.includes("[dry]") && l.includes("--dbname=postgresql://nobino")));
+    assert.ok(a.out.split(/\r?\n/).some((l) => l.includes("[dry]") && l.includes("--dbname=nobino")));
     assert.match(a.out, /\[dry\] curl http:\/\/127\.0\.0\.1:3977\/api\/health\?db=1/);
     const b = runUpdate(["--dry-run"], { box: fixture({ envText: 'PORT="3977"\n' }) });
     assert.equal(b.rc, 0, b.out);
@@ -369,5 +412,80 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.ok(out.split(/\r?\n/).some((l) => l.includes("[dry] pg_restore") && l.includes("--clean --if-exists")));
     assert.ok(out.includes("nobino-cc33333-20261102-010002.dump"), "بکاپ درست انتخاب شد");
     assert.equal(count(log, "pg_restore"), 0, "در dry-run چیزی اجرا نمی‌شود");
+  });
+
+  test("CR-2: شکست pg_restore = توقف پیش از checkout و پیش از build", () => {
+    const box = fixture({ oldDumps: true });
+    const { rc, out, log } = runUpdate(["--rollback", "--yes"], { box, env: { W_RESTORE_FAIL: "1" } });
+    assert.equal(rc, 1, out);
+    assert.match(out, /pg_restore ناموفق بود/);
+    assert.match(out, /--single-transaction/);
+    assert.equal(log.filter((l) => l.includes("checkout")).length, 0, "با بازگردانی ناقص کد جابه‌جا نمی‌شود");
+    assert.equal(at(log, "migrate deploy"), -1, "سرویس بازسازی/بالا نمی‌آید");
+    assert.equal(at(log, "pm2 restart"), -1, "روی دیتابیس نیمه‌کاره ری‌استارت نمی‌کنیم");
+  });
+
+  test("CR-2: بازگردانی که هیچ جدولی نساخت، سرویس را بالا نمی‌آورد", () => {
+    const box = fixture({ oldDumps: true });
+    const { rc, out, log } = runUpdate(["--rollback", "--yes"], { box, env: { W_TABLES: "0" } });
+    assert.equal(rc, 1, out);
+    assert.match(out, /هیچ جدولی/);
+    assert.equal(at(log, "migrate deploy"), -1);
+  });
+
+  test("HI-2: rollback شاخهٔ قبل را ذخیره می‌کند و اجرای بعدی از HEAD معلق بیرون می‌آید", () => {
+    const box = fixture({ oldDumps: true });
+    mkdirSync(join(box.app, ".git"), { recursive: true });
+    const rb = runUpdate(["--rollback", "--yes"], { box });
+    assert.equal(rb.rc, 0, rb.out);
+    const saved = readFileSync(join(box.app, ".git", "nobino-deploy-branch"), "utf8").trim();
+    assert.equal(saved, "main", "شاخهٔ قبل از rollback ذخیره نشد");
+    // اجرای بعدی روی HEAD معلق (بعد از همان rollback) نباید با «not on a branch» بمیرد
+    const next = runUpdate([], { box, env: { W_DETACHED: "1", W_HEAD: "cc33333" } });
+    assert.equal(next.rc, 0, next.out);
+    assert.match(next.out, /HEAD معلق/);
+    assert.ok(next.log.some((l) => /git -C .* checkout main$/.test(l)), `بازگشت به شاخه انجام شد: ${next.log.join(" | ")}`);
+    assert.ok(next.log.some((l) => l.includes("pull --ff-only")), "بعد از اتصال مجدد، pull طبیعی ادامه می‌یابد");
+  });
+
+  test("HI-2: HEAD معلق بدون شاخهٔ ذخیره‌شده با پیام راه‌حل می‌ایستد", () => {
+    const box = fixture();
+    mkdirSync(join(box.app, ".git"), { recursive: true });
+    // نه فایل ذخیره، و stubِ origin/HEAD هم با W_DETACHED تنها برای HEAD شکست می‌خورد
+    const { rc, out, log } = runUpdate([], { box, env: { W_DETACHED: "2" } });
+    assert.equal(rc, 1, out);
+    assert.match(out, /git checkout <branch>/);
+    assert.equal(count(log, "pg_dump"), 0, "پیش از هر کاری می‌ایستد");
+  });
+
+  test("HI-3: سلامت تأیید نشود → خروج ۱، نه هشدار", () => {
+    const { rc, out, log } = runUpdate(["--no-pull"], { env: { W_CURL_FAIL: "1" } });
+    assert.equal(rc, 1, out);
+    assert.match(out, /استقرار ناموفق است/);
+    assert.ok(!out.includes("به‌روزرسانی پایان یافت"), "پیام موفقیت چاپ نمی‌شود");
+    assert.ok(at(log, "curl") >= 0);
+    assert.ok(count(log, "curl") > 1, "باید چند بار تلاش شده باشد");
+  });
+
+  test("HI-3: سلامتی که از پروسهٔ دیگری روی همان پورت می‌آید، پذیرفته نمی‌شود", () => {
+    const { rc, out, log } = runUpdate(["--no-pull"], { env: { W_PM2_PID: "4242", W_SS_PID: "9999" } });
+    assert.equal(rc, 1, out);
+    assert.match(out, /پروسهٔ 9999/);
+    assert.ok(log.some((l) => l.startsWith("ss ")), "صاحب پورت بررسی شد");
+    const good = runUpdate(["--no-pull"], { env: { W_PM2_PID: "4242", W_SS_PID: "4242" } });
+    assert.equal(good.rc, 0, good.out);
+    assert.match(good.out, /سرور سالم است \(pid 4242/);
+  });
+
+  test("LO-4: فقط فایل‌های گیت‌شدهٔ کثیف جلوی rollback را می‌گیرند", () => {
+    const box = fixture({ oldDumps: true });
+    const dirty = runUpdate(["--rollback", "--yes"], { box, env: { W_DIRTY: "1" } });
+    assert.equal(dirty.rc, 1, dirty.out);
+    assert.match(dirty.out, /working tree کثیف/);
+    // untracked (مثلاً پوشهٔ بکاپ داخل مخزن) نباید مسیر بازگشت را قفل کند
+    const untrackedOnly = runUpdate(["--rollback", "--yes"], { box, env: { W_UNTRACKED: "1" } });
+    assert.equal(untrackedOnly.rc, 0, untrackedOnly.out);
+    assert.match(untrackedOnly.out, /untracked/);
+    assert.ok(at(untrackedOnly.log, "pg_restore") >= 0, "با untracked فایل بازگشت انجام می‌شود");
   });
 });

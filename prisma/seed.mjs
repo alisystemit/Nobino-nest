@@ -1,6 +1,18 @@
-// Seed قابل اجرا بدون وابستگی (JavaScript خالص)
+/**
+ * prisma/seed.mjs — seed پایه (ادمین، آرایشگر، نماینده، یک سالن و پلن‌های SaaS)
+ *
+ * اجرا:  npm run seed   (یا: node prisma/seed.mjs)
+ * راهنما: node prisma/seed.mjs --help
+ * گارد:  روی NODE_ENV=production (هر نگارشی) بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود،
+ *        چون ادمین 09120000000 با رمز معلوم Admin@1234 می‌سازد.
+ * پرچم‌های مجاز ندارد؛ پرچم ناشناخته با خطا رد می‌شود تا اجرای CI نیمه‌کاره نماند.
+ */
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, scryptSync } from "node:crypto";
+import { seedGuard } from "../scripts/lib/seed-guard.mjs";
+
+// ME-12/ME-13/ME-14: همان گارد مشترک seedها، پیش از ساخت PrismaClient
+seedGuard(import.meta.url, [], "ادمین 09120000000 با رمز معلوم Admin@1234 می‌سازد");
 
 const prisma = new PrismaClient();
 
@@ -230,13 +242,6 @@ async function main() {
   console.log("   آرایشگر : 09120000001");
   console.log("   نماینده : 09120000002");
   console.log("   سالن    : /s/mah");
-}
-
-// محافظ محیط production: این seed کاربر ادمین 09120000000 با رمز پیش‌فرض
-// Admin@1234 می‌سازد؛ روی پروداکشن فقط با ALLOW_PROD_SEED=1 مجاز است.
-if (String(process.env.NODE_ENV || "").toLowerCase() === "production" && process.env.ALLOW_PROD_SEED !== "1") {
-  console.error("❌ seed در محیط production مسدود است (ادمین با رمز معلوم) — ALLOW_PROD_SEED=1 فقط برای اجرای عمدی.");
-  process.exit(1);
 }
 
 main()

@@ -28,12 +28,6 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
 const has = (flag) => argv.includes(flag);
 
-const STRICT = has("--strict");
-const SKIP_INSTALL = has("--skip-install");
-const SKIP_FRONTEND = has("--no-frontend");
-const SKIP_SMOKE = has("--no-smoke");
-const SMOKE_PORT = Number(process.env.SMOKE_PORT || 3977);
-
 const log = (...a) => console.log("•", ...a);
 const ok = (...a) => console.log("✅", ...a);
 const warn = (...a) => console.log("⚠️ ", ...a);
@@ -42,6 +36,38 @@ const fail = (msg, extra) => {
   if (extra) console.error(extra);
   process.exit(1);
 };
+
+const KNOWN_FLAGS = ["--strict", "--skip-install", "--no-frontend", "--no-smoke", "--help", "-h"];
+const unknown = argv.filter((a) => a.startsWith("--") && !KNOWN_FLAGS.includes(a));
+if (unknown.length) {
+  console.error(`❌ گزینهٔ ناشناخته: ${unknown.join(", ")}\n   مجاز: ${KNOWN_FLAGS.filter((f) => f !== "-h").join(", ")}`);
+  process.exit(1);
+}
+if (has("--help") || argv.includes("-h")) {
+  console.log(`کاربرد: node scripts/build-release.mjs [گزینه]
+
+  --strict        خطاهای تایپ اسکریپت = شکست بیلد
+  --skip-install  npm install اجرا نمی‌شود (سرورهای آماده)
+  --no-frontend   بیلد فرانت‌اند و prerender رد می‌شود
+  --no-smoke      بوت سرور برای smoke test رد می‌شود
+
+متغیرهای محیطی مؤثر: SMOKE_PORT (عدد)، SMOKE_DB_REQUIRED (0|1)،
+SMOKE_PRELOAD (--require دلخواه برای بوت)، PRERENDER_API (سرور زنده در حالت --no-smoke)،
+VITE_SITE_URL / SITE_URL (مبنای سئو؛ اگر نبود prerender انجام نمی‌شود).`);
+  process.exit(0);
+}
+
+const STRICT = has("--strict");
+const SKIP_INSTALL = has("--skip-install");
+const SKIP_FRONTEND = has("--no-frontend");
+const SKIP_SMOKE = has("--no-smoke");
+const SMOKE_PORT = (() => {
+  const raw = (process.env.SMOKE_PORT || "").trim();
+  if (raw === "") return 3977;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1024 || n > 65535) fail(`SMOKE_PORT نامعتبر است: «${raw}» — یک عدد بین 1024 و 65535 بدهید.`);
+  return n;
+})();
 
 function run(cmd, args, opts = {}) {
   const useShell = process.platform === "win32";
@@ -157,17 +183,22 @@ if (!SKIP_FRONTEND && !existsSync(distIndex)) fail("frontend/dist/index.html س�
  *  (۱۲۷.۰.۰.۱:پورت) جانشین دامنه نمی‌شود — prerender در آن حالت canonical
  *  نسبی می‌نویسد و sitemap را روی دیسک نمی‌سوزاند. */
 function runPrerender(apiBase) {
-  const site = (process.env.VITE_SITE_URL || process.env.SITE_URL || "").trim();
+  const site = envValue("VITE_SITE_URL") || envValue("SITE_URL") || envValue("VITE_APP_URL");
+  if (!site) {
+    warn("مبنای سئو مشخص نیست (VITE_SITE_URL/SITE_URL در env یا .env) — prerender انجام نمی‌شود تا sitemap/robots لوکال روی دیست نوشته یا حذف نشود.");
+    return false;
+  }
   const res = run("node", ["prerender.mjs"], {
     cwd: join(ROOT, "frontend"),
     capture: true,
-    env: { PRERENDER_API: apiBase, ...(site ? { VITE_SITE_URL: site } : {}) },
+    env: { PRERENDER_API: apiBase, VITE_SITE_URL: site },
   });
   const out = `${res.stdout || ""}${res.stderr || ""}`.trim();
   if (res.status === 0) {
     for (const line of out.split(/\r?\n/).filter(Boolean).slice(-3)) log("prerender: " + line);
   } else {
     warn("prerender کامل نشد؛ صفحات عمومی با shell اسپا سرو می‌شوند.");
+    for (const line of out.split(/\r?\n/).filter(Boolean).slice(-4)) warn("prerender: " + line);
   }
   return res.status === 0;
 }
@@ -260,22 +291,25 @@ if (SKIP_SMOKE) {
 
   if (!health) {
     const dbDown = /Can't reach database server|P1001|ECONNREFUSED/i.test(bootLog);
-    if (dbDown && !/^(1|true)$/i.test(process.env.SMOKE_DB_REQUIRED || "")) {
-      warn("دیتابیس در دسترس نبود؛ PrismaService در onModuleInit کرش می‌کند (رفتار شناخته‌شده).");
-      warn("بیلد سالم است. برای smoke-test کامل، PostgreSQL را بالا بیاورید یا SMOKE_DB_REQUIRED=1 را خاموش/روشن کنید.");
+    // شکست به‌خاطر نداشتن دیتابیس «موفق» حساب نمی‌شود؛ صریحً با SMOKE_DB_REQUIRED=0 رد کنید.
+    if (dbDown && /^(0|false|no)$/i.test(process.env.SMOKE_DB_REQUIRED || "")) {
+      warn("دیتابیس در دسترس نبود و با SMOKE_DB_REQUIRED=0 رد شد — smoke test کامل انجام نشده است.");
       console.error(bootLog.split(/\r?\n/).filter((l) => /Prisma|P100|database/i.test(l)).slice(0, 4).join("\n"));
     } else {
       console.error(bootLog.slice(-3000));
-      fail("سرور در ۳۰ ثانیه بالا نیامد /api/health نداد");
+      if (dbDown) {
+        fail("سرور بالا نیامد: دیتابیس در دسترس نیست. PostgreSQL را بالا بیاورید (یا DATABASE_URL را درست کنید)؛ اگر واقعاً بدون DB تست می‌کنید: SMOKE_DB_REQUIRED=0");
+      }
+      fail("سرور در 30 ثانیه بالا نیامد /api/health نداد");
     }
   } else {
     ok(`/api/health → ${health.status} | db=${health.db || "n/a"} | servingSpa=${health.servingSpa}`);
-    if (health.db === "down") warn("دیتابیس از /api/health?db=1 پاسخ نداد (liveness همچنان ۲۰۰ است).");
+    if (health.db === "down") warn("دیتابیس از /api/health?db=1 پاسخ نداد (liveness همچنان 200 است).");
     if (existsSync(distIndex)) {
       if (spaStatus === 200 && spaIsHtml) ok(`SPA در / پاسخ داد (HTTP ${spaStatus})`);
       else fail(`SPA سرو نشد (HTTP ${spaStatus}, html=${spaIsHtml})`);
       if (deepStatus === 200) ok("fallback اسپا در مسیر عمیق /packages کار کرد");
-      else warn(`مسیر عمیق /packages کد ${deepStatus} داد (build فرانت کامل نیست؟)`);
+      else fail(`مسیر عمیق /packages کد ${deepStatus} داد — fallback اسپا شکسته است (بروزر رفرش روی مسیرهای عمیق 404 می‌گیرد).`);
     }
   }
 }

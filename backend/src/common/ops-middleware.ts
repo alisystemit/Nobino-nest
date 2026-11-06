@@ -216,17 +216,20 @@ export function registerOpsMiddleware(app: ExpressLikeApp): void {
     const accept = String(req.headers.accept || "");
     const looksLikeAsset = /\.[a-z0-9]{2,6}$/i.test(path);
     if (looksLikeAsset && !/text\/html/i.test(accept)) return next(); // فایل وجود ندارد → ۴۰۴ عادی
-    return sendHtml(req, res, shell);
+    // LO-2: مسیرِ بدون صفحهٔ prerender شده همان shell ریشه را می‌گیرد (canonical «/» + index در بدنه)؛
+    // بدنه دست‌نخورده می‌ماند تا روتر کلاینت کار کند، و فقط هدر اعلام می‌کند ایندکس نشود.
+    return sendHtml(req, res, shell, true);
   });
 }
 
 /** ارسال HTML با هدر درست (HEAD بدنه ندارد) */
-function sendHtml(req: IncomingMessage, res: ServerResponse, file: string) {
+function sendHtml(req: IncomingMessage, res: ServerResponse, file: string, noIndex = false) {
   try {
     const html = readFileSync(file, "utf8");
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache");
+    if (noIndex) res.setHeader("X-Robots-Tag", "noindex, nofollow");
     res.end(req.method === "HEAD" ? "" : html);
   } catch {
     res.statusCode = 500;

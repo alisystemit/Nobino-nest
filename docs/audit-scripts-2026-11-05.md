@@ -2,7 +2,7 @@
 
 **محدوده:** `scripts/*.mjs`، `scripts/*.test.mjs`، `deploy/*.sh`، `backend/scripts/*.mjs`، `frontend/scripts/*.mjs`، `frontend/prerender.mjs`، `prisma/seed.mjs`، و اسکریپت‌های رهاشده در `logs/` و ریشهٔ مخزن.
 
-**وضعیت: فقط مستند.** در این جلسه هیچ فایل کدی تعمیر نشد. هیچ باگی در این گزارش «رفع‌شده» نیست. «پیشنهاد»ها صرفاً جهت تصمیم‌گیری‌اند.
+**وضعیت: رفع‌شده.** هر ۳۶ یافته تعمیر شده‌اند؛ جزئیات، فایل‌های تغییرکرده و شاهدهای هر رفع در [docs/fixes-scripts-2026-11-05.md](file:///C:/laragon/www/Nobino-nest/docs/fixes-scripts-2026-11-05.md). «پیشنهاد»ها جهت تصمیم‌گیری‌اند.
 
 ---
 

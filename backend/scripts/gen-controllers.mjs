@@ -1,11 +1,37 @@
 /**
- * تولید controllerهای Nest از manifest پورت‌شده.
- * اجرا بعد از port-routes.mjs:  node backend/scripts/gen-controllers.mjs
+ * تولید controllerهای Nest از manifest (منبع حقیقت: backend/src/routes/manifest.json).
+ * اجرا:  node backend/scripts/gen-controllers.mjs [--prune]
+ *
+ *   --prune   کنترلرهای بی‌یتیم را حذف می‌کند (پیش‌فرض: فقط گزارش)
+ *   --help    همین راهنما
+ *
+ * ابزار یک‌بارمصرف port-routes.mjs دیگر لازم نیست؛ مسیرهای تازه را مستقیم در
+ * manifest (و فایل route مربوطه) ثبت کنید و این اسکریپت را اجرا کنید.
+ * فایل‌های بدون علامتِ «خودکار» (مثل pages.controller.ts) دستی‌اند و هرگز حذف
+ * نمی‌شوند.
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { join, posix, relative } from "node:path";
 
 const BACKEND = join(import.meta.dirname, "..");
+
+const USAGE =
+  "استفاده: node backend/scripts/gen-controllers.mjs [--prune]\n" +
+  "  --prune  کنترلرهای بی‌یتیم (تولیدشده ولی بدون مسیر در مانیفست) را حذف کن\n" +
+  "  --help   همین راهنما\n";
+
+const argv = process.argv.slice(2);
+if (argv.includes("--help")) {
+  console.log(USAGE);
+  process.exit(0);
+}
+const unknown = argv.filter((a) => a !== "--prune");
+if (unknown.length) {
+  console.error(`ژتون ناشناخته: ${unknown.join(" ")}\n${USAGE}`);
+  process.exit(2);
+}
+const PRUNE = argv.includes("--prune");
+
 const manifest = JSON.parse(readFileSync(join(BACKEND, "src/routes/manifest.json"), "utf8"));
 
 /** گروه‌بندی مسیرها → controller */
@@ -26,6 +52,21 @@ const GROUPS = [
   },
   { file: "public", cls: "PublicController", match: () => true },
 ];
+
+/**
+ * ددلاین کران‌ها (منبع حقیقت زمان‌بندی؛ کلید = path در مانیفست).
+ * هر کران در مانیفست باید اینجا زمان داشته باشد و برعکس؛ در غیر این صورت
+ * تولیدکد با کد ۱ می‌ایستد (LO-5: کران تازه بی‌صدا نادیده گرفته نشود).
+ */
+const CRON_SCHEDULES = {
+  "cron/reminders": "0 * * * *",
+  "cron/notifications": "*/5 * * * *",
+  "cron/waitlist": "15 * * * *",
+  "cron/holds": "*/10 * * * *",
+  "cron/subscriptions": "0 2 * * *",
+};
+
+const GENERATED_MARK = "تولیدشده توسط backend/scripts/gen-controllers.mjs";
 
 const METHOD_DECORATOR = { GET: "Get", POST: "Post", PUT: "Put", PATCH: "Patch", DELETE: "Delete" };
 
@@ -58,6 +99,7 @@ manifest.forEach((entry, idx) => {
 
 mkdirSync(join(BACKEND, "src/controllers"), { recursive: true });
 
+const written = new Set();
 for (const [, { group, entries }] of byGroup) {
   const imports = entries
     .map((e) => `import * as ${importAlias(e.module, e.idx)} from "${e.module}";`)
@@ -76,7 +118,7 @@ for (const [, { group, entries }] of byGroup) {
     )
     .join("\n");
 
-  const code = `/** خودکار — تولیدشده توسط backend/scripts/gen-controllers.mjs. ویرایش دستی نکنید. */
+  const code = `/** خودکار — ${GENERATED_MARK}. ویرایش دستی نکنید. */
 import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { runRoute } from "@/common/run-route";
@@ -87,16 +129,66 @@ export class ${group.cls} {
 ${methods}
 }
 `;
-  writeFileSync(join(BACKEND, `src/controllers/${group.file}.controller.ts`), code, "utf8");
+  const file = join(BACKEND, `src/controllers/${group.file}.controller.ts`);
+  writeFileSync(file, code, "utf8");
+  written.add(file);
   console.log(`${group.cls}: ${entries.length} مسیر`);
 }
 
-// CronJobsService — اجرای same jobها با @nestjs/schedule (بدون Vercel Cron)
+/**
+ * ME-10: اگر همهٔ مسیرهای یک گروه از مانیفست بروند، فایل تولیدشدهٔ آن باقی
+ * می‌ماند و همان routeها را دوباره ثبت می‌کند. فایل‌های دارای علامتِ «خودکار»
+ * که در این دور تولید نشده‌اند بی‌یتیم‌اند؛ پیش‌فرض فقط گزارش می‌شوند چون
+ * حذفشان یعنی import در app.module.ts هم می‌شکند.
+ */
+function listControllers(dir, acc = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) listControllers(p, acc);
+    else if (e.name.endsWith(".controller.ts")) acc.push(p);
+  }
+  return acc;
+}
+
+const controllersDir = join(BACKEND, "src/controllers");
+const orphans = listControllers(controllersDir).filter(
+  (p) => !written.has(p) && readFileSync(p, "utf8").includes(GENERATED_MARK),
+);
+for (const p of orphans) {
+  const rel = relative(BACKEND, p).split("\\").join("/");
+  if (PRUNE) {
+    rmSync(p, { force: true });
+    console.log(`🗑  کنترلر بی‌یتیم حذف شد: ${rel} — import آن را از src/app.module.ts هم بردارید`);
+  } else {
+    console.warn(`⚠️  کنترلر بی‌یتیم: ${rel} هیچ مسیری در مانیفست ندارد (با --prune حذف شود)`)
+  }
+}
+
+// CronJobsService — اجرای jobها با @nestjs/schedule
 const cronEntries = manifest.filter((m) => m.path.startsWith("cron/"));
+const missingSchedule = cronEntries.filter((e) => !CRON_SCHEDULES[e.path]).map((e) => e.path);
+const deadSchedules = Object.keys(CRON_SCHEDULES).filter((name) => !cronEntries.some((e) => e.path === name));
+for (const name of missingSchedule) {
+  console.error(`❌ کران «${name}» در مانیفست هست ولی ددلاین در CRON_SCHEDULES ندارد → هرگز اجرا نمی‌شود.`);
+}
+for (const name of deadSchedules) {
+  console.error(`❌ ددلاین «${name}» در CRON_SCHEDULES هست ولی مسیری در مانیفست نیست → کران مرده.`);
+}
+if (missingSchedule.length || deadSchedules.length) process.exitCode = 1;
+
+const cronMethods = cronEntries
+  .filter((e) => CRON_SCHEDULES[e.path])
+  .map(
+    (e) => `  @Cron(${JSON.stringify(CRON_SCHEDULES[e.path])})
+  async ${e.path.replace(/^cron\//, "cron_").replace(/[^A-Za-z0-9_]/g, "_")}() {
+    await this.fire(${JSON.stringify(e.path)});
+  }`,
+  )
+  .join("\n\n");
+
 const cronCode = `/**
- * کران‌های داخلی معادل vercel.json (با @nestjs/schedule):
- *   reminders هر ساعت | notifications هر ۵ دقیقه | waitlist دقیقه ۱۵
- *   holds هر ۱۰ دقیقه | subscriptions ساعت 02:00
+ * کران‌های داخلی (با @nestjs/schedule) — زمان‌بندی در CRON_SCHEDULES داخل
+ * backend/scripts/gen-controllers.mjs تعریف شده و از همان‌جا تولید می‌شود.
  * هندلرها همان routeهای /api/cron/* هستند که با هدر CRON_SECRET صدا زده می‌شوند
  * تا مسیر HTTP کران هم برای اسکریپت‌های موجود (automate.cjs) سالم بماند.
  */
@@ -112,34 +204,14 @@ ${cronEntries.map((e, i) => `  { name: "${e.path}", url: "http://internal${e.url
 export class CronJobsService {
   private readonly log = new Logger("cron");
 
-  @Cron("0 * * * *")
-  async reminders() {
-    await this.fire("cron/reminders");
-  }
-
-  @Cron("*/5 * * * *")
-  async notifications() {
-    await this.fire("cron/notifications");
-  }
-
-  @Cron("15 * * * *")
-  async waitlist() {
-    await this.fire("cron/waitlist");
-  }
-
-  @Cron("*/10 * * * *")
-  async holds() {
-    await this.fire("cron/holds");
-  }
-
-  @Cron("0 2 * * *")
-  async subscriptions() {
-    await this.fire("cron/subscriptions");
-  }
+${cronMethods}
 
   private async fire(name: string) {
     const job = CRON_JOBS.find((j) => j.name === name);
-    if (!job) return;
+    if (!job) {
+      this.log.error(\`کران \${name} در CRON_JOBS نیست — «npm run gen:controllers» را اجرا کنید\`);
+      return;
+    }
     const secret = process.env.CRON_SECRET ?? "";
     if (!secret) {
       this.log.warn("CRON_SECRET تنظیم نشده — کران اجرا نشد");
@@ -156,8 +228,6 @@ export class CronJobsService {
   }
 }
 `;
-writeFileSync(join(BACKEND, "src/cron/cron-jobs.service.ts"), (() => {
-  mkdirSync(join(BACKEND, "src/cron"), { recursive: true });
-  return cronCode;
-})(), "utf8");
-console.log("CronJobsService تولید شد");
+mkdirSync(join(BACKEND, "src/cron"), { recursive: true });
+writeFileSync(join(BACKEND, "src/cron/cron-jobs.service.ts"), cronCode, "utf8");
+console.log(`CronJobsService تولید شد (${cronMethods.split("@Cron(").length - 1} کران)`);

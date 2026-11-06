@@ -10,17 +10,15 @@ import { createRequire } from "node:module";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { requireArtifact } from "./lib/test-guard.mjs";
 
 const require = createRequire(import.meta.url);
 const ROOT = join(import.meta.dirname, "..");
 const DIST_MAIN = join(ROOT, "backend", "dist", "main.js");
 const read = (...p) => readFileSync(join(ROOT, ...p), "utf8");
 
-const distReady = require("node:fs").existsSync(DIST_MAIN);
-const skipIfNoBuild = (t) => {
-  if (!distReady) t.skip("backend/dist وجود ندارد — با «npm run build:backend» ساخته می‌شود");
-  return !distReady;
-};
+// ME-9: نبودِ بیلد با skip بی‌صدا «سبز» نیست — شکست می‌خورد مگر SKIP_MISSING_ARTIFACTS=1
+const skipIfNoBuild = (t) => !requireArtifact(t, DIST_MAIN, "npm run build:backend");
 const B = () => require(join(ROOT, "backend", "dist", "lib", "db-backup.js"));
 
 /* نشانی جعلی برای تست ماسک — هیچ رازی از محیط واقعی خوانده نمی‌شود */
