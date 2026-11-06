@@ -3,9 +3,23 @@ import { crmLimits, crmLimitsPayload } from "@/lib/crm-limits";
 import { prisma } from "@/lib/prisma";
 import { storeFile, removeLocalFile } from "@/lib/storage";
 import { json, apiError } from "@/lib/utils";
+import {
+  normalizeMime,
+  validateAudioContent,
+  validateImageContent,
+  type AudioMime,
+  type ImageMime,
+} from "@/lib/upload-validation";
 
-const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
-const VOICE_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/webm", "audio/ogg", "audio/mp4", "audio/m4a", "audio/aac"];
+const PHOTO_TYPES: readonly ImageMime[] = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+const VOICE_TYPES: readonly AudioMime[] = [
+  "audio/mpeg",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/aac",
+];
 
 async function isCustomerOfSalon(salonId: string, customerId: string) {
   const customer = await prisma.salonCustomer.findUnique({ where: { id: customerId }, select: { salonId: true } });
@@ -58,14 +72,24 @@ export async function POST(
       return json({ success: false, error: "بارگذاری عکس و ویس در پروندهٔ مشتری از سمت پنل غیرفعال شده است." }, { status: 403 });
     }
 
+    // سقف حجم پیش از پارس multipart (نوع فایل هنوز معلوم نیست ⇒ بزرگ‌ترین سقف)
+    const hardMax = Math.max(limits.photoMaxBytes, limits.voiceMaxBytes);
+    const declared = Number(req.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declared) && declared > hardMax + 1024 * 1024) {
+      return json(
+        { success: false, error: `حجم فایل باید کمتر از ${Math.round(hardMax / (1024 * 1024))} مگابایت باشد` },
+        { status: 413 },
+      );
+    }
+
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return json({ success: false, error: "فایلی ارسال نشده است" }, { status: 400 });
 
-    const isPhoto = PHOTO_TYPES.includes(file.type);
-    const isVoice = VOICE_TYPES.includes(file.type);
+    const isPhoto = PHOTO_TYPES.includes(normalizeMime(file.type) as ImageMime);
+    const isVoice = VOICE_TYPES.includes(normalizeMime(file.type) as AudioMime);
     if (!isPhoto && !isVoice) {
-      return json({ success: false, error: "فقط تصویر (JPG/PNG/WebP) یا فایل صوتی (MP3/WAV/OGG) مجاز است" }, { status: 400 });
+      return json({ success: false, error: "فقط تصویر (JPG/PNG/WebP/GIF) یا فایل صوتی (MP3/WAV/OGG/WebM) مجاز است" }, { status: 400 });
     }
     const maxBytes = isPhoto ? limits.photoMaxBytes : limits.voiceMaxBytes;
     const maxMb = Math.max(1, Math.round(maxBytes / (1024 * 1024)));
@@ -76,12 +100,22 @@ export async function POST(
       );
     }
 
+    // محتوای واقعی فایل باید با نوع ادعاشده بخواند (نه HTML/JS با پسوند jpg)
+    let storedMime: string;
+    try {
+      storedMime = isPhoto
+        ? await validateImageContent(file, PHOTO_TYPES)
+        : await validateAudioContent(file, VOICE_TYPES);
+    } catch {
+      return json({ success: false, error: "محتوای فایل با نوع اعلام‌شده هم‌خوان نیست" }, { status: 400 });
+    }
+
     const count = await prisma.salonCustomerMedia.count({ where: { salonId: id, customerId } });
     if (count >= limits.mediaLimit) {
       return json({ success: false, error: `حداکثر ${limits.mediaLimit} فایل برای هر مشتری مجاز است. ابتدا یکی را حذف کنید.` }, { status: 400 });
     }
 
-    const stored = await storeFile(file, { dir: "uploads/customers" });
+    const stored = await storeFile(file, { dir: "uploads/customers", mime: storedMime });
     const media = await prisma.salonCustomerMedia.create({
       data: {
         salonId: id,

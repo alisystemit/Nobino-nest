@@ -8,8 +8,17 @@ import { withinLimit } from "@/lib/plans/limits";
 import { json, apiError } from "@/lib/utils";
 import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } from "@/lib/rate-limit-lite";
 import { uploadLimits } from "@/lib/upload-limits";
+import {
+  normalizeMime,
+  safeUploadName,
+  validateAudioContent,
+  type AudioMime,
+} from "@/lib/upload-validation";
 
 const FIELDS: ExtractedField[] = ["name", "phone", "service", "date", "time"];
+
+/** فرمت‌های صوتی مجاز — MediaRecorder مرورگرها معمولاً webm یا mp4 می‌دهد */
+const AUDIO_TYPES: readonly AudioMime[] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/aac"];
 
 /**
  * دریافت فایل صوتی، تبدیل گفتار فارسی به متن (Whisper)
@@ -26,6 +35,24 @@ const FIELDS: ExtractedField[] = ["name", "phone", "service", "date", "time"];
  */
 export async function POST(req: Request, _ctx: { params: Record<string, string> }) {
   try {
+    // سقف حجم و نرخ — پیش از خواندن/پارس بدنهٔ multipart (این endpoint عمومی است)
+    // حجم از تنظیمات پویا: upload.voice_max_mb (پنل) با تقدم کلید بایتی قدیمی voice.max_upload_bytes
+    const ip = clientIpFromRequest(req);
+    const { voiceMaxBytes: maxBytes } = await uploadLimits();
+    const declaredSize = Number(req.headers.get("content-length") ?? "0");
+    // سربار multipart (بانداری و فیلدهای متنی) تا ۱ مگابایت لحاظ می‌شود؛
+    // حجم واقعی خودِ فایل بعد از پارس با audio.size سنجیده می‌شود.
+    if (Number.isFinite(declaredSize) && declaredSize > maxBytes + 1024 * 1024) {
+      return json({ success: false, error: `حجم فایل صوتی بیش از سقف مجاز (${Math.round(maxBytes / 1024 / 1024)} مگابایت) است` }, { status: 413 });
+    }
+    const perHour = await numericSettingOrEnv("voice.rate_per_hour", process.env.VOICE_RATE_PER_HOUR, 40);
+    if (perHour > 0) {
+      const minute = checkRate(`voice:${ip}`, Math.max(2, Math.ceil(perHour / 12)), 60_000);
+      if (!minute.ok) return tooManyRequests(minute.retryAfterSec, "چند لحظه صبر سپس دوباره ضبط کنید.");
+      const hour = checkRate(`voice-hour:${ip}`, perHour, 3_600_000);
+      if (!hour.ok) return tooManyRequests(hour.retryAfterSec, "سقف تبدیل گفتار این ساعت پر شده است.");
+    }
+
     const form = await req.formData();
     const audio = form.get("audio") as File | null;
     const salonId = (form.get("salonId") as string) ?? "";
@@ -39,22 +66,6 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     if (!salonId) return json({ success: false, error: "salonId الزامی است" }, { status: 400 });
     if (field && !FIELDS.includes(field as ExtractedField)) {
       return json({ success: false, error: "فیلد نامعتبر است" }, { status: 400 });
-    }
-
-    // سقف حجم و نرخ — این endpoint عمومی است و هر برش به سرویس STT می‌رود
-    // حجم از تنظیمات پویا: upload.voice_max_mb (پنل) با تقدم کلید بایتی قدیمی voice.max_upload_bytes
-    const ip = clientIpFromRequest(req);
-    const { voiceMaxBytes: maxBytes } = await uploadLimits();
-    const declaredSize = Number(req.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
-      return json({ success: false, error: `حجم فایل صوتی بیش از سقف مجاز (${Math.round(maxBytes / 1024 / 1024)} مگابایت) است` }, { status: 413 });
-    }
-    const perHour = await numericSettingOrEnv("voice.rate_per_hour", process.env.VOICE_RATE_PER_HOUR, 40);
-    if (perHour > 0) {
-      const minute = checkRate(`voice:${ip}`, Math.max(2, Math.ceil(perHour / 12)), 60_000);
-      if (!minute.ok) return tooManyRequests(minute.retryAfterSec, "چند لحظه صبر سپس دوباره ضبط کنید.");
-      const hour = checkRate(`voice-hour:${ip}`, perHour, 3_600_000);
-      if (!hour.ok) return tooManyRequests(hour.retryAfterSec, "سقف تبدیل گفتار این ساعت پر شده است.");
     }
 
     const salon = await prisma.salon.findUnique({ where: { id: salonId } });
@@ -72,18 +83,33 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       return json({ success: false, error: `حجم فایل صوتی بیش از سقف مجاز (${Math.round(maxBytes / 1024 / 1024)} مگابایت) است` }, { status: 413 });
     }
 
+    // این مسیر عمومی و بدون احراز هویت است؛ پس نوع فایل نه از نام و نه از MIME
+    // ادعایی، بلکه از محتوای واقعی (magic bytes) تعیین می‌شود.
+    let detectedAudio: AudioMime | null = null;
+    if (audio) {
+      const declared = normalizeMime(audio.type);
+      if (!AUDIO_TYPES.includes(declared as AudioMime)) {
+        return json({ success: false, error: "فرمت فایل صوتی مجاز نیست (WebM، MP4، OGG، MP3 یا WAV)" }, { status: 400 });
+      }
+      try {
+        detectedAudio = await validateAudioContent(audio, AUDIO_TYPES);
+      } catch {
+        return json({ success: false, error: "فایل واقعاً صوت نیست" }, { status: 400 });
+      }
+    }
+
     // ذخیره فایل صوتی (Blob در پروداکشن، محلی در توسعه) — در حالت متنی فایلی نیست
     let stored: { url: string } | null = null;
     let transcript: string;
     let provider: SttProvider | "text";
 
     if (audio) {
-      stored = await storeFile(audio, { dir: "voice" });
+      stored = await storeFile(audio, { dir: "voice", mime: detectedAudio ?? undefined });
       const buffer = Buffer.from(await audio.arrayBuffer());
       // پردازش با زنجیره ربات‌های STT (OpenAI → Groq → Mock)
       const stt = await transcribeWithFallback(new Uint8Array(buffer), {
-        filename: audio.name || "recording.webm",
-        mimeType: audio.type,
+        filename: safeUploadName(audio.name, detectedAudio ?? undefined),
+        mimeType: detectedAudio ?? normalizeMime(audio.type),
       });
       transcript = stt.transcript;
       provider = stt.provider;

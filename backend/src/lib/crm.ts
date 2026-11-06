@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { withinLimit } from "@/lib/plans/limits";
 
 /**
@@ -32,7 +33,7 @@ export async function syncCustomerProfile(params: {
   ]);
 
   const completed = appointments.filter((a) => a.status === "COMPLETED");
-  const spend = completed.reduce((sum, a) => sum + (a.service?.price ?? 0), 0);
+  const spend = completed.reduce((sum, a) => sum + (a.service ? asNumber(a.service.price) : 0), 0);
   const lastVisitAt = completed.length ? completed.reduce((latest, a) => (a.startAt > latest ? a.startAt : latest), completed[0].startAt) : null;
 
   const existing = await prisma.salonCustomer.findUnique({

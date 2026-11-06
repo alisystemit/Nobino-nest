@@ -52,7 +52,10 @@ export class ZarinpalGateway extends BaseGateway {
       }),
     });
     const data = await res.json();
-    if (data.data?.code === 100 && data.data.ref_id) {
+    // ۱۰۰ = تأیید شد، ۱۰۱ = قبلاً تأیید شده است. پذیرش ۱۰۱ باعث می‌شود
+    // callback تکراری (مثلاً بعد از خطای موقت دیتابیس) پرداخت را از دست ندهد.
+    const code = data.data?.code;
+    if ((code === 100 || code === 101) && data.data.ref_id) {
       return { success: true, refId: String(data.data.ref_id), cardPan: data.data.card_pan };
     }
     return { success: false, message: data.errors?.message ?? "تراکنش ناموفق" };

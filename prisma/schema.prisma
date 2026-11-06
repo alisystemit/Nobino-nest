@@ -117,7 +117,9 @@ model Session {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String
+  // هش توکن یکتا است؛ @unique هم یکپارچگی را تضمین می‌کند و هم lookup را
+  // به ایندکس قطعی تبدیل می‌کند (قبلاً فقط userId ایندکس داشت).
+  tokenHash String   @unique
   expiresAt DateTime
   device    String?
   ip        String?
@@ -219,7 +221,7 @@ model SalonCustomer {
   lastName     String?
   note        String?
   visits      Int                 @default(0)
-  spend       Int                 @default(0)
+  spend       BigInt                 @default(0)
   lastVisitAt DateTime?
   tags        String[]            @default([])
   notes       SalonCustomerNote[]
@@ -290,10 +292,10 @@ model CashRegisterEntry {
   branchId      String?
   branch        Branch?  @relation(fields: [branchId], references: [id])
   date          DateTime @default(now())
-  cashAmount    Int      @default(0) // ┘å┘é╪»█î
-  cardAmount    Int      @default(0) // ┌⌐╪º╪▒╪¬ΓÇî╪«┘ê╪º┘å
-  onlineAmount  Int      @default(0) // ╪ó┘å┘ä╪º█î┘å
-  expenseAmount Int      @default(0) // ┘ç╪▓█î┘å┘ç
+  cashAmount    BigInt      @default(0) // ┘å┘é╪»█î
+  cardAmount    BigInt      @default(0) // ┌⌐╪º╪▒╪¬ΓÇî╪«┘ê╪º┘å
+  onlineAmount  BigInt      @default(0) // ╪ó┘å┘ä╪º█î┘å
+  expenseAmount BigInt      @default(0) // ┘ç╪▓█î┘å┘ç
   note          String?
   createdById   String?
   createdAt     DateTime @default(now())
@@ -309,7 +311,7 @@ model Service {
   branch      Branch?  @relation(fields: [branchId], references: [id])
   name        String
   durationMin Int
-  price       Int
+  price       BigInt
   description String?
   category    String?
   bufferMin   Int      @default(0)
@@ -391,12 +393,12 @@ model Appointment {
   note              String?
   cancelReason      String?
   cancelledAt       DateTime?
-  depositAmount     Int? // ┘╛█î╪┤ΓÇî┘╛╪▒╪»╪º╪«╪¬/╪¿█î╪╣╪º┘å┘ç (╪¬┘ê┘à╪º┘å)
+  depositAmount     BigInt? // ┘╛█î╪┤ΓÇî┘╛╪▒╪»╪º╪«╪¬/╪¿█î╪╣╪º┘å┘ç (╪¬┘ê┘à╪º┘å)
   depositPaid       Boolean           @default(false)
   // O9: price of the booked service(s) captured at booking time (tomans).
   // Reports must use this, not the live Service.price, so editing a price
   // later does not rewrite past revenue. NULL = legacy row (fall back to Service.price).
-  priceSnapshot     Int?
+  priceSnapshot     BigInt?
   tempLockExpiresAt DateTime? // ┘é┘ü┘ä ┘à┘ê┘é╪¬ ┘ç┘å┌»╪º┘à ┘╛╪▒╪»╪º╪«╪¬
   rescheduledFrom   String? // id ┘å┘ê╪¿╪¬ ┘é╪¿┘ä█î ┘ç┘å┌»╪º┘à ╪¼╪º╪¿┘çΓÇî╪¼╪º█î█î
   voiceCallId       String?           @unique
@@ -436,7 +438,7 @@ model Wallet {
   id        String   @id @default(cuid())
   ownerId   String
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  balance   Int      @default(0) // ╪¬┘ê┘à╪º┘å
+  balance   BigInt      @default(0) // ╪¬┘ê┘à╪º┘å
   currency  String   @default("IRR")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -453,8 +455,8 @@ model Transaction {
   wallet       Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
   kind         TransactionKind
   reason       TransactionReason
-  amount       Int // ┘ç┘à█î╪┤┘ç ┘à╪½╪¿╪¬╪¢ ╪¼┘ç╪¬ ╪¬┘ê╪│╪╖ kind ┘à╪┤╪«╪╡ ┘à█îΓÇî╪┤┘ê╪»
-  balanceAfter Int
+  amount       BigInt // ┘ç┘à█î╪┤┘ç ┘à╪½╪¿╪¬╪¢ ╪¼┘ç╪¬ ╪¬┘ê╪│╪╖ kind ┘à╪┤╪«╪╡ ┘à█îΓÇî╪┤┘ê╪»
+  balanceAfter BigInt
   refType      String? // Order | Appointment | Payout
   refId        String?
   description  String?
@@ -480,7 +482,7 @@ model Payout {
   id          String       @id @default(cuid())
   walletId    String
   wallet      Wallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  amount      Int
+  amount      BigInt
   method      String       @default("BANK") // BANK | CARD | SMS
   bankInfo    String?
   status      PayoutStatus @default(REQUESTED)
@@ -498,8 +500,8 @@ model Package {
   name         String
   description  String?
   plan         String   @default("BASIC") // FREE | BASIC | PRO | ENTERPRISE
-  price        Int // ╪¬┘ê┘à╪º┘å (┘à╪º┘ç╪º┘å┘ç)
-  yearlyPrice  Int? // ╪¬┘ê┘à╪º┘å ╪»╪▒ ╪│╪º┘ä (╪º┌»╪▒ ╪«╪º┘ä█î ╪¿╪º╪┤╪» = price * 10)
+  price        BigInt // ╪¬┘ê┘à╪º┘å (┘à╪º┘ç╪º┘å┘ç)
+  yearlyPrice  BigInt? // ╪¬┘ê┘à╪º┘å ╪»╪▒ ╪│╪º┘ä (╪º┌»╪▒ ╪«╪º┘ä█î ╪¿╪º╪┤╪» = price * 10)
   durationDays Int
   features     Json? // ╪ó╪▒╪º█î┘çΓÇî╪º█î ╪º╪▓ ╪º┘à┌⌐╪º┘å╪º╪¬
   isActive     Boolean  @default(true)
@@ -542,8 +544,8 @@ model Invoice {
   customerPhone  String?
   description    String?
   payToken       String?       @unique
-  amount         Int
-  originalAmount Int?
+  amount         BigInt
+  originalAmount BigInt?
   period         String        @default("MONTHLY")
   status         PaymentStatus @default(PENDING)
   issuedAt       DateTime      @default(now())
@@ -587,11 +589,12 @@ model Order {
   package        Package       @relation(fields: [packageId], references: [id])
   discountId     String?
   discount       Discount?     @relation(fields: [discountId], references: [id])
-  amount         Int // ┘à╪¿┘ä╪║ ┘å┘ç╪º█î█î ┘╛╪│ ╪º╪▓ ╪¬╪«┘ü█î┘ü
-  originalAmount Int? // ┘╛█î╪┤ ╪º╪▓ ╪¬╪«┘ü█î┘ü
+  amount         BigInt // ┘à╪¿┘ä╪║ ┘å┘ç╪º█î█î ┘╛╪│ ╪º╪▓ ╪¬╪«┘ü█î┘ü
+  originalAmount BigInt? // ┘╛█î╪┤ ╪º╪▓ ╪¬╪«┘ü█î┘ü
   period         String        @default("MONTHLY") // MONTHLY | YEARLY
   autoRenew      Boolean       @default(false)
   status         PaymentStatus @default(PENDING)
+  renewalSubscriptionId String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -608,7 +611,7 @@ model Payment {
   appointmentId String?
   appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   gateway     String // zarinpal | mellat | ...
-  amount      Int
+  amount      BigInt
   status      PaymentStatus @default(PENDING)
   authority   String? // ┌⌐╪» ┘à╪▒╪¼╪╣ ╪»╪▒┌»╪º┘ç
   refId       String? // ┌⌐╪» ┘╛█î┌»█î╪▒█î ╪¬╪▒╪º┌⌐┘å╪┤
@@ -628,7 +631,7 @@ model Payment {
 model GiftCard {
   id        String    @id @default(cuid())
   code      String    @unique
-  balance   Int // ╪¬┘ê┘à╪º┘å
+  balance   BigInt // ╪¬┘ê┘à╪º┘å
   currency  String    @default("IRR")
   ownerId   String
   owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)

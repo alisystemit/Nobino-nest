@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 interface AuditInput {
@@ -34,6 +35,12 @@ function sanitizeAuditValue(value: unknown): unknown {
   if (typeof value === "number" || typeof value === "boolean") {
     return value;
   }
+  // ستون‌های مالی Prisma حالا BigInt هستند؛ JSONB پایگاه‌داده BigInt را
+  // نمی‌پذیرد، پس در لاگ حسابرسی به number تبدیل می‌شوند (بدون افت دقت در
+  // محدودهٔ واقعی مبالغ).
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
   if (Array.isArray(value)) {
     return value.map(sanitizeAuditValue);
   }
@@ -62,8 +69,8 @@ export async function logAudit(input: AuditInput) {
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId,
-      before: input.before != null ? sanitizeAuditValue(input.before) : undefined,
-      after: input.after != null ? sanitizeAuditValue(input.after) : undefined,
+      before: input.before != null ? (sanitizeAuditValue(input.before) as Prisma.InputJsonValue) : undefined,
+      after: input.after != null ? (sanitizeAuditValue(input.after) as Prisma.InputJsonValue) : undefined,
       ip: input.ip,
     },
   });

@@ -1,6 +1,7 @@
 // خودکار: پورت‌شده از src/app/api/appointments/hold/route.ts — بدون تغییر منطق
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { createAppointmentSafe, depositForSalon } from "@/lib/bookings/create";
 import { json, apiError } from "@/lib/utils";
 import { checkRate, clientIpFromRequest, numericSettingOrEnv, tooManyRequests } from "@/lib/rate-limit-lite";
@@ -54,7 +55,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       const svc = await prisma.service.findFirst({ where: { id: body.serviceId, salonId: salon.id, isActive: true } });
       if (!svc) return json({ success: false, error: "خدمت یافت نشد" }, { status: 404 });
       duration = svc.durationMin;
-      servicePrice = svc.price;
+      servicePrice = asNumber(svc.price);
     }
     if (duration === undefined) {
       return json({ success: false, error: "بدون انتخاب خدمت، مدت نوبت (5 تا 480 دقیقه) الزامی است." }, { status: 400 });

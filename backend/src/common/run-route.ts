@@ -8,6 +8,7 @@ import { Readable } from "node:stream";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { requestStore, type WebRequestContext } from "@/compat/request-context";
 import { parseCookieHeader, serializeCookie } from "@/compat/next-headers";
+import { bodyLimitForPath, bodyLimitMessage, declaredBodyExceeds, limitedBodyStream } from "@/common/body-limit";
 
 /** هدرهایی که نباید عین‌به‌عین از درخواست کلاینت به پاسخ برگردانده/برداشت شوند */
 const HOP_BY_HOP = new Set([
@@ -36,7 +37,13 @@ function absoluteUrl(req: ExpressRequest): string {
   return `${proto}://${host}${req.originalUrl}`;
 }
 
-export function buildWebContext(req: ExpressRequest, res: ExpressResponse): WebRequestContext {
+export type BuiltWebContext = {
+  context: WebRequestContext;
+  /** آیا بدنه از سقف مجاز گذشته است؟ (برای نگاشت خطای استریم به ۴۱۳) */
+  tooLarge: () => boolean;
+};
+
+export function buildWebContext(req: ExpressRequest, res: ExpressResponse): BuiltWebContext {
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value === undefined) continue;
@@ -48,8 +55,12 @@ export function buildWebContext(req: ExpressRequest, res: ExpressResponse): WebR
     method: req.method,
     headers,
   };
+  let tooLarge = () => false;
   if (req.method !== "GET" && req.method !== "HEAD") {
-    init.body = Readable.toWeb(req) as ReadableStream;
+    const limit = bodyLimitForPath(String(req.originalUrl || req.url || "/").split("?")[0]);
+    const limited = limitedBodyStream(req, limit);
+    tooLarge = limited.tooLarge;
+    init.body = Readable.toWeb(limited.stream) as ReadableStream;
     init.duplex = "half";
   }
 
@@ -60,7 +71,7 @@ export function buildWebContext(req: ExpressRequest, res: ExpressResponse): WebR
     requestCookies: parseCookieHeader(req.headers.cookie ?? null),
     cookieChanges: new Map(),
   };
-  return context;
+  return { context, tooLarge };
 }
 
 /**
@@ -72,16 +83,39 @@ export async function runRoute(
   res: ExpressResponse,
   handler: (request: Request, ctx: { params: Record<string, string> }) => Promise<Response>,
 ): Promise<void> {
-  const context = buildWebContext(req, res);
+  const pathname = String(req.originalUrl || req.url || "/").split("?")[0];
+  const limit = bodyLimitForPath(pathname);
+
+  // لایهٔ اول: سقف بر اساس Content-Length اعلامی (بدون خواندن حتی یک بایت)
+  if (req.method !== "GET" && req.method !== "HEAD" && declaredBodyExceeds(req.headers["content-length"], limit)) {
+    // بدنهٔ در راه را دور بریز تا اتصال keep-alive با داده‌های باقی‌مانده قاطی نشود
+    req.resume();
+    res.statusCode = 413;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(
+      JSON.stringify({
+        success: false,
+        error: bodyLimitMessage(limit),
+      }),
+    );
+    return;
+  }
+
+  const { context, tooLarge } = buildWebContext(req, res);
   try {
     const response = await requestStore.run(context, async () =>
       handler(context.request, { params: context.params }),
     );
     await writeWebResponse(context, response);
   } catch (error) {
-    const status = (error as { status?: number })?.status ?? 500;
+    // لایهٔ دوم: اگر کلاینت Content-Length نداده باشد و استریم از سقف بگذرد
+    const status = tooLarge() ? 413 : (error as { status?: number })?.status ?? 500;
     if (status >= 500) console.error("[nobino-api]", error);
-    const message = error instanceof Error ? error.message : "خطای ناشناخته";
+    const message = tooLarge()
+      ? bodyLimitMessage(limit)
+      : error instanceof Error
+        ? error.message
+        : "خطای ناشناخته";
     const body = new Response(JSON.stringify({ success: false, error: message }), {
       status,
       headers: { "Content-Type": "application/json; charset=utf-8" },

@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { request as rawRequest } from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { requireArtifact } from "./lib/test-guard.mjs";
 
@@ -79,6 +79,103 @@ test("سقف آپلود: پیش‌فرض‌ها، نگاشت بایت→مگاب
   });
   assert.match(U.sizeLimitFa(3), /۳/);
   assert.equal(U.UPLOAD_DEFAULTS.avatarMaxMb, 3);
+});
+
+test("اعتبارسنجی آپلود: تشخیص magic bytes و پسوند امن", (t) => {
+  if (skipIfNoBuild(t)) return;
+  const V = lib("upload-validation.js");
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(8)]);
+  assert.equal(V.sniffImageMime(png), "image/png");
+  assert.equal(V.sniffImageMime(Buffer.from([0xff, 0xd8, 0xff, 0xe0])), "image/jpeg");
+  assert.equal(V.sniffImageMime(Buffer.from("GIF89a....", "latin1")), "image/gif");
+  assert.equal(V.sniffImageMime(Buffer.from("RIFF....WEBP", "latin1")), "image/webp");
+  assert.equal(V.sniffImageMime(Buffer.from("<svg onload=alert(1)>")), null, "SVG/HTML نباید تصویر شناخته شود");
+  assert.equal(V.sniffAudioMime(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0, 0, 0, 0])), "audio/webm");
+  assert.equal(V.sniffAudioMime(Buffer.from("OggS....", "latin1")), "audio/ogg");
+
+  assert.equal(V.mimeForExtension(".png"), "image/png");
+  assert.equal(V.mimeForExtension(".html"), null, "HTML نباید از مسیر آپلود سرو شود");
+  assert.equal(V.mimeForExtension(".svg"), null, "SVG نباید از مسیر آپلود سرو شود");
+  assert.equal(V.mimeForExtension(".bin"), null, "پسوند ناشناخته نباید سرو شود");
+
+  assert.equal(V.safeUploadName("../../etc/passwd", "audio/webm"), "passwd", "مسیر از نام حذف می‌شود");
+  assert.equal(V.safeUploadName("", "audio/webm"), "upload.webm", "نام خالی با پسوند MIME جایگزین می‌شود");
+});
+
+test("پول: سقف Int، عدد صحیح و پیام فارسی", (t) => {
+  if (skipIfNoBuild(t)) return;
+  const M = lib("money.js");
+  assert.equal(M.MONEY_INT_MAX, 2_147_483_647);
+  assert.equal(M.moneyIssue(1_000), null);
+  assert.equal(M.moneyIssue(0), null);
+  assert.equal(M.moneyIssue(-5), null, "مبلغ منفی برای اصلاحات مجاز است");
+  assert.match(M.moneyIssue(1.5), /صحیح/);
+  assert.match(M.moneyIssue(NaN), /معتبر/);
+  assert.match(M.moneyIssue(M.MONEY_INT_MAX + 1), /بیشتر/);
+  assert.throws(() => M.assertMoney(M.MONEY_INT_MAX + 1), /بیشتر/);
+  assert.throws(() => M.assertPositiveMoney(0), /بزرگ‌تر از صفر/);
+  assert.equal(M.assertPositiveMoney(50_000), 50_000);
+});
+
+test("پول: تبدیل امن BigInt ↔ number و قرارداد اسکیما", (t) => {
+  if (skipIfNoBuild(t)) return;
+  const M = lib("money.js");
+
+  assert.equal(M.asNumber(50_000n), 50_000);
+  assert.equal(M.asNumber(7), 7);
+  assert.equal(M.asNumberOrNull(null), null);
+  assert.equal(M.asNumberOrNull(0n), 0);
+  assert.equal(M.asBigInt(50_000), 50_000n);
+  assert.equal(M.asBigInt(50_000n), 50_000n);
+  assert.equal(M.asBigIntOrNull(undefined), null);
+  assert.throws(() => M.asBigInt(1.5), /صحیح/);
+  assert.throws(() => M.asNumber(BigInt(Number.MAX_SAFE_INTEGER) + 1n), /محدوده/);
+
+  // قرارداد پایگاه‌داده: ستون‌های مالی باید BIGINT باشند (نه Int)
+  const schema = readFileSync(join(ROOT, "prisma", "schema.prisma"), "utf8");
+  const model = (name) => {
+    const re = new RegExp("model " + name + " \\{[\\s\\S]*?\\n\\}");
+    const hit = schema.match(re);
+    assert.ok(hit, `مدل ${name} در اسکیما پیدا نشد`);
+    return hit[0];
+  };
+  for (const [name, fields] of Object.entries({
+    Wallet: ["balance"],
+    Transaction: ["amount", "balanceAfter"],
+    Payment: ["amount"],
+    Order: ["amount", "originalAmount"],
+    Invoice: ["amount", "originalAmount"],
+    Package: ["price", "yearlyPrice"],
+    Service: ["price"],
+    Appointment: ["depositAmount", "priceSnapshot"],
+    Payout: ["amount"],
+    GiftCard: ["balance"],
+  })) {
+    for (const field of fields) {
+      assert.match(model(name), new RegExp(field + "\\s+BigInt"), `${name}.${field} باید BigInt باشد`);
+    }
+  }
+  assert.match(model("Order"), /renewalSubscriptionId\s+String\?/, "سفارش تمدید باید به اشتراک موجود پیوند داشته باشد");
+
+  const migration = readFileSync(
+    join(ROOT, "prisma", "migrations", "20261106130000_money_bigint_and_renewal", "migration.sql"),
+    "utf8",
+  );
+  assert.match(migration, /ALTER TABLE "public"\."Wallet" ALTER COLUMN "balance" TYPE BIGINT/);
+  assert.match(migration, /ALTER TABLE "public"\."Payment" ALTER COLUMN "amount" TYPE BIGINT/);
+  assert.match(migration, /ADD COLUMN "renewalSubscriptionId"/);
+});
+
+test("سقف بدنه: مسیرهای آپلود سقف بزرگ‌تر و پیام فارسی", (t) => {
+  if (skipIfNoBuild(t)) return;
+  const B = dist("common/body-limit.js");
+  assert.ok(B.uploadBodyLimit() > B.jsonBodyLimit(), "سقف آپلود باید از سقف JSON بیشتر باشد");
+  assert.equal(B.bodyLimitForPath("/api/upload/avatar"), B.uploadBodyLimit());
+  assert.equal(B.bodyLimitForPath("/api/voice/transcribe"), B.uploadBodyLimit());
+  assert.equal(B.bodyLimitForPath("/api/appointments"), B.jsonBodyLimit(), "مسیرهای عادی سقف کوچک دارند");
+  assert.match(B.bodyLimitMessage(2 * 1024 * 1024), /مگابایت/);
+  assert.equal(B.declaredBodyExceeds(String(3 * 1024 * 1024), B.jsonBodyLimit()), true);
+  assert.equal(B.declaredBodyExceeds(undefined, 1024), false, "بدون هدر، لایهٔ استریم تصمیم می‌گیرد");
 });
 
 test("سقف CRM: payload مگابایتی و پیش‌فرض‌های عددی", (t) => {

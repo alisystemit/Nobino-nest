@@ -451,7 +451,7 @@ export default function DashSalon() {
                 {uploading === "logo" ? "در حال بارگذاری…" : "انتخاب لوگو"}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                   style={{ display: "none" }}
                   disabled={uploading !== null}
                   onChange={(e) => {
@@ -468,7 +468,7 @@ export default function DashSalon() {
                 {uploading === "banner" ? "در حال بارگذاری…" : "انتخاب بنر"}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                   style={{ display: "none" }}
                   disabled={uploading !== null}
                   onChange={(e) => {
@@ -519,7 +519,7 @@ export default function DashSalon() {
             {uploading === "gallery" ? "در حال بارگذاری…" : "افزودن نمونه‌کار"}
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
               style={{ display: "none" }}
               disabled={uploading !== null}
               onChange={(e) => {

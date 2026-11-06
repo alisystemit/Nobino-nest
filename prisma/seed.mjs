@@ -175,7 +175,7 @@ async function main() {
   // ─── تنظیمات پیش‌فرض سیستم (پویا) ─────────────────────────────────────
   const defaultSettings = [
     { key: "sms.active_provider", value: "kavenegar", group: "sms", type: "select", options: JSON.stringify(["kavenegar", "smsdotir", "farazsms", "ghasedak", "melipayamak", "iransms", "payamresan", "nakalaya", "mobilesms", "arpano"]), description: "سرویس پیامک فعال" },
-    { key: "sms.show_sent_codes", value: "false", group: "sms", type: "select", options: JSON.stringify(["true", "false"]), description: "نمایش کد پیامک/ایمیل ارسال‌شده در صفحه ورود (فقط برای تست؛ در محیط واقعی خاموش باشد)" },
+    { key: "sms.show_sent_codes", value: "false", group: "sms", type: "select", options: JSON.stringify(["true", "false"]), description: "نمایش کد پیامک/ایمیل ارسال‌شده در صفحه ورود (فقط تست؛ در production بدون OTP_DISPLAY_ALLOW_PRODUCTION=true بی‌اثر است)" },
     { key: "payments.default_gateway", value: "sandbox", group: "payments", type: "select", options: JSON.stringify(["sandbox", "zarinpal", "mellat", "saman", "parsian", "pasargad", "asanpardakht", "irankish", "sadad", "maban", "cetab", "pardakhtnet", "psp", "nextpay", "vanak", "behpardakht", "payir", "zibal", "idpay", "amanat"]), description: "درگاه پرداخت پیش‌فرض" },
     { key: "voice.provider", value: "mock", group: "voice", type: "select", options: JSON.stringify(["mock", "openai"]), description: "موتور تبدیل گفتار به متن" },
     { key: "general.announcement", value: "", group: "general", type: "string", description: "اعلان سراسری (در صفحه اصلی نمایش داده می‌شود)" },
@@ -194,7 +194,11 @@ async function main() {
     { key: "stt.cloudflare.key", value: "", group: "ai", type: "secret", description: "توکن Cloudflare Workers AI (STT رایگان)" },
     { key: "stt.cloudflare.account", value: "", group: "ai", type: "string", description: "Account ID کلادفلر برای Workers AI" },
     { key: "stt.deepgram.key", value: "", group: "ai", type: "secret", description: "کلید Deepgram (STT با اعتبار رایگان)" },
-    { key: "stt.order", value: "groq,huggingface,cloudflare,deepgram,openai", group: "ai", type: "string", description: "ترتیب تلاش ربات‌های STT (با کاما)" },
+    { key: "stt.local.enabled", value: "true", group: "ai", type: "select", options: JSON.stringify(["true", "false"]), description: "موتور ASR محلی Shenava (sherpa-onnx) فعال باشد" },
+    { key: "stt.local.model_dir", value: "", group: "ai", type: "string", description: "پوشهٔ مدل sherpa-onnx (خالی = models/shenava-koochik-v1.0-sherpa-onnx)" },
+    { key: "stt.local.num_threads", value: "2", group: "ai", type: "string", description: "تعداد ترد CPU برای مدل محلی" },
+    { key: "stt.local.ffmpeg", value: "", group: "ai", type: "string", description: "مسیر ffmpeg (خالی = ffmpeg-static یا PATH)" },
+    { key: "stt.order", value: "local,groq,huggingface,cloudflare,deepgram,openai", group: "ai", type: "string", description: "ترتیب تلاش ربات‌های STT (با کاما)" },
     { key: "ai.enabled", value: "true", group: "ai", type: "select", options: JSON.stringify(["true", "false"]), description: "فعال‌سازی قابلیت‌های AI" },
     { key: "ai.provider", value: "", group: "ai", type: "select", options: JSON.stringify(["", "openai", "groq", "deepseek", "custom"]), description: "سرویس‌دهندهٔ متن (خالی = خودکار)" },
     { key: "ai.model", value: "", group: "ai", type: "string", description: "مدل سرویس متن (خالی = پیش‌فرض سرویس)" },
@@ -212,6 +216,13 @@ async function main() {
       create: s,
     });
   }
+
+  // نصب‌های قدیمی stt.order را روی مقدار پیش‌فرضِ قبلی دارند (بدون local). فقط
+  // وقتی مقدار دست‌نخورده است ارتقا می‌دهیم تا ترتیب سلیقه‌ای ادمین حفظ شود.
+  await prisma.setting.updateMany({
+    where: { key: "stt.order", value: "groq,huggingface,cloudflare,deepgram,openai" },
+    data: { value: "local,groq,huggingface,cloudflare,deepgram,openai" },
+  });
 
   // مهاجرت کلید قدیمی «plan.limit.<key>» (بدون نام پلن، یک عدد برای همهٔ پلن‌ها) به
   // کلید اختصاصی هر پلن، تا رفتار نصب‌های قدیمی حفظ شود و بعد از بین برود.

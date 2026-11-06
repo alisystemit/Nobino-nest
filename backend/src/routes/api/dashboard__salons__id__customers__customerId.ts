@@ -1,6 +1,7 @@
 import { requireSalonManage } from "@/lib/auth/guards";
 import { crmLimits, crmLimitsPayload } from "@/lib/crm-limits";
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { json, apiError } from "@/lib/utils";
 
 /**
@@ -51,7 +52,7 @@ export async function GET(
       completed: completed.length,
       cancelled: appointments.filter((a) => a.status === "CANCELLED").length,
       noShow: appointments.filter((a) => a.status === "NO_SHOW").length,
-      spend: completed.reduce((sum, a) => sum + (a.service?.price ?? 0), 0),
+      spend: completed.reduce((sum, a) => sum + (a.service ? asNumber(a.service.price) : 0), 0),
       lastVisit: completed[0]?.startAt ?? appointments[0]?.startAt ?? null,
     };
 

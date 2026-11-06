@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { json, apiError, getPagination } from "@/lib/utils";
 import { localParts } from "@/lib/timezone";
 import { dayWindow } from "@/lib/time/day-window";
@@ -48,10 +49,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
     ]);
 
     const t = todayAgg._sum;
-    const cash = t.cashAmount ?? 0;
-    const card = t.cardAmount ?? 0;
-    const online = t.onlineAmount ?? 0;
-    const expense = t.expenseAmount ?? 0;
+    const cash = asNumber(t.cashAmount ?? 0);
+    const card = asNumber(t.cardAmount ?? 0);
+    const online = asNumber(t.onlineAmount ?? 0);
+    const expense = asNumber(t.expenseAmount ?? 0);
 
     return json({
       success: true,

@@ -115,8 +115,8 @@ const smsSection = (): CatalogSection => ({
           hint: "پیامک سراسری سوپرادمین حداکثر این تعداد گیرنده در روز دارد (پیش‌فرض 1000؛ صفر = بی‌سقف).",
           defaultValue: "1000",
         },
-        boolField("sms.show_sent_codes", "نمایش کد OTP ارسال‌شده در محیط توسعه", {
-          hint: "فقط برای تست؛ در پروداکش خاموش بماند.",
+        boolField("sms.show_sent_codes", "نمایش کد OTP ارسال‌شده (فقط محیط توسعه)", {
+          hint: "در production این سوئیچ به‌تنهایی کاری نمی‌کند؛ باز کردن آن علاوه بر این سوئیچ به OTP_DISPLAY_ALLOW_PRODUCTION=true هم نیاز دارد.",
         }),
       ],
     },
@@ -152,7 +152,7 @@ const aiSection = (): CatalogSection => ({
           hint: "یک کلید برای هر دو مسیر گفتار→متن و تولید متن کافی است.",
         },
         { key: "llm.model", label: "مدل متنی (chat)", type: "string", placeholder: "gpt-4o-mini" },
-        { key: "stt.order", label: "ترتیب ربات‌های تبدیل گفتار", type: "string", placeholder: "groq,huggingface,cloudflare,deepgram,openai", hint: "با کاما جدا کنید؛ نام‌های ناشناخته نادیده گرفته می‌شوند." },
+        { key: "stt.order", label: "ترتیب ربات‌های تبدیل گفتار", type: "string", placeholder: "local,groq,huggingface,cloudflare,deepgram,openai", hint: "با کاما جدا کنید؛ نام‌های ناشناخته نادیده گرفته می‌شوند." },
       ],
     },
     {
@@ -179,10 +179,12 @@ const aiSection = (): CatalogSection => ({
     ...sttProviderMeta.map((p) => ({
       id: `stt-${p.id}`,
       title: p.label,
-      description: p.free ? "ربات رایگان — برای حجم پایین مناسب است." : "سرویس پولی.",
+      description: p.description ?? (p.free ? "ربات رایگان — برای حجم پایین مناسب است." : "سرویس پولی."),
       fields: [
         ...p.fields.map((f) => ({ key: f.key, label: f.label, type: f.type as CatalogFieldType, env: f.env, placeholder: f.placeholder })),
-        { key: `stt.${p.id}.model`, label: "مدل", type: "string" as CatalogFieldType, placeholder: p.modelDefault },
+        ...(p.hideModelField
+          ? []
+          : [{ key: `stt.${p.id}.model`, label: "مدل", type: "string" as CatalogFieldType, placeholder: p.modelDefault }]),
         boolField(`stt.${p.id}.enabled`, "این ربات فعال باشد"),
       ].filter((f, i, arr) => arr.findIndex((x) => x.key === f.key) === i),
     })),

@@ -294,7 +294,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
               {uploading === "logo" ? "در حال بارگذاری..." : "انتخاب لوگو"}
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                 className="hidden"
                 disabled={uploading !== null}
                 onChange={(e) => {
@@ -317,7 +317,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
               {uploading === "banner" ? "در حال بارگذاری..." : "انتخاب بنر"}
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                 className="hidden"
                 disabled={uploading !== null}
                 onChange={(e) => {
@@ -363,7 +363,7 @@ export default function SalonSettings({ salon }: { salon: Salon }) {
               {uploading === "gallery" ? "در حال بارگذاری..." : "افزودن تصویر"}
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                 className="hidden"
                 disabled={uploading !== null}
                 onChange={(e) => {

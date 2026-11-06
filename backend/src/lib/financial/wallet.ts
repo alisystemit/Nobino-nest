@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { httpError } from "@/lib/utils";
+import { assertMoney } from "@/lib/money";
 import { Prisma, TransactionKind, TransactionReason } from "@prisma/client";
 
 /**
@@ -37,6 +38,7 @@ export async function credit(
   client?: Db
 ) {
   if (amount <= 0) throw httpError("مبلغ باید مثبت باشد", 400);
+  assertMoney(amount, "مبلغ تراکنش");
 
   const run = async (db: Db) => {
     const wallet = await ensureWallet(userId, db);
@@ -71,6 +73,7 @@ export async function debit(
   client?: Db
 ) {
   if (amount <= 0) throw httpError("مبلغ باید مثبت باشد", 400);
+  assertMoney(amount, "مبلغ تراکنش");
 
   const run = async (db: Db) => {
     const wallet = await ensureWallet(userId, db);

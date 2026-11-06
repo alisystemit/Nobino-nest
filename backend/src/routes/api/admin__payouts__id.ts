@@ -9,6 +9,7 @@ import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { credit } from "@/lib/financial/wallet";
 import { logAudit } from "@/lib/audit";
+import { asNumber } from "@/lib/money";
 import { json, apiError } from "@/lib/utils";
 
 const schema = z.object({ status: z.enum(["PROCESSING", "PAID", "REJECTED"]) });
@@ -49,7 +50,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } |
 
     if (status === "REJECTED") {
       try {
-        await credit(payout.wallet.ownerId, payout.amount, "REFUND", {
+        await credit(payout.wallet.ownerId, asNumber(payout.amount), "REFUND", {
           refType: "Payout",
           refId: payout.id,
           description: "بازگشت درخواست تسویه رد‌شده",
@@ -69,10 +70,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } |
       entityType: "Payout",
       entityId: id,
       before: { status: payout.status },
-      after: { status, amount: payout.amount, refunded: status === "REJECTED" },
+      after: { status, amount: asNumber(payout.amount), refunded: status === "REJECTED" },
     });
 
-    return json({ success: true, payout: updated, walletBalance: payout.wallet.balance + (status === "REJECTED" ? payout.amount : 0) });
+    return json({ success: true, payout: updated, walletBalance: asNumber(payout.wallet.balance) + (status === "REJECTED" ? asNumber(payout.amount) : 0) });
   } catch (err) {
     return apiError(err);
   }

@@ -4,6 +4,7 @@ import { listOwnerSalons, resolveDashboardSalonId } from "@/lib/salons";
 import type { AgendaItem } from "@/lib/appointments/agenda-view";
 import { dayWindow, parseDayParam } from "@/lib/time/day-window";
 import { todayInZone } from "@/lib/time/zoned";
+import { asNumberOrNull } from "@/lib/money";
 
 /**
  * دادهٔ صفحهٔ نوبت‌ها: یک «روز» کامل به وقت سالن، با دامنهٔ دسترسی نقش‌محور.
@@ -89,12 +90,12 @@ export async function loadAgenda(
     channel: a.channel,
     service: a.service?.name ?? null,
     serviceId: a.service?.id ?? null,
-    servicePrice: a.service?.price ?? null,
+    servicePrice: asNumberOrNull(a.service?.price ?? null),
     employee: a.employee?.name ?? null,
     employeeId: a.employee?.id ?? null,
     branchId: a.branchId,
     note: a.note,
-    depositAmount: a.depositAmount,
+    depositAmount: asNumberOrNull(a.depositAmount),
     depositPaid: a.depositPaid,
     salonId: a.salonId,
     salonName: a.salon?.name ?? null,

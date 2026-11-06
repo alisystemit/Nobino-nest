@@ -91,6 +91,12 @@ const envSchema = z.object({
   SPA_DISABLED: z.string().default(""),
   NODE_ENV: z.string().default("development"),
 
+  // سقف حجم بدنهٔ درخواست (بایت) — خالی = پیش‌فرض کد
+  MAX_JSON_BODY_BYTES: z.string().default(""),
+  MAX_UPLOAD_BODY_BYTES: z.string().default(""),
+  // نمایش کد OTP در production پیش‌فرض بسته است؛ فقط با true عمدی باز می‌شود
+  OTP_DISPLAY_ALLOW_PRODUCTION: z.string().default(""),
+
   VOICE_PROVIDER: z.enum(["openai", "mock"]).default("mock"),
   OPENAI_API_KEY: z.string().default(""),
   OPENAI_MODEL: z.string().default("whisper-1"),

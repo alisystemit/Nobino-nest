@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { assertLimit } from "@/lib/plans/limits";
+import { asNumber } from "@/lib/money";
 import { json, apiError, getPagination } from "@/lib/utils";
 
 const schema = z.object({
@@ -116,7 +117,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
     }
 
     for (const a of completed) {
-      spend.set(a.customerPhone, (spend.get(a.customerPhone) ?? 0) + (a.service?.price ?? 0));
+      spend.set(a.customerPhone, (spend.get(a.customerPhone) ?? 0) + (a.service ? asNumber(a.service.price) : 0));
       const latest = lastVisit.get(a.customerPhone);
       if (!latest || a.startAt > latest) lastVisit.set(a.customerPhone, a.startAt);
     }

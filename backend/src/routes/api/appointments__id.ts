@@ -9,6 +9,7 @@ import { credit } from "@/lib/financial/wallet";
 import { announceDepositRefundDue } from "@/lib/financial/deposit-refund";
 import { syncCustomerProfile } from "@/lib/crm";
 import { json, apiError } from "@/lib/utils";
+import { asNumber } from "@/lib/money";
 
 const schema = z.object({
   status: z.enum(["REQUESTED", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"]),
@@ -97,7 +98,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } |
       if (employee && service && employee.commissionPercent > 0 && employee.userId) {
         // O9: مبنای کمیسیون مبلغ ثبت‌شده در لحظهٔ رزرو است، نه قیمت امروز خدمت؛
         // در رزرو چندخدمتی snapshot مجموع همهٔ خدمات است (پیش‌تر فقط خدمت اول شمرده می‌شد).
-        const basis = prev.priceSnapshot ?? service.price;
+        const basis = asNumber(prev.priceSnapshot ?? service.price);
         const amount = Math.round((basis * employee.commissionPercent) / 100);
         if (amount > 0) {
           await credit(employee.userId, amount, "COMMISSION_EARNING", {

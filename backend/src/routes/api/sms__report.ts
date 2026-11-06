@@ -2,8 +2,8 @@
 
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
-import { json, apiError, getPagination, tooManyRequests } from "@/lib/utils";
-import { checkRate } from "@/lib/rate-limit-lite";
+import { json, apiError, getPagination } from "@/lib/utils";
+import { checkRate, tooManyRequests } from "@/lib/rate-limit-lite";
 
 export async function GET(req: Request, _ctx: { params: Record<string, string> }) {
   try {

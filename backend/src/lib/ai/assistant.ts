@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { llmChat } from "@/lib/ai/llm";
 
 export interface AssistantContext {
@@ -41,7 +42,7 @@ async function fetchSalonFacts(salonId: string): Promise<SalonFacts | null> {
     city: salon.city ?? null,
     address: salon.address ?? null,
     description: salon.description ?? null,
-    services: salon.services,
+    services: salon.services.map((s) => ({ ...s, price: asNumber(s.price) })),
     staff: salon.staff,
     minNoticeMinutes: salon.minNoticeMinutes,
     maxAdvanceDays: salon.maxAdvanceDays,

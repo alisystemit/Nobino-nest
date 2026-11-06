@@ -1,6 +1,7 @@
 // خودکار: پورت‌شده از src/app/api/dashboard/salons/[id]/excel/route.ts — بدون تغییر منطق
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { excelResponse } from "@/lib/export";
 import { withinLimit } from "@/lib/plans/limits";
 
@@ -35,7 +36,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
               c.phone,
               c.name,
               c.visits,
-              c.spend,
+              asNumber(c.spend),
               c.lastVisitAt?.toISOString() ?? "",
               c.tags.join(" | "),
               c.note ?? "",
@@ -64,7 +65,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
             a.customerName,
             a.customerPhone,
             a.service?.name ?? "",
-            a.service?.price ?? "",
+            a.service ? asNumber(a.service.price) : "",
             a.employee?.name ?? "",
             a.startAt.toISOString(),
             a.endAt.toISOString(),

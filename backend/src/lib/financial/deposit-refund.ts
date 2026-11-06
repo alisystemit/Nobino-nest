@@ -16,6 +16,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { httpError } from "@/lib/utils";
+import { asNumber } from "@/lib/money";
 import { enqueueInApp, enqueueSms } from "@/lib/notifications/queue";
 
 /** وضعیت‌هایی که نوبت را بی‌اعتبار می‌کنند و بیعانه را برگشت‌پذیر می‌سازند */
@@ -39,7 +40,7 @@ type RefundPayload = { refund?: { at?: string; byUserId?: string | null; note?: 
 function toRow(
   p: {
     id: string;
-    amount: number;
+    amount: bigint | number;
     gateway: string;
     createdAt: Date;
     updatedAt: Date;
@@ -50,7 +51,7 @@ function toRow(
   return {
     paymentId: p.id,
     appointmentId: p.appointment?.id ?? "",
-    amount: p.amount,
+    amount: asNumber(p.amount),
     gateway: p.gateway,
     customerName: p.appointment?.customerName ?? "—",
     customerPhone: p.appointment?.customerPhone ?? "—",
@@ -95,7 +96,7 @@ export async function depositRefundSummary(salonId: string): Promise<{ count: nu
     _count: { _all: true },
     _sum: { amount: true },
   });
-  return { count: agg._count._all, amount: agg._sum.amount ?? 0 };
+  return { count: agg._count._all, amount: asNumber(agg._sum.amount ?? 0) };
 }
 
 /**
@@ -111,7 +112,7 @@ export async function announceDepositRefundDue(appointmentId: string): Promise<{
   });
   if (!payment?.appointment) return null;
   const appt = payment.appointment;
-  const amount = payment.amount;
+  const amount = asNumber(payment.amount);
 
   const sms = `بیعانهٔ ${amount.toLocaleString("fa-IR")} تومانی نوبت «${appt.salon?.name ?? ""}» به دلیل لغو قابل بازگشت است. با سالن هماهنگ کنید تا آن را به حساب شما برگرداند.`;
   await enqueueSms({

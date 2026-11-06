@@ -10,6 +10,7 @@
  * و فقط وقتی مجاز است که هیچ سفارش پرداخت‌شده‌ای به آن وصل نباشد.
  */
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { logAudit } from "@/lib/audit";
 import { getPlanLimitsForPlan, normalizePlan, PLAN_ORDER } from "@/lib/plans/limits";
 import { resolveFeatures, type StoredFeature } from "@/lib/plans/modules";
@@ -169,7 +170,7 @@ export async function updatePackage(id: string, patch: Partial<PackageInput>, ac
   if (patch.plan != null || patch.price != null || touchesYearly) {
     assertPackagePricing(
       patch.plan ?? before.plan,
-      patch.price ?? before.price,
+      patch.price ?? asNumber(before.price),
       // نسبت سالانه/ماهانه فقط وقتی سنجیده می‌شود که خودِ قیمت سالانه در این ویرایش
       // باشد؛ وگرنه یک ردیف قدیمیِ ناسازگار اجازهٔ اصلاح قیمت ماهانه را نمی‌داد.
       touchesYearly ? patch.yearlyPrice : undefined

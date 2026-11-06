@@ -131,7 +131,9 @@ async function healthPayload(req: IncomingMessage) {
     env: nodeEnv(),
     port: Number(process.env.PORT ?? 3100),
     rootDomain: process.env.ROOT_DOMAIN || "localhost",
-    cronSecret: Boolean(process.env.CRON_SECRET),
+    // فقط env — health نباید برای پاسخ، به دیتابیس وابسته شود. تنظیم پنل
+    // `cron.secret` در مسیر واقعی کران (cron-guard) با تقدم پنل خوانده می‌شود.
+    cronSecret: Boolean((process.env.CRON_SECRET ?? "").trim()),
     smsProvider: process.env.SMS_PROVIDER || "mock",
     paymentGateway: process.env.PAYMENT_DEFAULT_GATEWAY || "sandbox",
     servingSpa: spaServingEnabled(),

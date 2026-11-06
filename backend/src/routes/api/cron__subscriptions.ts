@@ -27,6 +27,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
   let expired = 0;
   let reminded = 0;
   let failedRenewals = 0;
+  let awaitingPayment = 0;
 
   for (const sub of due) {
     if (sub.endsAt <= now) {
@@ -34,6 +35,10 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
         const charge = await chargeRenewal(sub.id);
         if (charge.success) {
           renewed++;
+        } else if (charge.pending) {
+          // درگاه واقعی: لینک پرداخت صادر شده و منتظر کاربر هستیم؛
+          // این «شکست پرداخت» نیست و نباید پیامک خطا بفرستد.
+          awaitingPayment++;
         } else {
           failedRenewals++;
           await enqueueSms({
@@ -70,5 +75,5 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
 
   const result = await processPendingNotifications(30);
 
-  return json({ success: true, scanned: due.length, renewed, failedRenewals, expired, reminded, ...result });
+  return json({ success: true, scanned: due.length, renewed, failedRenewals, awaitingPayment, expired, reminded, ...result });
 }

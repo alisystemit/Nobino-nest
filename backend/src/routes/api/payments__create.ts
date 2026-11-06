@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
 import { createPaymentForOrder, createDepositPayment, finalizePaidOrder } from "@/lib/payments/engine";
+import { asNumber } from "@/lib/money";
 import { json, apiError } from "@/lib/utils";
 
 const schema = z.object({
@@ -89,7 +90,10 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     }
 
     // قیمت بر اساس دوره: سالانه = price*10 (یا yearlyPrice اگر تنظیم شده باشد)
-    const unitPrice = body.period === "YEARLY" ? (pkg.yearlyPrice ?? pkg.price * 10) : pkg.price;
+    const monthlyPrice = asNumber(pkg.price);
+    const unitPrice = body.period === "YEARLY"
+      ? (pkg.yearlyPrice != null ? asNumber(pkg.yearlyPrice) : monthlyPrice * 10)
+      : monthlyPrice;
 
     let amount = unitPrice;
     let originalAmount = unitPrice;
@@ -134,12 +138,19 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
 
     // سفارش رایگان (پلن رایگان یا تخفیف ۱۰۰٪): بدون درگاه و بدون Payment
     // مستقیم نهایی می‌شود تا مسیر «پرداخت جعلی» برای مبلغ صفر وجود نداشته باشد.
+    // ثبت PAID، افزایش سهمیهٔ تخفیف و فعال‌سازی اشتراک/فاکتور/کمیسیون اتمیک است.
     if (amount <= 0) {
-      await prisma.$transaction([
-        prisma.order.update({ where: { id: order.id }, data: { status: "PAID" } }),
-        ...(discountId ? [prisma.discount.update({ where: { id: discountId }, data: { usedCount: { increment: 1 } } })] : []),
-      ]);
-      await finalizePaidOrder(order).catch(() => {});
+      const finalized = await prisma.$transaction(async (tx) => {
+        await tx.order.update({ where: { id: order.id }, data: { status: "PAID" } });
+        if (discountId) {
+          await tx.discount.update({ where: { id: discountId }, data: { usedCount: { increment: 1 } } });
+        }
+        return finalizePaidOrder(order, tx);
+      }, { timeout: 15_000 });
+      if (finalized.subscription) {
+        const { notifyActivatedSubscription } = await import("@/lib/subscriptions");
+        await notifyActivatedSubscription(finalized.subscription).catch(() => {});
+      }
       return json(
         {
           success: true,

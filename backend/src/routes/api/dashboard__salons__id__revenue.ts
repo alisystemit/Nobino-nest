@@ -1,6 +1,7 @@
 // خودکار: پورت‌شده از src/app/api/dashboard/salons/[id]/revenue/route.ts — روزها به وقت سالن (O8) و مبلغ زمان رزرو (O9)
 import { requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { json, apiError } from "@/lib/utils";
 import { localParts } from "@/lib/timezone";
 import { dayWindow, shiftDay } from "@/lib/time/day-window";
@@ -50,10 +51,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } | 
       bucket.appointments++;
       if (a.status === "COMPLETED") {
         if (a.priceSnapshot !== null) {
-          bucket.revenue += a.priceSnapshot;
+          bucket.revenue += asNumber(a.priceSnapshot);
         } else {
           legacyPriced++;
-          bucket.revenue += a.serviceId ? priceMap.get(a.serviceId) ?? 0 : 0;
+          bucket.revenue += a.serviceId ? asNumber(priceMap.get(a.serviceId) ?? 0) : 0;
         }
       }
       if (a.status === "CANCELLED") bucket.cancelled++;

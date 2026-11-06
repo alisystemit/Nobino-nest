@@ -25,6 +25,10 @@ export async function assertLoginAllowed(login: string) {
     where: {
       phone: login,
       purpose: "PASSWORD_FAIL",
+      // رکوردهای پاک‌شده (ورود موفق) نباید در شمارش قفل بمانند؛ قبلاً
+      // `clearFailedLogins` فقط usedAt را پر می‌کرد ولی این کوئری همه را
+      // می‌شمرد و کاربر پس از یک ورود موفق هم قفل می‌ماند.
+      usedAt: null,
       createdAt: { gte: new Date(Date.now() - FAIL_WINDOW_MS) },
     },
   });

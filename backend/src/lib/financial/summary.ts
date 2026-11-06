@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { TransactionReason } from "@prisma/client";
 
 /** موجودی و خلاصه تراکنش‌های کیف پول کاربر (صفحه‌بندی‌شده) */
@@ -25,12 +26,13 @@ export async function getWalletSummary(userId: string, page = 1, limit = 25) {
     }),
   ]);
 
-  const credit = sums.find((s) => s.kind === "CREDIT")?._sum.amount ?? 0;
-  const debit = sums.find((s) => s.kind === "DEBIT")?._sum.amount ?? 0;
+  const credit = asNumber(sums.find((s) => s.kind === "CREDIT")?._sum.amount ?? 0);
+  const debit = asNumber(sums.find((s) => s.kind === "DEBIT")?._sum.amount ?? 0);
 
   return {
     ...wallet,
-    transactions,
+    balance: asNumber(wallet.balance),
+    transactions: transactions.map((t) => ({ ...t, amount: asNumber(t.amount), balanceAfter: asNumber(t.balanceAfter) })),
     transactionsTotal,
     page,
     limit,
@@ -54,8 +56,8 @@ export async function getCommissionSummary(agentId: string) {
   });
 
   return {
-    balance: wallet?.balance ?? 0,
-    totalEarned: earned._sum.amount ?? 0,
+    balance: asNumber(wallet?.balance ?? 0),
+    totalEarned: asNumber(earned._sum.amount ?? 0),
     activePlanCount: planCount,
     plans,
   };

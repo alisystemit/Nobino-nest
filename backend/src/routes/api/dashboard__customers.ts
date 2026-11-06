@@ -1,6 +1,7 @@
 // لیست مشتریان سالن بدون نیاز به salonId در مسیر (از query یا اولین سالن کاربر)
 import { requireRole, requireSalonManage } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { json, apiError, getPagination } from "@/lib/utils";
 
 function splitName(name: string | null | undefined): { firstName: string | null; lastName: string | null } {
@@ -105,7 +106,7 @@ export async function GET(req: Request, _ctx: { params: Record<string, string> }
     }
 
     for (const a of completed) {
-      spend.set(a.customerPhone, (spend.get(a.customerPhone) ?? 0) + (a.service?.price ?? 0));
+      spend.set(a.customerPhone, (spend.get(a.customerPhone) ?? 0) + (a.service ? asNumber(a.service.price) : 0));
       const latest = lastVisit.get(a.customerPhone);
       if (!latest || a.startAt > latest) lastVisit.set(a.customerPhone, a.startAt);
     }

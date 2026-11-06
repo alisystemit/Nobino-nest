@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/guards";
 import { getSetting } from "@/lib/settings";
 import { httpError } from "@/lib/utils";
+import { asNumber } from "@/lib/money";
 import { SITE_URL } from "@/lib/site";
 import { salonPublicUrl } from "@/lib/salon-url";
 import { loadAgenda } from "@/lib/appointments/agenda";
@@ -194,8 +195,8 @@ async function loadSalon(url: URL) {
     telephone: salon.phone || undefined,
     image: [salon.bannerUrl, salon.logoUrl].filter(Boolean),
     priceRange: salon.services.length
-      ? `${Math.min(...salon.services.map((s) => s.price)).toLocaleString("fa-IR")} تا ${Math.max(
-          ...salon.services.map((s) => s.price),
+      ? `${Math.min(...salon.services.map((s) => asNumber(s.price))).toLocaleString("fa-IR")} تا ${Math.max(
+          ...salon.services.map((s) => asNumber(s.price)),
         ).toLocaleString("fa-IR")} تومان`
       : undefined,
     address: {
@@ -215,7 +216,7 @@ async function loadSalon(url: URL) {
     makesOffer: salon.services.map((s) => ({
       "@type": "Offer",
       itemOffered: { "@type": "Service", name: s.name, description: s.description ?? undefined },
-      price: s.price,
+      price: asNumber(s.price),
       priceCurrency: "IRR",
     })),
     ...(reviewCount > 0

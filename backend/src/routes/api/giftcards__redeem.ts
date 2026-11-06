@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
 import { credit } from "@/lib/financial/wallet";
+import { asNumber } from "@/lib/money";
 import { TransactionReason } from "@prisma/client";
 import { json, apiError } from "@/lib/utils";
 import { checkRate, clientIpFromRequest, tooManyRequests } from "@/lib/rate-limit-lite";
@@ -64,7 +65,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       if (spent.count !== 1) return null;
 
       const after = await tx.giftCard.findUnique({ where: { id: card.id } });
-      const remaining = Math.max(0, after?.balance ?? 0);
+      const remaining = Math.max(0, asNumber(after?.balance ?? 0));
       if (remaining === 0) {
         await tx.giftCard.update({ where: { id: card.id }, data: { isActive: false } });
       }

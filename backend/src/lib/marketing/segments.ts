@@ -6,6 +6,7 @@
  * نگه داشته شده‌اند تا مشتریانی که هنوز پرونده ندارند هم حذف نشوند.
  */
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import {
   DEFAULT_RECENT_DAYS,
   DEFAULT_SILENT_DAYS,
@@ -60,7 +61,7 @@ export async function buildCustomerFacts(salonId: string): Promise<{ facts: Cust
       by.set(phone, fact);
     }
     fact.visits += 1;
-    fact.spend += r.service?.price ?? 0;
+    fact.spend += r.service ? asNumber(r.service.price) : 0;
     const at = r.startAt.getTime();
     if (fact.lastVisitAt === null || at > fact.lastVisitAt) fact.lastVisitAt = at;
     if (r.service?.category && !fact.categories.includes(r.service.category)) fact.categories.push(r.service.category);

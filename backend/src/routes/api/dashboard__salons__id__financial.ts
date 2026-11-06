@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { asNumber } from "@/lib/money";
 import { json, apiError } from "@/lib/utils";
 import { localParts } from "@/lib/timezone";
 import { dayWindow, shiftDay } from "@/lib/time/day-window";
@@ -46,8 +47,12 @@ export async function GET(req: Request, { params }: { params: { id: string } | P
 
     // O9: مبلغ زمان رزرو (priceSnapshot) مبناست؛ فقط ردیف‌های قدیمی که snapshot
     // ندارند به قیمت جاری خدمت برمی‌گردند (و پاسخ می‌گوید چند ردیف از نوع قدیمی بوده).
-    const priceOf = (a: { priceSnapshot: number | null; serviceId: string | null }) =>
-      a.priceSnapshot ?? (a.serviceId ? priceMap.get(a.serviceId) ?? 0 : 0);
+    const priceOf = (a: { priceSnapshot: bigint | number | null; serviceId: string | null }) =>
+      a.priceSnapshot != null
+        ? asNumber(a.priceSnapshot)
+        : a.serviceId
+          ? asNumber(priceMap.get(a.serviceId) ?? 0)
+          : 0;
     let legacyPriced = 0;
     for (const a of appointments) if (a.priceSnapshot === null) legacyPriced++;
 
@@ -63,7 +68,7 @@ export async function GET(req: Request, { params }: { params: { id: string } | P
       where: { salonId: id, status: "PAID", createdAt: { gte: start, lt: end } },
       select: { amount: true, createdAt: true },
     });
-    const paidTotal = payments.reduce((s, p) => s + p.amount, 0);
+    const paidTotal = payments.reduce((s, p) => s + asNumber(p.amount), 0);
 
     // خدمات پرفروش
     const serviceCount: Record<string, number> = {};

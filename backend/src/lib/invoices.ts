@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import type { PaymentStatus } from "@prisma/client";
+import type { PaymentStatus, Prisma } from "@prisma/client";
+import { assertPositiveMoney } from "@/lib/money";
+
+/** کلاینت تراکنش — برای صدور فاکتور داخل همان تراکنش پرداخت */
+type Db = Prisma.TransactionClient;
 
 function invoiceNumber() {
   const now = new Date();
@@ -22,6 +26,7 @@ export async function createServiceInvoice(params: {
   if (!Number.isFinite(params.amount) || params.amount <= 0) {
     throw new Error("مبلغ فاکتور نامعتبر است");
   }
+  const amount = assertPositiveMoney(Math.round(params.amount), "مبلغ فاکتور");
   return prisma.invoice.create({
     data: {
       number: invoiceNumber(),
@@ -31,7 +36,7 @@ export async function createServiceInvoice(params: {
       customerPhone: params.customerPhone?.trim() || null,
       description: params.description?.trim() || null,
       payToken: randomBytes(16).toString("hex"),
-      amount: Math.round(params.amount),
+      amount,
       period: "ONCE",
       status: "PENDING",
       issuedAt: new Date(),
@@ -49,16 +54,41 @@ export async function getInvoiceByPayToken(token: string) {
   });
 }
 
-/** ساخت فاکتور برای یک سفارش پرداخت‌شده یا در انتظار پرداخت */
-export async function generateInvoiceForOrder(orderId: string, subscriptionId?: string | null) {
-  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { package: true } });
+/**
+ * ساخت فاکتور برای یک سفارش پرداخت‌شده یا در انتظار پرداخت.
+ * `client` اختیاری است تا مسیر پرداخت بتواند آن را در همان تراکنش صدا بزند
+ * (وگرنه فاکتور ممکن است بعد از ثبت پرداخت ساخته نشود).
+ */
+export async function generateInvoiceForOrder(
+  orderId: string,
+  subscriptionId?: string | null,
+  client?: Db,
+) {
+  const db = client ?? prisma;
+  const order = await db.order.findUnique({ where: { id: orderId }, include: { package: true } });
   if (!order) return null;
 
-  const existing = await prisma.invoice.findUnique({ where: { orderId } });
-  if (existing) return existing;
-
   const isPaid = order.status === "PAID";
-  return prisma.invoice.create({
+  const existing = await db.invoice.findUnique({ where: { orderId } });
+  if (existing) {
+    // اگر فاکتور پیش از پرداخت ساخته شده باشد (مثلاً تمدید اشتراک)، بعد از
+    // پرداخت موفق باید PAID شود؛ قبلاً دست‌نخورده PENDING می‌ماند و گزارش
+    // مالی با وضعیت سفارش ناسازگار می‌شد.
+    const needsPaid = isPaid && existing.status !== "PAID";
+    const needsSubscription = subscriptionId != null && existing.subscriptionId !== subscriptionId;
+    if (needsPaid || needsSubscription) {
+      return db.invoice.update({
+        where: { id: existing.id },
+        data: {
+          ...(needsPaid ? { status: "PAID" as const, paidAt: existing.paidAt ?? new Date() } : {}),
+          ...(needsSubscription ? { subscriptionId } : {}),
+        },
+      });
+    }
+    return existing;
+  }
+
+  return db.invoice.create({
     data: {
       number: invoiceNumber(),
       salonId: order.salonId ?? "",

@@ -6,6 +6,7 @@
  */
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
+import { cronSecret } from "@/lib/auth/cron-guard";
 import * as C0 from "@/routes/api/cron__holds";
 import * as C1 from "@/routes/api/cron__notifications";
 import * as C2 from "@/routes/api/cron__reminders";
@@ -55,9 +56,18 @@ export class CronJobsService {
       this.log.error(`کران ${name} در CRON_JOBS نیست — «npm run gen:controllers» را اجرا کنید`);
       return;
     }
-    const secret = process.env.CRON_SECRET ?? "";
+    // همان منبعی که `requireCronAuth` می‌خواند: تنظیم پویای `cron.secret` پنل
+    // با fallback به env. قبلاً فقط process.env خوانده می‌شد و اگر کلید از پنل
+    // عوض می‌شد، کران داخلی ۴۰۱ می‌گرفت.
+    let secret = "";
+    try {
+      secret = await cronSecret();
+    } catch (err) {
+      this.log.error("خواندن کلید کران (cron.secret/CRON_SECRET) ناموفق بود", err as Error);
+      return;
+    }
     if (!secret) {
-      this.log.warn("CRON_SECRET تنظیم نشده — کران اجرا نشد");
+      this.log.warn("CRON_SECRET/cron.secret تنظیم نشده — کران اجرا نشد");
       return;
     }
     const request = new Request(job.url, { headers: { authorization: `Bearer ${secret}` } });

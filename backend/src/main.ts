@@ -9,9 +9,39 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { HttpErrorFilter } from "@/common/filters/http-error.filter";
 import { registerOpsMiddleware } from "@/common/ops-middleware";
+import { registerPublicFiles } from "@/common/public-files";
 import { requestStore } from "@/compat/request-context";
 import { AppModule } from "@/app.module";
-import { productionEnvErrors } from "@/lib/env";
+import { isDevelopmentEnv, productionEnvErrors } from "@/lib/env";
+import { codesAllowedInProduction } from "@/lib/auth/code-display";
+
+/**
+ * مبدأ «fail-closed»: اگر `CORS_ORIGIN` ست نشده باشد، فقط در محیط توسعهٔ صریح
+ * چند origin محلی مجازند؛ در production هیچ cross-origin مجاز نیست (درخواست‌های
+ * same-origin بدون CORS کار می‌کنند). قبلاً پیش‌فرض `true` بود و هر سایتی با
+ * کوکی کاربر می‌توانست درخواست بزند.
+ */
+function corsOrigins(): string[] | false {
+  const raw = (process.env.CORS_ORIGIN ?? "").trim();
+  if (raw) {
+    const list = raw
+      .split(",")
+      .map((value) => value.trim().replace(/\/+$/, ""))
+      .filter(Boolean);
+    return list.length ? list : false;
+  }
+  if (isDevelopmentEnv()) {
+    return [
+      "http://localhost:5175",
+      "http://127.0.0.1:5175",
+      "http://localhost:3100",
+      "http://127.0.0.1:3100",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+    ];
+  }
+  return false;
+}
 
 function parseCookies(header?: string): Map<string, string> {
   const map = new Map<string, string>();
@@ -40,13 +70,32 @@ async function bootstrap() {
   // Nginx جلوی اپ قرار می‌گیرد؛ اعتماد به پروکسی برای x-forwarded-* لازم است
   app.getHttpAdapter().getInstance()?.set?.("trust proxy", 1);
 
-  // فایل‌های آپلودی/استاتیک محلی (در تولید Nginx این‌ها را سرور می‌کند؛ این خط برای dev و parity با Next است)
-  app.useStaticAssets(join(process.cwd(), "public"));
-
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(",") ?? true,
-    credentials: true,
+  // هدرهای امنیتی پایه برای همهٔ پاسخ‌ها (بدون X-Frame-Options تا embed مجاز بماند)
+  app.use((_req: any, res: any, next: () => void) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    next();
   });
+
+  // فایل‌های آپلودی/استاتیک محلی — فقط پسوندهای تصویری/صوتی و با Content-Type اجباری.
+  // (در تولید Nginx هم می‌تواند این‌ها را سرو کند؛ این خط برای dev و parity با Next است.)
+  registerPublicFiles(app, join(process.cwd(), "public"));
+
+  const origins = corsOrigins();
+  app.enableCors({
+    origin: origins,
+    credentials: origins !== false,
+  });
+  if (origins === false) {
+    console.warn(
+      "⚠️ CORS: هیچ origin مجاز تعریف نشده (CORS_ORIGIN خالی است)؛ فقط درخواست‌های same-origin پذیرفته می‌شوند.",
+    );
+  }
+  if (codesAllowedInProduction()) {
+    console.warn(
+      "⚠️ امنیت: OTP_DISPLAY_ALLOW_PRODUCTION=true در production؛ کد تأیید از API عمومی قابل خواندن است. فقط برای تست موقت.",
+    );
+  }
 
   // مقداردهی بافت درخواست (AsyncLocalStorage) برای هر درخواست — تا `cookies()`/`requireRole`
   // در کنترلرهای Nest هم همانند Route Handlerهای قدیمی کار کنند.

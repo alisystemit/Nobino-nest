@@ -131,11 +131,10 @@ const schema = z.object({
   branchId: z.string().optional(),
   // C10: متن‌های بدون سقف، چیدمان داشبورد و پیامک تأیید را می‌شکستند و هزینهٔ SMS داشتند
   customerName: z.string().trim().min(1).max(60),
-  // اصلاح: دقیقاً 11 رقم با 09 (نیاز به نرمالایز قبل از validation)
-  customerPhone: z.string().refine(
-    (phone) => /^[09]\d{9}$/.test(phone.replace(/^0+/, "0")),
-    { message: "شماره موبایل باید دقیقاً ۱۱ رقم باشد (با 09 شروع شود)" }
-  ),
+  // اصلاح: دقیقاً 11 رقم با 09 (یا 10 رقم بدون صفر ابتدایی) — نیاز به نرمال‌ایز قبل از validation
+  customerPhone: z
+    .string()
+    .regex(/^0?9\d{9}$/, "شماره موبایل معتبر نیست (مثال: 09121234567)"),
   startAt: z.string().datetime(), // ISO
   // O14: فقط وقتی خدمتی انتخاب نشده معتبر است؛ با خدمت، مدت از خود خدمت خوانده می‌شود
   durationMin: z.number().int().min(5).max(480).optional(),
@@ -144,15 +143,19 @@ const schema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
-// اصلاح: Rate limit باید قبل از DB query باشد
 export async function POST(req: Request, _ctx: { params: Record<string, string> }) {
   try {
     const body = schema.parse(await req.json());
     const user = await requireAuth().catch(() => null);
 
-    // C8: مهار ربات روی مسیر ایجاد نوبت (فقط رزرو مشتری؛ ثبت نوبت توسط مدیر سالن یا سوپرادمین مهار نمی‌شود)
-    // اصلاح: rate limit را قبل از DB query اجرا می‌کنیم
-    const isManagerOfThisSalon = !!user && (user.role === "ADMIN" || (user.role === "SALON_OWNER" && user.role === "STAFF" && user.salonId === body.salonId));
+    // سالن یک‌بار خوانده می‌شود؛ برای تشخیص «مدیر همین سالن» به ownerId نیاز داریم
+    // (بدون این کوئری، مالک سالن با رزرو دستی/صوتی اشتباهاً مثل مشتری محدود می‌شد).
+    const salon = await prisma.salon.findUnique({ where: { id: body.salonId } });
+    if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
+
+    // C8: مهار ربات روی مسیر ایجاد نوبت (فقط رزرو مشتری؛ ثبت نوبت توسط مدیر همین سالن یا سوپرادمین مهار نمی‌شود)
+    const isManagerOfThisSalon =
+      !!user && (user.role === "ADMIN" || (user.role === "SALON_OWNER" && salon.ownerId === user.id));
     if (!isManagerOfThisSalon) {
       const ip = clientIpFromRequest(req);
       const perIp = await numericSettingOrEnv("booking.rate_per_hour", process.env.BOOKING_RATE_PER_HOUR, 10);
@@ -167,17 +170,11 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       }
     }
 
-    // DB query بعد از rate limit
-    const salon = await prisma.salon.findUnique({ where: { id: body.salonId } });
-    if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
-
     // C6: سالن غیرفعال یا تأییدنشده نوبت مشتری نمی‌گیرد.
     // استثنا: خودِ مالک سالن و سوپرادمین (رزرو دستی/صوتی از پنل پیش از تأیید هم کار می‌کند).
     if (!isManagerOfThisSalon && (!salon.isActive || !salon.isApproved)) {
       return json({ success: false, error: "این سالن در حال حاضر امکان دریافت نوبت ندارد." }, { status: 404 });
     }
-
-    // دیگر چک‌ها...
 
     // خدمات انتخاب‌شده (تک‌خدمتی یا چندخدمتی) — همیشه از دیتابیس خوانده می‌شوند
     const requestedIds = Array.from(

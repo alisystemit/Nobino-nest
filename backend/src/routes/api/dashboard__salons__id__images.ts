@@ -6,8 +6,11 @@ import { storeFile } from "@/lib/storage";
 import { checkLimit } from "@/lib/plans/limits";
 import { uploadLimits, sizeLimitFa } from "@/lib/upload-limits";
 import { json, apiError, getPagination } from "@/lib/utils";
+import { normalizeMime, validateImageContent, type ImageMime } from "@/lib/upload-validation";
 
-const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/avif"];
+// SVG عمداً مجاز نیست: فایل SVG یک سند XML است و می‌تواند اسکریپت درون‌خطی
+// داشته باشد؛ سرو آن از دامنهٔ اصلی = XSS. برای لوگو باید PNG/WebP بفرستند.
+const ALLOWED: readonly ImageMime[] = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
 
 /**
  * بارگذاری تصویر سالن (لوگو، بنر یا گالری).
@@ -21,6 +24,13 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
     const salon = await prisma.salon.findUnique({ where: { id }, select: { id: true, slug: true } });
     if (!salon) return json({ success: false, error: "سالن یافت نشد" }, { status: 404 });
 
+    // سقف حجم پیش از پارس multipart (سربار فرم تا ۱ مگابایت لحاظ می‌شود)
+    const { imageMaxBytes } = await uploadLimits();
+    const declared = Number(req.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declared) && declared > imageMaxBytes + 1024 * 1024) {
+      return json({ success: false, error: sizeLimitFa(Math.round(imageMaxBytes / (1024 * 1024))) }, { status: 413 });
+    }
+
     const form = await req.formData();
     const file = form.get("file");
     const kind = String(form.get("kind") ?? "gallery");
@@ -29,15 +39,23 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
     if (!(file instanceof File)) {
       return json({ success: false, error: "فایلی ارسال نشده است" }, { status: 400 });
     }
-    if (!ALLOWED.includes(file.type)) {
-      return json({ success: false, error: "فرمت تصویر مجاز نیست (JPG، PNG، WebP، GIF یا SVG)" }, { status: 400 });
+    if (!ALLOWED.includes(normalizeMime(file.type) as ImageMime)) {
+      return json({ success: false, error: "فرمت تصویر مجاز نیست (JPG، PNG، WebP، GIF یا AVIF)" }, { status: 400 });
     }
-    const { imageMaxBytes } = await uploadLimits();
+    // سقف حجم واقعی فایل (imageMaxBytes پیش از پارس خوانده شد)
     if (file.size > imageMaxBytes) {
       return json({ success: false, error: sizeLimitFa(Math.round(imageMaxBytes / (1024 * 1024))) }, { status: 400 });
     }
     if (!["logo", "banner", "gallery"].includes(kind)) {
       return json({ success: false, error: "نوع تصویر نامعتبر است" }, { status: 400 });
+    }
+
+    // محتوای واقعی باید تصویر باشد (جلوگیری از آپلود HTML/JS با MIME جعلی)
+    let detected: ImageMime;
+    try {
+      detected = await validateImageContent(file, ALLOWED);
+    } catch {
+      return json({ success: false, error: "فایل واقعاً تصویر نیست" }, { status: 400 });
     }
 
     if (kind === "gallery") {
@@ -50,7 +68,7 @@ export async function POST(req: Request, { params }: { params: { id: string } | 
       if (!gallery.allowed) return json({ success: false, error: gallery.message }, { status: 402 });
     }
 
-    const stored = await storeFile(file, { dir: "uploads" });
+    const stored = await storeFile(file, { dir: "uploads", mime: detected });
 
     if (kind === "logo" || kind === "banner") {
       await prisma.salon.update({

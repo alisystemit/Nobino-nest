@@ -27,7 +27,10 @@ export function httpError(message: string, status: number): Error & { status: nu
 
 /** پاسخ JSON استاندارد برای Route Handlers */
 export function json(data: unknown, init?: ResponseInit) {
-  return Response.json(data, {
+  // `JSON.stringify` روی `BigInt` خطا می‌دهد؛ ستون‌های مالی Prisma حالا
+  // BigInt هستند. قرارداد API همان number تومان می‌ماند (امن، چون مبالغ
+  // واقعی بسیار کوچک‌تر از 2^53 هستند).
+  return new Response(JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? Number(value) : value)), {
     ...init,
     headers: { "Content-Type": "application/json; charset=utf-8", ...(init?.headers ?? {}) },
   });
