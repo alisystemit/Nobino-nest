@@ -18,21 +18,35 @@
 # بقیهٔ گزینه‌ها مستقیم به deploy/bootstrap.sh پاس می‌شوند:
 #   --port --pg-password --database-url --admin-phone --admin-password
 #   --no-admin --no-firewall --with-postgres --dry-run
+#   --tls --email --ssl-mode --dns-credentials
+#
+# SSL: با --tls و --email، گواهی Let's Encrypt گرفته و HTTPS فعال می‌شود.
+#   --ssl-mode dns        wildcard با چالش DNS دستی (تعاملی؛ در pipe کار نمی‌کند)
+#   --ssl-mode cloudflare wildcard خودکار با فایل اعتبارنامهٔ Cloudflare
+#   --ssl-mode http       فقط دامنهٔ ریشه با HTTP-01
 #
 # متغیرهای محیطی:
-#   ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (امن‌تر از argv)
+#   ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (وقتی خود اسکریپت با
+#                                  root اجرا می‌شود؛ با sudo معمولاً env_reset
+#                                  آن‌ها را حذف می‌کند — از پرچم‌ها استفاده کنید)
 #   NOBINO_REPO / NOBINO_BRANCH / NOBINO_APP_DIR
 #
 # مثال با سوپرادمین از پیش تعیین‌شده:
-#   curl -fsSL .../install.sh | sudo ADMIN_PHONE=09121110000 \
-#     ADMIN_PASSWORD='YourStrong#Pass' bash -s -- --domain example.com
+#   curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
+#     --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
+# (پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
+#  sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... node scripts/create-admin.mjs)
+#
+# مثال نصب + SSL خودکار (Cloudflare):
+#   curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
+#     --tls --email you@example.com --ssl-mode cloudflare \
+#     --dns-credentials /etc/letsencrypt/cloudflare.ini
 # =====================================================================
 set -euo pipefail
 
-C_OK=$'\033[32m'; C_WARN=$'\033[33m'; C_ERR=$'\033[31m'; C_OFF=$'\033[0m'
+C_OK=$'\033[32m'; C_ERR=$'\033[31m'; C_OFF=$'\033[0m'
 say()  { printf '%s\n' "$*"; }
 ok()   { printf '%s✅ %s%s\n' "$C_OK" "$*" "$C_OFF"; }
-warn() { printf '%s⚠️  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
 die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
 
@@ -56,14 +70,27 @@ Nobino — نصب‌کنندهٔ تک‌خطی (Ubuntu/Debian)
 بقیهٔ گزینه‌ها مستقیم به deploy/bootstrap.sh پاس می‌شوند:
   --port --pg-password --database-url --admin-phone --admin-password
   --no-admin --no-firewall --with-postgres --dry-run
+  --tls --email --ssl-mode --dns-credentials
+
+SSL (با --tls --email):
+  --ssl-mode dns         wildcard با چالش DNS دستی (تعاملی؛ در pipe نه)
+  --ssl-mode cloudflare  wildcard خودکار با --dns-credentials
+  --ssl-mode http        فقط دامنهٔ ریشه با HTTP-01
 
 متغیرهای محیطی:
-  ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (امن‌تر از argv)
+  ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (وقتی با root اجرا شود)
   NOBINO_REPO / NOBINO_BRANCH / NOBINO_APP_DIR
 
 مثال با سوپرادمین از پیش تعیین‌شده:
-  curl -fsSL .../install.sh | sudo ADMIN_PHONE=09121110000 \
-    ADMIN_PASSWORD='YourStrong#Pass' bash -s -- --domain example.com
+  curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
+    --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
+(پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
+ sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... node scripts/create-admin.mjs)
+
+مثال نصب + SSL خودکار (Cloudflare):
+  curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
+    --tls --email you@example.com --ssl-mode cloudflare \
+    --dns-credentials /etc/letsencrypt/cloudflare.ini
 EOF
 }
 

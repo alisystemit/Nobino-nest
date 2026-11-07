@@ -16,6 +16,8 @@
 #   ۶) ufw: فقط SSH + 80 + 443 + 8443 باز می‌شود (اگر ufw فعال نیست، فعال می‌کند؛
 #      با --no-firewall کلاً دست نمی‌زند)
 #   ۷) در پایان deploy/install.sh را کامل اجرا می‌کند (بیلد + PM2 + nginx + سلامت)
+#   ۷.۵) اگر --tls بدهید، deploy/ssl.sh گواهی Let's Encrypt می‌گیرد و
+#      بلوک HTTPS را در nginx فعال می‌کند (wildcard با DNS یا Cloudflare)
 #   ۸) ساخت اولین سوپرادمین با موبایل/رمز دلخواه (اگر دیتابیس خالی باشد؛
 #      با --admin-phone/--admin-password بدون پرسش، یا در پایان خودکار می‌پرسد)
 #
@@ -35,6 +37,10 @@
 #   --no-admin            ساخت سوپرادمین را انجام نده (بعداً دستی: scripts/create-admin.mjs)
 #   --no-firewall         ufw را لمس نکن
 #   --with-postgres       حتی اگر Postgres هست، یوزر/دیتابیس nobino بساز (بدون نصب دوباره)
+#   --tls                 بعد از نصب SSL بگیر و HTTPS را فعال کن (نیازمند --email)
+#   --email <ایمیل>       ایمیل حساب ACME برای Let's Encrypt
+#   --ssl-mode <حالت>     dns (پیش‌فرض، wildcard تعاملی) | cloudflare | http
+#   --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (برای ssl-mode=cloudflare)
 #   --dry-run             فرمان‌های تغییردهنده فقط چاپ می‌شوند
 #
 # امنیت: هیچ داده‌ای به بیرون ارسال نمی‌شود. رمزها فقط در همین سرور
@@ -61,6 +67,8 @@ ADMIN_PHONE="${ADMIN_PHONE:-}" ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DBURL_CLI="" NO_ADMIN=false
 ADMIN_SET=false ADMIN_HINT=false
 NO_FIREWALL=false FORCE_PG=false DRY_RUN=false
+ENABLE_TLS=false SSL_EMAIL="" SSL_MODE="dns" DNS_CREDENTIALS=""
+TLS_READY=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -77,6 +85,10 @@ while [[ $# -gt 0 ]]; do
     --no-admin) NO_ADMIN=true; shift ;;
     --no-firewall) NO_FIREWALL=true; shift ;;
     --with-postgres) FORCE_PG=true; shift ;;
+    --tls) ENABLE_TLS=true; shift ;;
+    --email) need_value "$@"; SSL_EMAIL="$2"; shift 2 ;;
+    --ssl-mode) need_value "$@"; SSL_MODE="$2"; shift 2 ;;
+    --dns-credentials) need_value "$@"; DNS_CREDENTIALS="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *) die "گزینهٔ ناشناخته: $1 (--help را ببینید)" ;;
@@ -89,6 +101,10 @@ done
 DOMAIN="${DOMAIN#*://}"; DOMAIN="${DOMAIN%%/*}"; DOMAIN="${DOMAIN%%:*}"
 [[ "$DOMAIN" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$DOMAIN» — فقط حروف/عدد/نقطه/خط تیره (مثلاً nobino.ir)."
 [[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT >= 1024 && PORT <= 65535 )) || die "--port یک عدد بین 1024 و 65535 است (دادید: $PORT)."
+case "$SSL_MODE" in dns|cloudflare|http) ;; *) die "--ssl-mode باید dns یا cloudflare یا http باشد (دادید: $SSL_MODE)." ;; esac
+if $ENABLE_TLS && [[ "$SSL_MODE" == "cloudflare" && -z "$DNS_CREDENTIALS" ]]; then
+  die "برای --tls --ssl-mode cloudflare باید --dns-credentials <مسیر فایل> هم بدهید."
+fi
 [[ "$(id -u)" == "0" ]] || die "با sudo اجرا کنید."
 command -v apt-get >/dev/null 2>&1 || die "این اسکریپت برای Ubuntu/Debian (apt) است."
 command -v systemctl >/dev/null 2>&1 || die "systemctl لازم است (روی LXC قدیمی/WSL ممکن نیست)."
@@ -328,6 +344,24 @@ INSTALL_ARGS=(--domain "$DOMAIN" --port "$PORT" --app-dir "$APP_DIR")
 $DRY_RUN && INSTALL_ARGS+=(--dry-run)
 run bash "$APP_DIR/deploy/install.sh" "${INSTALL_ARGS[@]}"
 
+# ── ۸.۵) SSL / HTTPS ────────────────────────────────────────────────
+if $ENABLE_TLS; then
+  say "— ۸.۵) دریافت گواهی SSL و فعال‌سازی HTTPS —"
+  if [[ -z "$SSL_EMAIL" ]]; then
+    warn "  --email داده نشده؛ ادامه می‌دهیم ولی هشدار انقضای گواهی به شما نمی‌رسد."
+  fi
+  SSL_ARGS=(--domain "$DOMAIN" --app-dir "$APP_DIR" --mode "$SSL_MODE")
+  [[ -n "$SSL_EMAIL" ]] && SSL_ARGS+=(--email "$SSL_EMAIL")
+  [[ -n "$DNS_CREDENTIALS" ]] && SSL_ARGS+=(--dns-credentials "$DNS_CREDENTIALS")
+  $DRY_RUN && SSL_ARGS+=(--dry-run)
+  if bash "$APP_DIR/deploy/ssl.sh" "${SSL_ARGS[@]}"; then
+    TLS_READY=true
+  else
+    warn "  دریافت SSL ناموفق بود؛ سایت روی HTTP بالا است."
+    warn "  بعداً در ترمینال: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
+  fi
+fi
+
 # ── ۹) اولین سوپرادمین ──────────────────────────────────────────────
 # بعد از install.sh اجرا می‌شود چون node_modules + Prisma client + schema
 # دیتابیس را همان مرحله می‌سازد. اگر ADMIN دیگری باشد، idempotent است.
@@ -370,21 +404,26 @@ fi
 
 say ""
 ok "${C_OK}bootstrap تمام شد.${C_OFF}"
-say "  دامنه:   https://$DOMAIN  (ساب‌دامین سالن‌ها: <slug>.$DOMAIN)"
+if $TLS_READY; then SCHEME="https"; else SCHEME="http"; fi
+say "  دامنه:   $SCHEME://$DOMAIN  (ساب‌دامین سالن‌ها: <slug>.$DOMAIN)"
 say "  وضعیت:   pm2 status — لاگ: pm2 logs nobino-api"
 say "  سلامت:   curl \"http://127.0.0.1:$PORT/api/health?db=1\""
 say "  .env:    $APP_DIR/.env (رمزها همین‌جا؛ اگر PG تازه ساخت شد، رمز دیتابیس در DATABASE_URL است)"
 if $ADMIN_SET; then
-  say "  ورود مدیران: https://$DOMAIN با $AP (رمزی که دادید)"
+  say "  ورود مدیران: $SCHEME://$DOMAIN با $AP (رمزی که دادید)"
 elif $ADMIN_HINT; then
   say "  ورود مدیران: هنوز سوپرادمین ندارید — cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs"
 fi
 say ""
 say "  باقی‌ماندهٔ دستی (اختیاری):"
 say "    ۱) DNS: A برای $DOMAIN و *.${DOMAIN} به IP همین سرور"
-say "    ۲) HTTPS: sudo apt-get install -y certbot python3-certbot-nginx &&"
-say "        sudo certbot certonly --manual --preferred-challenges dns -d $DOMAIN -d '*.$DOMAIN' &&"
-say "        sudo bash deploy/install.sh --domain $DOMAIN --tls"
+if $TLS_READY; then
+  say "    ۲) HTTPS فعال شد. بررسی تمدید: sudo certbot renew --dry-run"
+  say "        (برای تمدید خودکار wildcard از --ssl-mode cloudflare استفاده کنید.)"
+else
+  say "    ۲) HTTPS: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
+  say "        حالت‌ها: dns (wildcard تعاملی) | cloudflare (خودکار) | http (فقط دامنهٔ ریشه)"
+fi
 say "    ۳) پنل سوپرادمین: /api/health را چک، سپس در «تنظیمات سیستم» درگاه پرداخت/پیامک/کلیدها را کامل کنید"
 say "        (SMS، پرداخت و صدای هوشمند عمداً خالی‌اند تا نصب بدون کلید هم بالا بیاید.)"
 say "    ۴) به‌روزرسانی بعدی: sudo bash deploy/update.sh"

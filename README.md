@@ -29,17 +29,32 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
 2. نصب PM2 و PostgreSQL، ساخت دیتابیس `nobino` با رمز تصادفی
 3. دریافت کد در `/opt/nobino` و ساخت خودکار `.env` (بدون `CHANGE_ME`)
 4. ساخت swap روی سرورهای کم‌رم، تنظیم فایروال (SSH/80/443/8443)
-5. بیلد بک‌اند و فرانت + راه‌اندازی سرویس PM2 + vhost انجینیکس
-6. بررسی سلامت و در پایان ساخت **اولین سوپرادمین**
+5. بیلد بک‌اند و فرانت + راه‌اندازی سرویس PM2 + پیکربندی nginx
+6. بررسی سلامت (سوپرادمین فقط اگر با پرچم/متغیر داده باشید ساخته می‌شود)
 
-اگر می‌خواهید سوپرادمین بدون پرسش ساخته شود (مناسب CI/اسکریپت):
+> برای **SSL و HTTPS** یا `--tls` را به همین فرمان اضافه کنید (بخش ۵ را ببینید)
+> یا بعد از نصب `deploy/ssl.sh` را اجرا کنید. نمونهٔ خودکار با Cloudflare:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' bash -s -- --domain example.com
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain example.com --tls --email you@example.com --ssl-mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
 ```
 
-> رمز را در متغیر محیطی بدهید تا در `ps` و تاریخچهٔ shell نماند.
+اگر می‌خواهید سوپرادمین در همان اجرا و بدون پرسش ساخته شود:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain example.com --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
+```
+
+> پرچم‌ها در `ps` و تاریخچهٔ shell دیده می‌شوند. برای امنیت بیشتر، نصب را بدون
+> آن‌ها انجام دهید و بعد از پایان نصب سوپرادمین را جدا بسازید:
+>
+> ```bash
+> cd /opt/nobino
+> sudo env ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' node scripts/create-admin.mjs
+> ```
+
 > اگر `sudo` رمز می‌خواهد، اول یک‌بار `sudo -v` بزنید و بعد فرمان را اجرا کنید.
+> اگر با کاربر `root` وارد شده‌اید، `sudo` لازم نیست و می‌توانید `| bash -s -- ...` بزنید.
 > برای دیدن مراحل بدون تغییر سرور، `--dry-run` اضافه کنید.
 
 ### گزینه‌های نصب تک‌خطی
@@ -52,10 +67,14 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
 | `--port <پورت>` | `3100` | پورت داخلی بک‌اند (nginx جلوی آن است) |
 | `--pg-password <رمز>` | تصادفی | رمز یوزر دیتابیس |
 | `--database-url <url>` | — | برای دیتابیس آماده/بیرونی |
-| `--admin-phone`, `--admin-password` | پرسش تعاملی | ساخت سوپرادمین اولیه |
+| `--admin-phone`, `--admin-password` | — | ساخت سوپرادمین اولیه (اگر ندهید بعداً دستی بسازید) |
 | `--no-admin` | — | ساخت سوپرادمین را رد کن |
 | `--no-firewall` | — | ufw را تغییر نده |
 | `--with-postgres` | — | حتی اگر Postgres هست، دیتابیس/یوزر `nobino` بساز |
+| `--tls` | — | بعد از نصب SSL بگیر و HTTPS را فعال کن (نیازمند `--email`) |
+| `--email <ایمیل>` | — | ایمیل حساب Let's Encrypt برای هشدار انقضا |
+| `--ssl-mode <حالت>` | `dns` | `dns` (wildcard تعاملی) / `cloudflare` (خودکار) / `http` (فقط دامنهٔ ریشه) |
+| `--dns-credentials <مسیر>` | — | فایل اعتبارنامهٔ Cloudflare برای `--ssl-mode cloudflare` |
 | `--dry-run` | — | فقط چاپ مراحل، بدون تغییر |
 
 متغیرهای محیطی جایگزین: `NOBINO_REPO`، `NOBINO_BRANCH`، `NOBINO_APP_DIR`.
@@ -129,6 +148,8 @@ openssl rand -base64 32
 ```
 
 > در توسعه، `SMS_PROVIDER=mock` و `VOICE_PROVIDER=mock` بمانند؛ پیامک/صدا فقط لاگ می‌شوند.
+> اگر پورت Vite را عوض نکرده‌اید، بهتر است `APP_URL` و `SITE_URL` را هم
+> `http://localhost:5175` بگذارید تا لینک‌های مطلق درست ساخته شوند.
 
 ### گام ۴ — ساخت جدول‌ها و دادهٔ نمونه
 
@@ -195,17 +216,260 @@ nano .env                 # DATABASE_URL، JWT_SECRET، CRON_SECRET، دامنه
 sudo bash deploy/install.sh --domain example.com
 ```
 
-افزودن HTTPS پس از صدور گواهی (wildcard):
-
-```bash
-sudo apt-get install -y certbot python3-certbot-nginx
-sudo certbot certonly --manual --preferred-challenges dns -d example.com -d '*.example.com'
-sudo bash deploy/install.sh --domain example.com --tls
-```
+افزودن HTTPS بعد از نصب در بخش ۵ توضیح داده شده است.
 
 ---
 
-## ۵) اجرا با داکر (اپ + PostgreSQL)
+## ۵) SSL و HTTPS (Let's Encrypt + nginx)
+
+### چرا گواهی wildcard؟
+
+آدرس عمومی هر سالن `<slug>.example.com` است؛ پس گواهی باید هم `example.com` و
+هم `*.example.com` را پوشش دهد. Let's Encrypt برای wildcard فقط چالش **DNS** را
+می‌پذیرد. بنابراین:
+
+- رکورد `A` برای `example.com` و رکورد wildcard (`*`) به IP سرور لازم است.
+- گواهی باید wildcard باشد، وگرنه ساب‌دامین سالن‌ها خطای گواهی می‌دهند.
+
+بررسی DNS قبل از شروع:
+
+```bash
+dig +short example.com
+dig +short test.example.com     # باید همان IP سرور را بدهد
+```
+
+> اگر دامنه پشت Cloudflare با پروکسی نارنجی است، چالش DNS همچنان کار می‌کند؛
+> فقط مطمئن شوید رکوردها در Cloudflare وجود دارند.
+
+### روش ۱ — خودکار با Cloudflare (پیشنهادی برای تمدید)
+
+یک API Token با دسترسی `Zone → DNS → Edit` برای همان Zone بسازید و فایل
+اعتبارنامه را با مجوز 600 ذخیره کنید:
+
+```bash
+sudo mkdir -p /etc/letsencrypt
+printf 'dns_cloudflare_api_token = %s\n' 'YOUR_CF_TOKEN' | sudo tee /etc/letsencrypt/cloudflare.ini
+sudo chmod 600 /etc/letsencrypt/cloudflare.ini
+```
+
+سپس:
+
+```bash
+sudo bash /opt/nobino/deploy/ssl.sh \
+  --domain example.com \
+  --email you@example.com \
+  --mode cloudflare \
+  --dns-credentials /etc/letsencrypt/cloudflare.ini
+```
+
+این اسکریپت به‌صورت خودکار:
+
+1. `certbot` و پلاگین `python3-certbot-dns-cloudflare` را نصب می‌کند
+2. گواهی `example.com` + `*.example.com` را صادر می‌کند
+3. هوک تمدید (`reload-nginx.sh`) را نصب و `certbot.timer` را فعال می‌کند
+4. vhost را با بلوک ۴۴۳ بازسازی می‌کند
+
+یا همهٔ این‌ها را در همان نصب تک‌خطی بخواهید:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain example.com --tls --email you@example.com --ssl-mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
+```
+
+### روش ۲ — DNS دستی (بدون API)
+
+اگر نمی‌خواهید توکن Cloudflare بدهید:
+
+```bash
+sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com --mode dns
+```
+
+اسکریپت متوقف می‌شود و دو رکورد `TXT` برای `_acme-challenge.example.com`
+نشان می‌دهد. هر دو مقدار را با هم در DNS ثبت کنید، چند دقیقه صبر کنید و
+`Enter` بزنید.
+
+> این حالت **تمدید خودکار ندارد**؛ هر ~۹۰ روز باید همین فرمان را دوباره اجرا
+> کنید. برای تمدید خودکار از روش Cloudflare (یا پلاگین DNS دیگر) استفاده کنید.
+
+### روش ۳ — فقط دامنهٔ ریشه (HTTP-01)
+
+اگر ساب‌دامین سالن‌ها را استفاده نمی‌کنید:
+
+```bash
+sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com --mode http
+```
+
+> ⚠️ در این حالت فقط `example.com` معتبر است و `mah.example.com` خطای گواهی
+> می‌دهد. برای سامانهٔ نوبینو که آدرس سالن‌ها ساب‌دامین است، روش wildcard لازم است.
+
+### صدور دستی گواهی (بدون اسکریپت)
+
+```bash
+sudo apt-get update
+sudo apt-get install -y certbot python3-certbot-nginx
+
+sudo certbot certonly --manual --preferred-challenges dns \
+  --cert-name example.com \
+  -d example.com -d '*.example.com' \
+  --email you@example.com --agree-tos --no-eff-email
+```
+
+بعد از صدور، nginx را با گواهی جدید بازسازی کنید:
+
+```bash
+sudo bash /opt/nobino/deploy/install.sh --domain example.com --tls --skip-build
+```
+
+### چه کانفیگی در nginx ساخته می‌شود؟
+
+`install.sh --tls` وجود این دو فایل را بررسی می‌کند:
+
+```
+/etc/letsencrypt/live/example.com/fullchain.pem
+/etc/letsencrypt/live/example.com/privkey.pem
+```
+
+اگر موجود باشند، به‌جای `nobino.conf.template` از
+[`deploy/nginx/nobino.tls.conf.snippet`](deploy/nginx/nobino.tls.conf.snippet)
+استفاده می‌کند و فایل نهایی را در
+`/etc/nginx/sites-available/nobino.conf` می‌نویسد. اگر گواهی نباشد، فقط HTTP
+نصب می‌شود و هشدار می‌دهد.
+
+بلوک مشترک upstream (از [`deploy/nginx/nobino.upstream.conf.part`](deploy/nginx/nobino.upstream.conf.part)):
+
+```nginx
+upstream nobino_backend {
+    server 127.0.0.1:3100 fail_timeout=10s;
+    keepalive 16;
+}
+```
+
+هدایت HTTP به HTTPS (چالش ACME مستثنی است):
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name example.com *.example.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/letsencrypt;
+        default_type "text/plain";
+        allow all;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+```
+
+بلوک اصلی HTTPS:
+
+```nginx
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name example.com *.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:20m;
+    ssl_session_timeout 1d;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    root /opt/nobino/frontend/dist;
+    index index.html;
+    client_max_body_size 12m;
+    charset utf-8;
+    server_tokens off;
+
+    access_log /var/log/nginx/nobino.ssl.access.log;
+    error_log  /var/log/nginx/nobino.ssl.error.log warn;
+
+    location /api/ {
+        proxy_pass http://nobino_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        "";
+        proxy_read_timeout 120s;
+    }
+
+    location ^~ /uploads/ {
+        alias /opt/nobino/public/uploads/;
+        try_files $uri @nobino_backend_tls;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    location ^~ /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri @nobino_backend_tls;
+    }
+
+    location / {
+        try_files $uri $uri/index.html $uri.html /index.html;
+        add_header Cache-Control "no-cache";
+    }
+}
+```
+
+> نسخهٔ کامل و به‌روز (شامل `/voice/`، `sw.js`، manifest، sitemap و فونت‌ها)
+> همان فایل `nobino.tls.conf.snippet` است؛ آن را دستی ویرایش نکنید و از
+> `install.sh --tls` برای بازتولید استفاده کنید.
+
+اعمال تغییرات:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### تمدید خودکار
+
+```bash
+sudo certbot certificates                 # فهرست گواهی‌ها و تاریخ انقضا
+sudo certbot renew --dry-run              # تست تمدید
+systemctl list-timers | grep certbot      # زمان‌بند تمدید
+```
+
+هوک نصب‌شده در `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` بعد از
+هر تمدید موفق، nginx را reload می‌کند. برای حالت DNS دستی، تمدید خودکار وجود
+ندارد و باید `deploy/ssl.sh` را دوباره اجرا کنید.
+
+### بررسی نهایی و عیب‌یابی
+
+```bash
+curl -sI https://example.com | head -5
+curl -s "https://example.com/api/health?db=1"
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -subject -dates
+```
+
+| نشانه | علت احتمالی | راه‌حل |
+|---|---|---|
+| `DNS problem: NXDOMAIN` | رکورد DNS هنوز منتشر نشده | `dig +short _acme-challenge.example.com TXT` و چند دقیقه صبر |
+| `nginx: cannot load certificate` | مسیر گواهی غلط یا گواهی صادر نشده | `ls /etc/letsencrypt/live/example.com/` و اجرای دوبارهٔ `install.sh --tls` |
+| خطای گواهی روی `mah.example.com` | گواهی wildcard صادر نشده | `--mode dns` یا `--mode cloudflare` (نه `http`) |
+| `403` روی `/.well-known/acme-challenge` | ریشهٔ اشتباه یا پورت ۸۰ بسته | بلوک ACME در nginx و `ufw allow 80` |
+| `ERR_TOO_MANY_REDIRECTS` | `SITE_URL` ناهماهنگ یا گواهی نصب‌نشده | `SITE_URL=https://example.com` و اجرای `install.sh --tls` |
+| تمدید خودکار اجرا نمی‌شود | حالت `dns` دستی | به `cloudflare` مهاجرت کنید یا هر ۹۰ روز دستی تمدید کنید |
+
+> بعد از فعال‌سازی HTTPS، در `.env` مقدار `SITE_URL` و `APP_URL` را
+> `https://example.com` بگذارید و سرویس را restart کنید. کوکی نشست به‌صورت
+> خودکار از `X-Forwarded-Proto` تشخیص داده می‌شود.
+
+---
+
+## ۶) اجرا با داکر (اپ + PostgreSQL)
 
 ```bash
 git clone https://github.com/alisystemit/Nobino-nest.git
@@ -228,7 +492,7 @@ docker compose exec app node scripts/create-admin.mjs --phone 09121110000 --pass
 
 ---
 
-## ۶) استقرار روی PaaS (Railway / Render / Fly / …)
+## ۷) استقرار روی PaaS (Railway / Render / Fly / …)
 
 | تنظیم | مقدار |
 |---|---|
@@ -243,7 +507,7 @@ docker compose exec app node scripts/create-admin.mjs --phone 09121110000 --pass
 
 ---
 
-## ۷) متغیرهای محیطی مهم
+## ۸) متغیرهای محیطی مهم
 
 فهرست کامل در [`.env.example`](.env.example) (توسعه) و
 [`deploy/env.production.example`](deploy/env.production.example) (پروداکشن) است.
@@ -267,25 +531,28 @@ docker compose exec app node scripts/create-admin.mjs --phone 09121110000 --pass
 
 ---
 
-## ۸) بعد از نصب — چک‌لیست
+## ۹) بعد از نصب — چک‌لیست
 
 ```bash
-pm2 status
-pm2 logs nobino-api --lines 40
+sudo pm2 status
+sudo pm2 logs nobino-api --lines 40
 curl -s "http://127.0.0.1:3100/api/health?db=1"
 curl -s "https://example.com/api/health?db=1"
 ```
+
+> اگر خودتان با کاربر `root` کار می‌کنید، `sudo` لازم نیست.
 
 - [ ] ورود مدیران با موبایل/رمز سوپرادمین در `https://<دامنه>` کار می‌کند
 - [ ] از «تنظیمات سیستم» کلید پیامک، درگاه پرداخت و هوش مصنوعی را پر کرده‌اید
 - [ ] رکورد DNS wildcard (`*.example.com`) به سرور اشاره می‌کند
 - [ ] HTTPS فعال است و صفحهٔ یک سالن روی `https://<slug>.<دامنه>` باز می‌شود
+      (`sudo bash /opt/nobino/deploy/ssl.sh --domain <دامنه> --email <ایمیل>`)
 - [ ] آپلود تصویر/صدا ذخیره و نمایش داده می‌شود
 - [ ] بکاپ روزانهٔ دیتابیس و `public/uploads` تنظیم شده است
 
 ---
 
-## ۹) به‌روزرسانی، توقف و بکاپ
+## ۱۰) به‌روزرسانی، توقف و بکاپ
 
 ```bash
 # به‌روزرسانی (pull + npm ci + بیلد + بکاپ + migrate + restart)
@@ -295,7 +562,7 @@ sudo bash /opt/nobino/deploy/update.sh
 sudo bash /opt/nobino/deploy/update.sh --rollback --yes
 
 # توقف سرویس
-pm2 stop nobino-api
+sudo pm2 stop nobino-api
 
 # بکاپ دستی
 pg_dump "$DATABASE_URL" | gzip > /backups/nobino-$(date +%F).sql.gz
@@ -307,7 +574,7 @@ rsync -a /opt/nobino/public/uploads/ /backups/uploads/
 
 ---
 
-## ۱۰) عیب‌یابی سریع
+## ۱۱) عیب‌یابی سریع
 
 | نشانه | علت احتمالی | راه‌حل |
 |---|---|---|
@@ -321,14 +588,16 @@ rsync -a /opt/nobino/public/uploads/ /backups/uploads/
 
 ---
 
-## ۱۱) ساختار پروژه
+## ۱۲) ساختار پروژه
 
 ```
 backend/        بک‌اند NestJS (routes، controllerها، lib)
 frontend/       فرانت React/Vite (+ mini-app)
 prisma/         schema، migrations، seed
 scripts/        شروع/بیلد/بکاپ/ASR/ساخت ادمین
-deploy/         نصب، به‌روزرسانی، nginx، PM2، قالب env
+deploy/         نصب، به‌روزرسانی، PM2، قالب env
+deploy/ssl.sh   دریافت گواهی Let's Encrypt و فعال‌سازی HTTPS
+deploy/nginx/   قالب vhost دامنه + wildcard و بلوک TLS
 docs/           مستندات فنی و استقرار
 install.sh      نصب‌کنندهٔ تک‌خطی (این مخزن را روی VPS نصب می‌کند)
 ```

@@ -9,6 +9,23 @@
 
 ## ۰) یک‌خطی‌های شروع سریع
 
+**نصب تک‌خطی از GitHub (VPS تازه — مخزن را خودکار می‌گیرد):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain nobino.ir
+```
+> همین فرمان مخزن را در `/opt/nobino` می‌گیرد و `deploy/bootstrap.sh` را اجرا می‌کند.
+> گزینه‌ها (`--app-dir`، `--branch`، `--port`، `--admin-phone`، …) و آموزش کامل
+> نصب در [`README.md`](../README.md) آمده است.
+
+**همان نصب + SSL خودکار (wildcard با Cloudflare):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh \
+  | sudo bash -s -- --domain nobino.ir --tls --email you@example.com \
+      --ssl-mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
+```
+> برای چالش DNS دستی (بدون API) `--ssl-mode dns` بدهید؛ این حالت تعاملی است و
+> باید در ترمینال اجرا شود. جزئیات و کانفیگ nginx: بخش «SSL» در README.
+
 **VPS کاملاً خام (Ubuntu/Debian بدون هیچ چیزی) — نصب صفر‌تا‌صد:**
 ```bash
 # از بیرون مخزن (تک‌فرمان؛ کلون + Node + PM2 + PostgreSQL + .env + فایروال + nginx + سرویس):
@@ -185,6 +202,19 @@ cd /opt/nobino && ADMIN_PASSWORD='YourStrong#Pass' node scripts/create-admin.mjs
 ADMIN_PASSWORD='رمز#جدید' node scripts/create-admin.mjs --phone <همان‌شماره> --force-reset
 ```
 
+**SSL / HTTPS (بعد از نصب):**
+```bash
+# wildcard با Cloudflare (خودکار + تمدید خودکار):
+sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com \
+     --mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
+
+# یا wildcard با چالش DNS دستی (تعاملی، بدون تمدید خودکار):
+sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com --mode dns
+```
+> اسکریپت گواهی را می‌گیرد، هوک تمدید را نصب می‌کند و vhost را با بلوک ۴۴۳
+> بازسازی می‌کند (`deploy/nginx/nobino.tls.conf.snippet`). کانفیگ کامل nginx و
+> عیب‌یابی در بخش SSL فایل [`README.md`](../README.md) آمده است.
+
 **بازگشت به حالت قبل (بدون حذف اپ‌های دیگر):**
 ```bash
 sudo pm2 delete nobino-api
@@ -352,12 +382,15 @@ rsync -a public/uploads/ /backups/uploads/
 
 | فایل | نقش |
 |---|---|
+| `install.sh` | نصب‌کنندهٔ تک‌خطی از GitHub (کلون + اجرای `deploy/bootstrap.sh`) |
+| `README.md` | آموزش کامل نصب (تک‌خطی، توسعه، داکر، PaaS) |
 | `Dockerfile`، `.dockerignore` | ایمیج تک‌پروسه (API + SPA) |
 | `docker-compose.yml` | اپ + PostgreSQL + volumeها |
 | `Procfile` | پلتفرم‌های Heroku-مانند (`web: node scripts/paas-start.mjs`) |
 | `scripts/paas-start.mjs` | نقطهٔ شروع: دیتابیس → سرور → prerender |
 | `scripts/build-release.mjs` | نصب/bیلد هر دو سمت + smoke-test بوت |
 | `deploy/install.sh` | نصب‌کنندهٔ تک‌فرمان VPS |
+| `deploy/ssl.sh` | دریافت گواهی Let's Encrypt (wildcard/HTTP) + فعال‌سازی HTTPS |
 | `deploy/bootstrap.sh` | نصب صفر‌تا‌صد روی VPS خام (Node/PM2/Postgres/.env/ufw/سوپرادمین + اجرای install.sh) |
 | `scripts/create-admin.mjs` | ساخت اولین سوپرادمین با موبایل/رمز دلخواه (idempotent، با `--force-reset`) |
 | `deploy/update.sh` | به‌روزرسانی (pull → بیلد → migrate → restart) |
