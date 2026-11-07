@@ -25,7 +25,8 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
       --admin-email admin@nobino.ir
 ```
 > دامنهٔ اول اصلی است و بقیه alias همان سایت (بدون ساب‌دامین سالن). فهرست alias در
-> `EXTRA_DOMAINS` فایل `.env` ذخیره می‌شود.
+> `EXTRA_DOMAINS` فایل `.env` ذخیره می‌شود. ورودی `*.example.com` هم پذیرفته
+> می‌شود و به `example.com` تبدیل می‌گردد (wildcard دامنهٔ اصلی خودکار اضافه است).
 
 **افزودن SSL بعد از نصب (Let's Encrypt، wildcard با چالش DNS):**
 ```bash
