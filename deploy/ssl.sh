@@ -28,6 +28,10 @@
 # فایل اعتبارنامهٔ Cloudflare (مجوز 600):
 #   dns_cloudflare_api_token = <token با دسترسی Zone.DNS:Edit>
 #
+# نصب certbot: نسخهٔ رسمی از snap نصب می‌شود (snap install --classic certbot)
+# و پلاگین‌های DNS هم به‌صورت snap جدا و snap connect. اگر snap نبود یا نصبش
+# شکست خورد، به بسته‌های apt برمی‌گردد.
+#
 # بعد از صدور، همین اسکریپت vhost را با بلوک ۴۴۳ بازسازی می‌کند:
 #   deploy/nginx/nobino.tls.conf.snippet  →  /etc/nginx/sites-available/nobino.conf
 # =====================================================================
@@ -129,12 +133,30 @@ if [[ -f "$CERT_CRT" ]] && ! $FORCE; then
   say "   برای صدور مجدد اجباری: --force"
 fi
 
-# ── انتخاب بسته‌های certbot ─────────────────────────────────────────
-PKGS=(certbot)
-case "$MODE" in
-  http)       PKGS+=(python3-certbot-nginx) ;;
-  cloudflare) PKGS+=(python3-certbot-dns-cloudflare) ;;
-esac
+# ── certbot: snap (نسخهٔ رسمی) با fallback به apt ───────────────────
+CERTBOT_BIN="$(command -v certbot 2>/dev/null || true)"
+IS_SNAP_CERTBOT=false
+if [[ -n "$CERTBOT_BIN" ]]; then
+  RESOLVED_BIN="$(readlink -f "$CERTBOT_BIN" 2>/dev/null || printf '%s' "$CERTBOT_BIN")"
+  [[ "$RESOLVED_BIN" == /snap/* ]] && IS_SNAP_CERTBOT=true
+fi
+
+certbot_has_plugin() {
+  [[ -n "$CERTBOT_BIN" && -x "$CERTBOT_BIN" ]] || return 1
+  "$CERTBOT_BIN" plugins --text 2>/dev/null | grep -qi -- "$1"
+}
+
+install_certbot_snap() {
+  run snap install core || true
+  run snap refresh core || true
+  run snap install --classic certbot || return 1
+  # symlink تا `certbot` در PATH مقدم بر نسخهٔ apt باشد
+  if ! $DRY_RUN && [[ ! -e /usr/local/bin/certbot ]]; then
+    ln -sfn /snap/bin/certbot /usr/local/bin/certbot
+  fi
+  CERTBOT_BIN=/snap/bin/certbot
+  IS_SNAP_CERTBOT=true
+}
 
 # ── بررسی حالت cloudflare ───────────────────────────────────────────
 if [[ "$MODE" == "cloudflare" ]]; then
@@ -151,25 +173,51 @@ if $ISSUE && [[ "$MODE" == "dns" ]] && ! $DRY_RUN && [[ ! -t 0 ]]; then
   die "حالت DNS دستی تعاملی است و stdin ترمینال نیست. این اسکریپت را مستقیم در ترمینال اجرا کنید، یا از --mode cloudflare (خودکار) / --mode http استفاده کنید."
 fi
 
-# ── نصب certbot (فقط اگر لازم است) ──────────────────────────────────
-MISSING=()
-for p in "${PKGS[@]}"; do
-  dpkg -s "$p" >/dev/null 2>&1 || MISSING+=("$p")
-done
-if [[ ${#MISSING[@]} -gt 0 ]]; then
-  say "— نصب: ${MISSING[*]} —"
-  run apt-get update -qq
-  run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${MISSING[@]}"
-fi
+# ── نصب certbot: snap (رسمی) → در صورت خطا apt ──────────────────────
+if $ISSUE; then
+  if ! $IS_SNAP_CERTBOT && command -v snap >/dev/null 2>&1; then
+    say "— نصب certbot از snap (نسخهٔ رسمی Let's Encrypt) —"
+    if install_certbot_snap; then
+      ok "certbot از snap آماده است: $CERTBOT_BIN"
+    else
+      warn "نصب snap ناموفق بود؛ از apt استفاده می‌شود."
+      IS_SNAP_CERTBOT=false
+      CERTBOT_BIN="$(command -v certbot 2>/dev/null || true)"
+    fi
+  fi
 
-if $ISSUE && ! $DRY_RUN && ! command -v certbot >/dev/null 2>&1; then
-  die "certbot نصب نشد؛ دستی «apt-get install -y certbot python3-certbot-nginx» را اجرا کنید."
+  if $IS_SNAP_CERTBOT; then
+    if [[ "$MODE" == "cloudflare" ]] && ! certbot_has_plugin dns-cloudflare; then
+      say "— نصب پلاگین snap: certbot-dns-cloudflare —"
+      run snap install certbot-dns-cloudflare \
+        || die "پلاگین snap نصب نشد؛ از --mode dns یا --mode http استفاده کنید."
+      run snap set certbot trust-plugin-with-root=ok || true
+      run snap connect certbot:plugin certbot-dns-cloudflare \
+        || die "اتصال پلاگین انجام نشد: sudo snap connect certbot:plugin certbot-dns-cloudflare"
+    fi
+  else
+    PKGS=()
+    [[ -n "$CERTBOT_BIN" ]] || PKGS+=(certbot)
+    case "$MODE" in
+      http)       certbot_has_plugin nginx          || PKGS+=(python3-certbot-nginx) ;;
+      cloudflare) certbot_has_plugin dns-cloudflare || PKGS+=(python3-certbot-dns-cloudflare) ;;
+    esac
+    if [[ ${#PKGS[@]} -gt 0 ]]; then
+      say "— نصب با apt: ${PKGS[*]} —"
+      run apt-get update -qq
+      run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${PKGS[@]}"
+    fi
+    [[ -n "$CERTBOT_BIN" ]] || CERTBOT_BIN="$(command -v certbot 2>/dev/null || true)"
+    if ! $DRY_RUN && [[ -z "$CERTBOT_BIN" ]]; then
+      die "certbot نصب نشد؛ دستی «sudo snap install --classic certbot» را اجرا کنید."
+    fi
+  fi
 fi
 
 # ── صدور گواهی ──────────────────────────────────────────────────────
 if $ISSUE; then
   say "— درخواست گواهی از Let's Encrypt (mode=$MODE) —"
-  CERTBOT=(certbot certonly --cert-name "$DOMAIN" --agree-tos)
+  CERTBOT=("${CERTBOT_BIN:-certbot}" certonly --cert-name "$DOMAIN" --agree-tos)
   if [[ -n "$EMAIL" ]]; then
     CERTBOT+=(--email "$EMAIL" --no-eff-email)
   else
@@ -217,11 +265,17 @@ if [[ "$MODE" == "dns" ]]; then
   warn "گواهی DNS دستی تمدید خودکار ندارد؛ هر ~۹۰ روز همین فرمان را دوباره اجرا کنید."
   warn "برای تمدید خودکار از --mode cloudflare (یا DNS plugin دیگر) استفاده کنید."
 elif ! $DRY_RUN; then
-  if systemctl list-unit-files 2>/dev/null | grep -q '^certbot.timer'; then
+  if $IS_SNAP_CERTBOT; then
+    if systemctl is-active --quiet snap.certbot.renew.timer 2>/dev/null; then
+      ok "زمان‌بند تمدید خودکار snap فعال است (snap.certbot.renew.timer)"
+    else
+      warn "زمان‌بند snap.certbot.renew.timer فعال نیست؛ «sudo systemctl start snap.certbot.renew.timer» را بررسی کنید."
+    fi
+  elif systemctl list-unit-files 2>/dev/null | grep -q '^certbot.timer'; then
     run systemctl enable --now certbot.timer
     ok "certbot.timer فعال شد (تمدید خودکار)"
   else
-    warn "certbot.timer پیدا نشد؛ تمدید را با cron روزانه «certbot renew --quiet» تنظیم کنید."
+    warn "زمان‌بند تمدید پیدا نشد؛ وضعیت را با «systemctl list-timers | grep certbot» ببینید یا cron روزانه «certbot renew --quiet» بگذارید."
   fi
 fi
 

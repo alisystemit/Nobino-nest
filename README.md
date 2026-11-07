@@ -32,12 +32,14 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
 5. بیلد بک‌اند و فرانت + راه‌اندازی سرویس PM2 + پیکربندی nginx
 6. بررسی سلامت (سوپرادمین فقط اگر با پرچم/متغیر داده باشید ساخته می‌شود)
 
-> برای **SSL و HTTPS** یا `--tls` را به همین فرمان اضافه کنید (بخش ۵ را ببینید)
-> یا بعد از نصب `deploy/ssl.sh` را اجرا کنید. نمونهٔ خودکار با Cloudflare:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain example.com --tls --email you@example.com --ssl-mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
-```
+> برای **SSL و HTTPS** کافی است بعد از نصب، این فرمان را در ترمینال اجرا کنید
+> (گواهی wildcard مستقیماً از **Let's Encrypt** با چالش DNS گرفته می‌شود):
+>
+> ```bash
+> sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
+> ```
+>
+> جزئیات و کانفیگ nginx در بخش ۵ آمده است.
 
 اگر می‌خواهید سوپرادمین در همان اجرا و بدون پرسش ساخته شود:
 
@@ -71,10 +73,10 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
 | `--no-admin` | — | ساخت سوپرادمین را رد کن |
 | `--no-firewall` | — | ufw را تغییر نده |
 | `--with-postgres` | — | حتی اگر Postgres هست، دیتابیس/یوزر `nobino` بساز |
-| `--tls` | — | بعد از نصب SSL بگیر و HTTPS را فعال کن (نیازمند `--email`) |
+| `--tls` | — | بعد از نصب SSL بگیر و HTTPS را فعال کن (نیازمند `--email`؛ در اجرای pipe فقط با `--ssl-mode http`) |
 | `--email <ایمیل>` | — | ایمیل حساب Let's Encrypt برای هشدار انقضا |
-| `--ssl-mode <حالت>` | `dns` | `dns` (wildcard تعاملی) / `cloudflare` (خودکار) / `http` (فقط دامنهٔ ریشه) |
-| `--dns-credentials <مسیر>` | — | فایل اعتبارنامهٔ Cloudflare برای `--ssl-mode cloudflare` |
+| `--ssl-mode <حالت>` | `dns` | `dns` (wildcard تعاملی، Let's Encrypt) / `http` (فقط دامنهٔ ریشه) / `cloudflare` (اختیاری، تمدید خودکار) |
+| `--dns-credentials <مسیر>` | — | فایل اعتبارنامهٔ Cloudflare برای `--ssl-mode cloudflare` (اختیاری) |
 | `--dry-run` | — | فقط چاپ مراحل، بدون تغییر |
 
 متغیرهای محیطی جایگزین: `NOBINO_REPO`، `NOBINO_BRANCH`، `NOBINO_APP_DIR`.
@@ -238,10 +240,54 @@ dig +short example.com
 dig +short test.example.com     # باید همان IP سرور را بدهد
 ```
 
-> اگر دامنه پشت Cloudflare با پروکسی نارنجی است، چالش DNS همچنان کار می‌کند؛
-> فقط مطمئن شوید رکوردها در Cloudflare وجود دارند.
+> DNS می‌تواند روی هر ارائه‌دهنده‌ای باشد (ثبت‌کنندهٔ دامنه، Cloudflare،
+> ArvanCloud و…). مهم این است که رکورد `A` برای دامنه و رکورد wildcard به IP
+> همین سرور اشاره کنند.
 
-### روش ۱ — خودکار با Cloudflare (پیشنهادی برای تمدید)
+همهٔ حالت‌های زیر گواهی را از **Let's Encrypt** می‌گیرند؛ Cloudflare فقط یک
+گزینهٔ اختیاری برای خودکارکردن چالش DNS است و استفاده از آن لازم نیست.
+
+### روش ۱ — DNS دستی با Let's Encrypt (پیش‌فرض و پیشنهادی)
+
+بدون نیاز به هیچ API یا سرویس خارجی:
+
+```bash
+sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
+```
+
+اسکریپت متوقف می‌شود و دو رکورد `TXT` برای `_acme-challenge.example.com` نشان
+می‌دهد. هر دو مقدار را با هم در پنل DNS ثبت کنید، چند دقیقه صبر کنید و
+`Enter` بزنید.
+
+این اسکریپت به‌صورت خودکار:
+
+1. `certbot` را از **snap** (نسخهٔ رسمی) نصب می‌کند و اگر snap نبود به apt برمی‌گردد
+2. گواهی `example.com` + `*.example.com` را از Let's Encrypt صادر می‌کند
+3. هوک تمدید (`reload-nginx.sh`) را نصب می‌کند
+4. vhost را با بلوک ۴۴۳ بازسازی می‌کند
+
+> ⚠️ این روش تعاملی است و باید در ترمینال اجرا شود (در `curl | bash` نمی‌شود
+> رکورد TXT را دستی ثبت کرد). بعد از نصب یک‌بار در ترمینال اجرا کنید.
+
+> این حالت **تمدید خودکار ندارد**؛ هر ~۹۰ روز باید همین فرمان را دوباره اجرا
+> کنید. اگر تمدید خودکار می‌خواهید، روش ۳ را ببینید.
+
+### روش ۲ — فقط دامنهٔ ریشه (HTTP-01)
+
+اگر ساب‌دامین سالن‌ها را استفاده نمی‌کنید و می‌خواهید همه‌چیز غیرتعاملی باشد:
+
+```bash
+sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com --mode http
+```
+
+> ⚠️ در این حالت فقط `example.com` معتبر است و `mah.example.com` خطای گواهی
+> می‌دهد. برای سامانهٔ نوبینو که آدرس سالن‌ها ساب‌دامین است، روش wildcard لازم است.
+
+### روش ۳ (اختیاری) — تمدید خودکار با پلاگین DNS
+
+اگر DNS دامنه روی Cloudflare است و می‌خواهید گواهی wildcard خودکار تمدید شود،
+می‌توانید از پلاگین DNS استفاده کنید. گواهی همچنان از **Let's Encrypt** صادر
+می‌شود و Cloudflare فقط رکورد چالش را خودکار ثبت می‌کند.
 
 یک API Token با دسترسی `Zone → DNS → Edit` برای همان Zone بسازید و فایل
 اعتبارنامه را با مجوز 600 ذخیره کنید:
@@ -262,12 +308,9 @@ sudo bash /opt/nobino/deploy/ssl.sh \
   --dns-credentials /etc/letsencrypt/cloudflare.ini
 ```
 
-این اسکریپت به‌صورت خودکار:
-
-1. `certbot` و پلاگین `python3-certbot-dns-cloudflare` را نصب می‌کند
-2. گواهی `example.com` + `*.example.com` را صادر می‌کند
-3. هوک تمدید (`reload-nginx.sh`) را نصب و `certbot.timer` را فعال می‌کند
-4. vhost را با بلوک ۴۴۳ بازسازی می‌کند
+این اسکریپت `certbot` و پلاگین `certbot-dns-cloudflare` را (از snap، با
+`snap connect`) نصب می‌کند، گواهی را می‌گیرد، هوک تمدید را می‌گذارد،
+`snap.certbot.renew.timer` را فعال می‌کند و vhost را با بلوک ۴۴۳ بازسازی می‌کند.
 
 یا همهٔ این‌ها را در همان نصب تک‌خطی بخواهید:
 
@@ -275,43 +318,24 @@ sudo bash /opt/nobino/deploy/ssl.sh \
 curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain example.com --tls --email you@example.com --ssl-mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
 ```
 
-### روش ۲ — DNS دستی (بدون API)
-
-اگر نمی‌خواهید توکن Cloudflare بدهید:
-
-```bash
-sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com --mode dns
-```
-
-اسکریپت متوقف می‌شود و دو رکورد `TXT` برای `_acme-challenge.example.com`
-نشان می‌دهد. هر دو مقدار را با هم در DNS ثبت کنید، چند دقیقه صبر کنید و
-`Enter` بزنید.
-
-> این حالت **تمدید خودکار ندارد**؛ هر ~۹۰ روز باید همین فرمان را دوباره اجرا
-> کنید. برای تمدید خودکار از روش Cloudflare (یا پلاگین DNS دیگر) استفاده کنید.
-
-### روش ۳ — فقط دامنهٔ ریشه (HTTP-01)
-
-اگر ساب‌دامین سالن‌ها را استفاده نمی‌کنید:
-
-```bash
-sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com --mode http
-```
-
-> ⚠️ در این حالت فقط `example.com` معتبر است و `mah.example.com` خطای گواهی
-> می‌دهد. برای سامانهٔ نوبینو که آدرس سالن‌ها ساب‌دامین است، روش wildcard لازم است.
-
 ### صدور دستی گواهی (بدون اسکریپت)
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y certbot python3-certbot-nginx
+# نسخهٔ رسمی certbot از snap (پیشنهادی)
+sudo snap install --classic certbot
+sudo ln -sf /snap/bin/certbot /usr/local/bin/certbot
 
 sudo certbot certonly --manual --preferred-challenges dns \
   --cert-name example.com \
   -d example.com -d '*.example.com' \
   --email you@example.com --agree-tos --no-eff-email
 ```
+
+> جایگزین با apt: `sudo apt-get install -y certbot python3-certbot-nginx`
+> (روی توزیع‌های قدیمی نسخهٔ قدیمی‌تری نصب می‌شود؛ snap پیشنهاد می‌شود.)
+>
+> این هم همان گواهی Let's Encrypt است؛ فقط به‌جای اسکریپت، certbot را دستی
+> اجرا می‌کنید.
 
 بعد از صدور، nginx را با گواهی جدید بازسازی کنید:
 
@@ -438,12 +462,14 @@ sudo systemctl reload nginx
 ```bash
 sudo certbot certificates                 # فهرست گواهی‌ها و تاریخ انقضا
 sudo certbot renew --dry-run              # تست تمدید
-systemctl list-timers | grep certbot      # زمان‌بند تمدید
+systemctl list-timers | grep -E 'certbot|snap.certbot'   # زمان‌بند تمدید
 ```
 
-هوک نصب‌شده در `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` بعد از
-هر تمدید موفق، nginx را reload می‌کند. برای حالت DNS دستی، تمدید خودکار وجود
-ندارد و باید `deploy/ssl.sh` را دوباره اجرا کنید.
+اگر certbot از snap نصب شده باشد، تمدید با `snap.certbot.renew.timer` انجام
+می‌شود؛ در نسخهٔ apt با `certbot.timer`. هوک نصب‌شده در
+`/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` بعد از هر تمدید موفق،
+nginx را reload می‌کند. برای حالت DNS دستی، تمدید خودکار وجود ندارد و باید
+`deploy/ssl.sh` را دوباره اجرا کنید.
 
 ### بررسی نهایی و عیب‌یابی
 
