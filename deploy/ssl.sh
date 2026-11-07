@@ -45,6 +45,26 @@ die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 run()  { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else "$@"; fi; }
 need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
 
+# دامنه را نرمال می‌کند (پروتکل/مسیر/پورت/فاصله) و به فهرست اضافه می‌کند.
+# --domain می‌تواند چند بار بیاید یا با کاما/فاصله چند دامنه بگیرد.
+norm_domain() {
+  local d="${1:-}"
+  d="${d,,}"; d="${d#*://}"; d="${d%%/*}"; d="${d%%:*}"; d="${d//[[:space:]]/}"
+  printf '%s' "$d"
+}
+add_domains() {
+  local raw="${1:-}" part existing
+  raw="${raw//,/ }"
+  for part in $raw; do
+    part="$(norm_domain "$part")"
+    [[ -n "$part" ]] || continue
+    for existing in "${DOMAINS[@]:-}"; do
+      [[ "$existing" == "$part" ]] && continue 2
+    done
+    DOMAINS+=("$part")
+  done
+}
+
 usage() {
   cat <<'EOF'
 Nobino — دریافت گواهی SSL و فعال‌سازی HTTPS
@@ -57,7 +77,8 @@ Nobino — دریافت گواهی SSL و فعال‌سازی HTTPS
   cloudflare  اختیاری — wildcard خودکار با پلاگین DNS کلادفلر (تمدید خودکار)
 
 گزینه‌ها:
-  --domain <دامنه>          پیش‌فرض: ROOT_DOMAIN در .env
+  --domain <دامنه>          پیش‌فرض: ROOT_DOMAIN در .env — برای چند دامنه (alias)
+                            چند بار بدهید یا با کاما جدا کنید؛ دامنهٔ اول اصلی است
   --email <ایمیل>           ایمیل حساب ACME
   --app-dir <مسیر>          پیش‌فرض: ریشهٔ همین مخزن
   --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (فقط حالت cloudflare)
@@ -70,6 +91,9 @@ Nobino — دریافت گواهی SSL و فعال‌سازی HTTPS
 نمونهٔ پیشنهادی (wildcard، Let's Encrypt):
   sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com
 
+نمونهٔ چند دامنه (دامنهٔ اول اصلی، بقیه alias همان سایت):
+  sudo bash deploy/ssl.sh --domain nobino.ir --domain nobino.com --email you@example.com
+
 نمونهٔ اختیاری Cloudflare (تمدید خودکار):
   printf 'dns_cloudflare_api_token = %s\n' "$CF_TOKEN" | sudo tee /etc/letsencrypt/cloudflare.ini
   sudo chmod 600 /etc/letsencrypt/cloudflare.ini
@@ -81,13 +105,13 @@ EOF
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_DIR="$REPO_DIR"
-DOMAIN=""; EMAIL=""; MODE="dns"; DNS_CREDENTIALS=""
+DOMAIN=""; DOMAINS=(); EMAIL=""; MODE="dns"; DNS_CREDENTIALS=""
 STAGING=false; FORCE=false; SKIP_NGINX=false; DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --domain)          need_value "$@"; DOMAIN="$2"; shift 2 ;;
-    --domain=*)        DOMAIN="${1#*=}"; shift ;;
+    --domain)          need_value "$@"; add_domains "$2"; shift 2 ;;
+    --domain=*)        add_domains "${1#*=}"; shift ;;
     --email)           need_value "$@"; EMAIL="$2"; shift 2 ;;
     --email=*)         EMAIL="${1#*=}"; shift ;;
     --app-dir)         need_value "$@"; APP_DIR="$2"; shift 2 ;;
@@ -113,14 +137,21 @@ read_env() {
   awk -v k="$1" 'BEGIN{FS="="} $1==k { v=substr($0, index($0,"=")+1); gsub(/\r$/,"",v); gsub(/^"/,"",v); gsub(/"$/,"",v); print v }' "$APP_DIR/.env" | tail -1
 }
 
-# دامنه را از .env بگیر و مثل install.sh نرمال کن (بدون پروتکل/مسیر/پورت)
-if [[ -z "$DOMAIN" ]]; then
-  DOMAIN="$(read_env ROOT_DOMAIN)"
-  [[ -n "$DOMAIN" ]] || DOMAIN="$(read_env SITE_URL)"
+# ── دامنه‌ها: --domain چند بار/با کاما؛ دامنهٔ اول اصلی است ──────────
+if [[ ${#DOMAINS[@]} -eq 0 ]]; then
+  add_domains "$(read_env ROOT_DOMAIN)"
+  [[ ${#DOMAINS[@]} -eq 0 ]] && add_domains "$(read_env SITE_URL)"
+  add_domains "$(read_env EXTRA_DOMAINS)"
+elif [[ "${DOMAINS[0]}" == "$(norm_domain "$(read_env ROOT_DOMAIN)")" ]]; then
+  add_domains "$(read_env EXTRA_DOMAINS)"
 fi
-DOMAIN="${DOMAIN#*://}"; DOMAIN="${DOMAIN%%/*}"; DOMAIN="${DOMAIN%%:*}"
-[[ -n "$DOMAIN" ]] || die "دامنه لازم است:  --domain nobino.ir"
-[[ "$DOMAIN" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$DOMAIN»."
+[[ ${#DOMAINS[@]} -gt 0 ]] || die "دامنه لازم است:  --domain nobino.ir"
+for d in "${DOMAINS[@]}"; do
+  [[ "$d" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$d»."
+done
+DOMAIN="${DOMAINS[0]}"
+DOMAIN_ALIASES=()
+[[ ${#DOMAINS[@]} -gt 1 ]] && DOMAIN_ALIASES=("${DOMAINS[@]:1}")
 
 case "$MODE" in dns|cloudflare|http) ;; *) die "--mode باید dns یا cloudflare یا http باشد (دادید: $MODE)." ;; esac
 
@@ -128,12 +159,36 @@ CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
 CERT_CRT="$CERT_DIR/fullchain.pem"
 CERT_KEY="$CERT_DIR/privkey.pem"
 
-# آیا گواهی صادر شود؟ (اگر موجود است و --force نبوده، فقط nginx بازسازی می‌شود)
+# آیا گواهی موجود همهٔ دامنه‌های فعلی را پوشش می‌دهد؟ (افزودن alias تازه = صدور مجدد)
+cert_covers_domains() {
+  [[ -f "$CERT_CRT" ]] || return 1
+  command -v openssl >/dev/null 2>&1 || return 1
+  local san d
+  san="$(openssl x509 -in "$CERT_CRT" -noout -text 2>/dev/null \
+    | awk '/Subject Alternative Name/{getline; print; exit}' \
+    | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/^DNS://')"
+  [[ -n "$san" ]] || return 1
+  for d in "${DOMAINS[@]}"; do
+    if [[ "$d" == "$DOMAIN" && "$MODE" != "http" ]]; then
+      grep -qxF "$d" <<<"$san" || return 1
+      grep -qxF "*.$d" <<<"$san" || return 1
+    else
+      grep -qxF "$d" <<<"$san" || return 1
+    fi
+  done
+  return 0
+}
+
+# آیا گواهی صادر شود؟ (اگر موجود و پوشش‌دهندهٔ همهٔ دامنه‌ها بود، فقط nginx بازسازی می‌شود)
 ISSUE=true
 if [[ -f "$CERT_CRT" ]] && ! $FORCE; then
-  ISSUE=false
-  ok "گواهی از قبل موجود است: $CERT_CRT"
-  say "   برای صدور مجدد اجباری: --force"
+  if cert_covers_domains; then
+    ISSUE=false
+    ok "گواهی از قبل موجود است: $CERT_CRT"
+    say "   برای صدور مجدد اجباری: --force"
+  else
+    warn "گواهی موجود همهٔ دامنه‌های فعلی (${DOMAINS[*]}) را پوشش نمی‌دهد؛ دوباره صادر می‌شود."
+  fi
 fi
 
 # ── certbot: snap (نسخهٔ رسمی) با fallback به apt ───────────────────
@@ -229,18 +284,31 @@ if $ISSUE; then
   fi
   $STAGING && CERTBOT+=(--staging)
   $FORCE && CERTBOT+=(--force-renewal)
+  # گواهی: دامنهٔ اصلی + wildcard ساب‌دامین‌ها؛ دامنه‌های alias فقط خودشان
+  CERT_DOMAIN_ARGS=()
+  if [[ "$MODE" == "http" ]]; then
+    for d in "${DOMAINS[@]}"; do CERT_DOMAIN_ARGS+=(-d "$d"); done
+  else
+    for d in "${DOMAINS[@]}"; do
+      if [[ "$d" == "$DOMAIN" ]]; then
+        CERT_DOMAIN_ARGS+=(-d "$d" -d "*.$d")
+      else
+        CERT_DOMAIN_ARGS+=(-d "$d")
+      fi
+    done
+  fi
   case "$MODE" in
     dns)
-      CERTBOT+=(--manual --preferred-challenges dns -d "$DOMAIN" -d "*.$DOMAIN")
-      say "   certbot دو رکورد TXT برای _acme-challenge.$DOMAIN می‌خواهد؛"
-      say "   هر دو مقدار را با هم ثبت کنید و تا انتشار DNS صبر کنید."
+      CERTBOT+=(--manual --preferred-challenges dns "${CERT_DOMAIN_ARGS[@]}")
+      say "   certbot برای هر دامنه رکورد(های) TXT روی _acme-challenge می‌خواهد؛"
+      say "   همهٔ مقادیر را با هم ثبت کنید و تا انتشار DNS صبر کنید."
       ;;
     http)
-      CERTBOT+=(--nginx -n -d "$DOMAIN")
-      warn "حالت http فقط «$DOMAIN» را پوشش می‌دهد؛ ساب‌دامین سالن‌ها گواهی معتبر ندارند."
+      CERTBOT+=(--nginx -n "${CERT_DOMAIN_ARGS[@]}")
+      warn "حالت http فقط دامنه‌های ریشه را پوشش می‌دهد؛ ساب‌دامین سالن‌ها گواهی معتبر ندارند."
       ;;
     cloudflare)
-      CERTBOT+=(--dns-cloudflare --dns-cloudflare-credentials "$DNS_CREDENTIALS" -n -d "$DOMAIN" -d "*.$DOMAIN")
+      CERTBOT+=(--dns-cloudflare --dns-cloudflare-credentials "$DNS_CREDENTIALS" -n "${CERT_DOMAIN_ARGS[@]}")
       ;;
   esac
   if $DRY_RUN; then
@@ -286,7 +354,8 @@ fi
 if ! $SKIP_NGINX; then
   if [[ -f "$APP_DIR/deploy/install.sh" && -f "$APP_DIR/.env" ]]; then
     say "— بازسازی vhost با بلوک ۴۴۳ (deploy/install.sh --tls) —"
-    REBUILD_ARGS=(--domain "$DOMAIN" --app-dir "$APP_DIR" --tls --skip-build)
+    REBUILD_ARGS=(--app-dir "$APP_DIR" --tls --skip-build)
+    for d in "${DOMAINS[@]}"; do REBUILD_ARGS+=(--domain "$d"); done
     $DRY_RUN && REBUILD_ARGS+=(--dry-run)
     run env DB_SETUP=skip bash "$APP_DIR/deploy/install.sh" "${REBUILD_ARGS[@]}"
   else

@@ -44,15 +44,34 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
 اگر می‌خواهید سوپرادمین در همان اجرا و بدون پرسش ساخته شود:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain example.com --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- \
+  --domain example.com \
+  --admin-phone 09121110000 --admin-password 'YourStrong#Pass' \
+  --admin-email admin@example.com
 ```
+
+`--admin-email` فقط ایمیل پروفایل سوپرادمین را پر می‌کند (ستون `email` جدول
+`User`) و با `--email` که برای حساب Let's Encrypt است فرق دارد.
+
+می‌خواهید سایت روی چند دامنه بالا بیاید؟ `--domain` را چند بار بدهید (یا با
+کاما جدا کنید). دامنهٔ اول اصلی است و بقیه **alias همان سایت** می‌شوند:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- \
+  --domain example.com --domain example.org \
+  --admin-phone 09121110000 --admin-password 'YourStrong#Pass' --admin-email admin@example.com
+```
+
+> ساب‌دامین سالن‌ها (`mah.example.com`) فقط روی **دامنهٔ اصلی** سرو می‌شوند.
+> دامنه‌های alias فقط ریشهٔ سایت را نشان می‌دهند و در `EXTRA_DOMAINS` فایل
+> `.env` ذخیره می‌شوند تا بازسازی‌های بعدی nginx آن‌ها را از دست ندهند.
 
 > پرچم‌ها در `ps` و تاریخچهٔ shell دیده می‌شوند. برای امنیت بیشتر، نصب را بدون
 > آن‌ها انجام دهید و بعد از پایان نصب سوپرادمین را جدا بسازید:
 >
 > ```bash
 > cd /opt/nobino
-> sudo env ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' node scripts/create-admin.mjs
+> sudo env ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' ADMIN_EMAIL=admin@example.com node scripts/create-admin.mjs
 > ```
 
 > اگر `sudo` رمز می‌خواهد، اول یک‌بار `sudo -v` بزنید و بعد فرمان را اجرا کنید.
@@ -63,13 +82,14 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
 
 | گزینه | پیش‌فرض | توضیح |
 |---|---|---|
-| `--domain <دامنه>` | — (اجباری) | دامنهٔ سایت؛ ساب‌دامین سالن‌ها `<slug>.<دامنه>` می‌شود |
+| `--domain <دامنه>` | — (اجباری) | دامنهٔ اصلی؛ برای چند دامنه (alias) چند بار بدهید یا با کاما جدا کنید. ساب‌دامین سالن‌ها فقط روی دامنهٔ اول: `<slug>.<دامنهٔ اول>` |
 | `--app-dir <مسیر>` | `/opt/nobino` | مسیر نصب |
 | `--branch <شاخه>` | `master` | شاخهٔ گیت برای نصب |
 | `--port <پورت>` | `3100` | پورت داخلی بک‌اند (nginx جلوی آن است) |
 | `--pg-password <رمز>` | تصادفی | رمز یوزر دیتابیس |
 | `--database-url <url>` | — | برای دیتابیس آماده/بیرونی |
 | `--admin-phone`, `--admin-password` | — | ساخت سوپرادمین اولیه (اگر ندهید بعداً دستی بسازید) |
+| `--admin-email <ایمیل>` | — | ایمیل پروفایل سوپرادمین (ستون `User.email`؛ اختیاری) |
 | `--no-admin` | — | ساخت سوپرادمین را رد کن |
 | `--no-firewall` | — | ufw را تغییر نده |
 | `--with-postgres` | — | حتی اگر Postgres هست، دیتابیس/یوزر `nobino` بساز |
@@ -185,14 +205,21 @@ npm run stop
 ### ساخت سوپرادمین دلخواه (جایگزین seed)
 
 ```bash
-ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' node scripts/create-admin.mjs
+ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' ADMIN_EMAIL=admin@example.com node scripts/create-admin.mjs
 ```
+
+`ADMIN_EMAIL` (یا `--email`) اختیاری است و ستون `email` پروفایل سوپرادمین را پر
+می‌کند. هر ایمیل فقط برای یک کاربر ثبت می‌شود.
 
 بازنشانی رمز همان شماره:
 
 ```bash
 ADMIN_PHONE=09121110000 ADMIN_PASSWORD='NewStrong#Pass' node scripts/create-admin.mjs --force-reset
 ```
+
+برای افزودن/تغییر ایمیل سوپرادمین موجود (بدون تغییر رمز) هم کافی است همان فرمان
+را بدون `--force-reset` و با `ADMIN_EMAIL` اجرا کنید؛ اگر سوپرادمین از قبل باشد،
+فقط ایمیل به‌روزرسانی می‌شود.
 
 > روی ویندوز اگر اسکریپت‌های `.sh` را اجرا می‌کنید از Git Bash یا WSL استفاده کنید؛
 > فرمان‌های `npm run ...` در PowerShell هم کار می‌کنند.
@@ -282,6 +309,38 @@ sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
 
 > ⚠️ در این حالت فقط `example.com` معتبر است و `mah.example.com` خطای گواهی
 > می‌دهد. برای سامانهٔ نوبینو که آدرس سالن‌ها ساب‌دامین است، روش wildcard لازم است.
+
+### چند دامنه (alias) و SSL
+
+اگر سایت باید روی چند دامنه باز شود (مثلاً `example.com` و `example.org`)،
+`--domain` را چند بار بدهید یا با کاما جدا کنید. دامنهٔ اول **اصلی** است و بقیه
+**alias همان سایت**:
+
+```bash
+sudo bash /opt/nobino/deploy/ssl.sh \
+  --domain example.com --domain example.org \
+  --email you@example.com
+```
+
+در این حالت:
+
+- `nginx` برای دامنهٔ اصلی `example.com *.example.com` و برای هر alias فقط خودش
+  (`example.org`) را در `server_name` می‌گذارد.
+- گواهی Let's Encrypt شامل `example.com` + `*.example.com` + هر alias است؛
+  ساب‌دامین‌های alias عمداً پوشش داده نمی‌شوند.
+- `EXTRA_DOMAINS` در `.env` ذخیره می‌شود تا بازسازی‌های بعدی vhost
+  (`deploy/install.sh`) aliasها را فراموش نکنند.
+- اگر بعداً alias جدیدی اضافه کنید، همان فرمان `ssl.sh` را با دامنه‌های جدید
+  اجرا کنید؛ اسکریپت تشخیص می‌دهد گواهی فعلی alias تازه را پوشش نمی‌دهد و
+  خودکار آن را دوباره صادر می‌کند.
+
+```dotenv
+ROOT_DOMAIN="example.com"
+EXTRA_DOMAINS="example.org"
+```
+
+> هر alias باید رکورد `A` جداگانه به IP سرور داشته باشد. برای دامنهٔ اصلی، رکورد
+> wildcard (`*`) هم لازم است.
 
 ### روش ۳ (اختیاری) — تمدید خودکار با پلاگین DNS
 
@@ -373,7 +432,7 @@ upstream nobino_backend {
 server {
     listen 80;
     listen [::]:80;
-    server_name example.com *.example.com;
+    server_name example.com *.example.com example.org;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/lib/letsencrypt;
@@ -393,7 +452,7 @@ server {
     listen 443 ssl;
     listen [::]:443 ssl;
     http2 on;
-    server_name example.com *.example.com;
+    server_name example.com *.example.com example.org;
 
     ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
@@ -545,6 +604,7 @@ docker compose exec app node scripts/create-admin.mjs --phone 09121110000 --pass
 | `CRON_SECRET` | محافظت از `/api/cron/*`؛ خالی = کران اجرا نمی‌شود |
 | `APP_URL` / `SITE_URL` | دامنهٔ عمومی؛ لینک مطلق، OG، canonical، کوکی Secure |
 | `ROOT_DOMAIN` | دامنهٔ ریشهٔ ساب‌دامین سالن‌ها |
+| `EXTRA_DOMAINS` | دامنه‌های alias با کاما (مثلاً `example.org,example.net`)؛ خالی = بدون alias |
 | `PORT` / `HOST` | پورت داخلی API (VPS: `3100`) |
 | `SERVE_FRONTEND` | `1` = بک‌اند، SPA را هم سرو می‌کند (PaaS تک‌پورت) |
 | `DB_SETUP` | `auto` / `migrate` / `push` / `skip` |

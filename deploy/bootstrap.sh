@@ -18,11 +18,12 @@
 #   ۷) در پایان deploy/install.sh را کامل اجرا می‌کند (بیلد + PM2 + nginx + سلامت)
 #   ۷.۵) اگر --tls بدهید، deploy/ssl.sh گواهی Let's Encrypt می‌گیرد و
 #      بلوک HTTPS را در nginx فعال می‌کند (پیش‌فرض wildcard با چالش DNS)
-#   ۸) ساخت اولین سوپرادمین با موبایل/رمز دلخواه (اگر دیتابیس خالی باشد؛
-#      با --admin-phone/--admin-password بدون پرسش، یا در پایان خودکار می‌پرسد)
+#   ۸) ساخت اولین سوپرادمین با موبایل/رمز/ایمیل دلخواه (اگر دیتابیس خالی باشد؛
+#      با --admin-phone/--admin-password/--admin-email بدون پرسش، یا در پایان خودکار می‌پرسد)
 #
 # گزینه‌ها:
-#   --domain <دامنه>      ضروری (مثلاً nobino.ir) — دامنه‌ای که سرویس رویش بالا می‌آید
+#   --domain <دامنه>      ضروری (مثلاً nobino.ir) — دامنهٔ اصلی؛ برای چند دامنه (alias)
+#                         چند بار بدهید یا با کاما جدا کنید (مثل --domain nobino.ir --domain nobino.com)
 #   --repo <git-url>      آدرس git مخزن؛ اگر مخزن این اسکریپت نیست کلون می‌شود
 #   --app-dir <مسیر>      مسیر نصب (پیش‌فرض /opt/nobino؛ اگر مخزن جاری همان جا نیست کلون/کپی می‌شود)
 #   --port <پورت>         پورت داخلی (پیش‌فرض 3100)
@@ -31,9 +32,10 @@
 #                        نمی‌خواهید سؤال بپرسد (CI و curl|bash از این گزینه استفاده کنند)
 #   --admin-phone <موبایل>   شمارهٔ سوپرادمین اولیه (هم‌شکل ورود مدیران، ۱۱ رقم با 0)
 #   --admin-password <رمز>   رمز سوپرادمین اولیه (حداقل ۸ کاراکتر)
-#                        — اگر تا می‌توانید به‌جای این دو پرچم، متغیرهای محیطی
-#                          ADMIN_PHONE و ADMIN_PASSWORD را بدهید تا رمز در `ps`
-#                          و تاریخچهٔ shell نماند
+#   --admin-email <ایمیل>    ایمیل پروفایل سوپرادمین (اختیاری؛ یا متغیر ADMIN_EMAIL)
+#                        — اگر تا می‌توانید به‌جای این پرچم‌ها، متغیرهای محیطی
+#                          ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL را بدهید تا رمز
+#                          در `ps` و تاریخچهٔ shell نماند
 #   --no-admin            ساخت سوپرادمین را انجام نده (بعداً دستی: scripts/create-admin.mjs)
 #   --no-firewall         ufw را لمس نکن
 #   --with-postgres       حتی اگر Postgres هست، یوزر/دیتابیس nobino بساز (بدون نصب دوباره)
@@ -60,10 +62,35 @@ runsh() { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else
 # گزینهٔ مقداردار بدون مقدار نباید با «$2: unbound variable» بمیرد (ME-5).
 need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
 
+# دامنه را نرمال می‌کند (پروتکل/مسیر/پورت/فاصله) و به فهرست اضافه می‌کند.
+# --domain می‌تواند چند بار بیاید یا با کاما/فاصله چند دامنه بگیرد.
+norm_domain() {
+  local d="${1:-}"
+  d="${d,,}"; d="${d#*://}"; d="${d%%/*}"; d="${d%%:*}"; d="${d//[[:space:]]/}"
+  printf '%s' "$d"
+}
+add_domains() {
+  local raw="${1:-}" part existing
+  raw="${raw//,/ }"
+  for part in $raw; do
+    part="$(norm_domain "$part")"
+    [[ -n "$part" ]] || continue
+    for existing in "${DOMAINS[@]:-}"; do
+      [[ "$existing" == "$part" ]] && continue 2
+    done
+    DOMAINS+=("$part")
+  done
+}
+read_env() {
+  [[ -f "$APP_DIR/.env" ]] || return 0
+  awk -v k="$1" 'BEGIN{FS="="} $1==k { v=substr($0, index($0,"=")+1); gsub(/\r$/,"",v); gsub(/^"/,"",v); gsub(/"$/,"",v); print v }' "$APP_DIR/.env" | tail -1
+}
+
+DOMAINS=()
 DOMAIN="" REPO_URL="" APP_DIR="/opt/nobino" PORT="3100" PG_PASSWORD=""
-# رمز/شمارهٔ سوپرادمین از محیط هم پذیرفته می‌شود تا روی argv (در `ps`) و در
+# رمز/شماره/ایمیل سوپرادمین از محیط هم پذیرفته می‌شود تا روی argv (در `ps`) و در
 # تاریخچهٔ shell نماند (HG-2).
-ADMIN_PHONE="${ADMIN_PHONE:-}" ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+ADMIN_PHONE="${ADMIN_PHONE:-}" ADMIN_PASSWORD="${ADMIN_PASSWORD:-}" ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 DBURL_CLI="" NO_ADMIN=false
 ADMIN_SET=false ADMIN_HINT=false
 NO_FIREWALL=false FORCE_PG=false DRY_RUN=false
@@ -74,7 +101,8 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --domain) need_value "$@"; DOMAIN="$2"; shift 2 ;;
+    --domain) need_value "$@"; add_domains "$2"; shift 2 ;;
+    --domain=*) add_domains "${1#*=}"; shift ;;
     --repo) need_value "$@"; REPO_URL="$2"; shift 2 ;;
     --app-dir) need_value "$@"; APP_DIR="$2"; shift 2 ;;
     --port) need_value "$@"; PORT="$2"; shift 2 ;;
@@ -82,6 +110,8 @@ while [[ $# -gt 0 ]]; do
     --database-url) need_value "$@"; DBURL_CLI="$2"; shift 2 ;;
     --admin-phone) need_value "$@"; ADMIN_PHONE="$2"; shift 2 ;;
     --admin-password) need_value "$@"; ADMIN_PASSWORD="$2"; shift 2 ;;
+    --admin-email) need_value "$@"; ADMIN_EMAIL="$2"; shift 2 ;;
+    --admin-email=*) ADMIN_EMAIL="${1#*=}"; shift ;;
     --no-admin) NO_ADMIN=true; shift ;;
     --no-firewall) NO_FIREWALL=true; shift ;;
     --with-postgres) FORCE_PG=true; shift ;;
@@ -95,11 +125,27 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$DOMAIN" ]] || die "دامنه لازم است:  sudo bash deploy/bootstrap.sh --domain nobino.ir"
-# HI-7: دامنه همان چیزی است که در .env نوشته می‌شود، پس پیش از هر جای‌گزینی
-# نرمال و اعتبارسنجی می‌شود (پیش‌فرض install.sh هم همین برش است).
-DOMAIN="${DOMAIN#*://}"; DOMAIN="${DOMAIN%%/*}"; DOMAIN="${DOMAIN%%:*}"
-[[ "$DOMAIN" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$DOMAIN» — فقط حروف/عدد/نقطه/خط تیره (مثلاً nobino.ir)."
+# ── دامنه‌ها: --domain چند بار/با کاما؛ دامنهٔ اول اصلی است ──────────
+if [[ ${#DOMAINS[@]} -eq 0 ]]; then
+  add_domains "$(read_env ROOT_DOMAIN)"
+fi
+if [[ ${#DOMAINS[@]} -eq 0 ]]; then
+  die "دامنه لازم است:  sudo bash deploy/bootstrap.sh --domain nobino.ir"
+fi
+if [[ -n "$(read_env ROOT_DOMAIN)" && "${DOMAINS[0]}" == "$(norm_domain "$(read_env ROOT_DOMAIN)")" ]]; then
+  # دامنه‌های alias ذخیره‌شده در .env برای بازسازی vhost حفظ شوند
+  add_domains "$(read_env EXTRA_DOMAINS)"
+fi
+for d in "${DOMAINS[@]}"; do
+  [[ "$d" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$d» — فقط حروف/عدد/نقطه/خط تیره (مثلاً nobino.ir)."
+done
+DOMAIN="${DOMAINS[0]}"
+DOMAIN_ALIASES=()
+[[ ${#DOMAINS[@]} -gt 1 ]] && DOMAIN_ALIASES=("${DOMAINS[@]:1}")
+EXTRA_DOMAINS="$(IFS=,; printf '%s' "${DOMAIN_ALIASES[*]:-}")"
+if [[ -n "$ADMIN_EMAIL" && ! "$ADMIN_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; then
+  die "ایمیل سوپرادمین معتبر نیست: «$ADMIN_EMAIL» (مثلاً admin@example.com)."
+fi
 [[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT >= 1024 && PORT <= 65535 )) || die "--port یک عدد بین 1024 و 65535 است (دادید: $PORT)."
 case "$SSL_MODE" in dns|cloudflare|http) ;; *) die "--ssl-mode باید dns یا cloudflare یا http باشد (دادید: $SSL_MODE)." ;; esac
 if $ENABLE_TLS && [[ "$SSL_MODE" == "cloudflare" && -z "$DNS_CREDENTIALS" ]]; then
@@ -295,6 +341,7 @@ else
         APP_URL | SITE_URL | AUTOMATION_BASE_URL | VITE_SITE_URL | VITE_APP_URL)
           line="$key=\"https://$DOMAIN\"" ;;
         ROOT_DOMAIN | VITE_ROOT_DOMAIN) line="$key=\"$DOMAIN\"" ;;
+        EXTRA_DOMAINS)     line="EXTRA_DOMAINS=\"$EXTRA_DOMAINS\"" ;;
         PAYMENT_CALLBACK_BASE) line="PAYMENT_CALLBACK_BASE=\"https://$DOMAIN/api/payments/callback\"" ;;
         PORT)   line="PORT=$PORT" ;;
         SMS_PROVIDER | VOICE_PROVIDER) line="$key=\"mock\"" ;;
@@ -340,7 +387,8 @@ fi
 
 # ── ۸) install.sh کامل ──────────────────────────────────────────────
 say "— ۸) اجرای deploy/install.sh (بیلد + PM2 + nginx + سلامت) —"
-INSTALL_ARGS=(--domain "$DOMAIN" --port "$PORT" --app-dir "$APP_DIR")
+INSTALL_ARGS=(--port "$PORT" --app-dir "$APP_DIR")
+for d in "${DOMAINS[@]}"; do INSTALL_ARGS+=(--domain "$d"); done
 $DRY_RUN && INSTALL_ARGS+=(--dry-run)
 run bash "$APP_DIR/deploy/install.sh" "${INSTALL_ARGS[@]}"
 
@@ -355,7 +403,8 @@ if $ENABLE_TLS; then
     if [[ -z "$SSL_EMAIL" ]]; then
       warn "  --email داده نشده؛ ادامه می‌دهیم ولی هشدار انقضای گواهی به شما نمی‌رسد."
     fi
-    SSL_ARGS=(--domain "$DOMAIN" --app-dir "$APP_DIR" --mode "$SSL_MODE")
+    SSL_ARGS=(--app-dir "$APP_DIR" --mode "$SSL_MODE")
+    for d in "${DOMAINS[@]}"; do SSL_ARGS+=(--domain "$d"); done
     [[ -n "$SSL_EMAIL" ]] && SSL_ARGS+=(--email "$SSL_EMAIL")
     [[ -n "$DNS_CREDENTIALS" ]] && SSL_ARGS+=(--dns-credentials "$DNS_CREDENTIALS")
     $DRY_RUN && SSL_ARGS+=(--dry-run)
@@ -375,9 +424,9 @@ say "— ۹) ساخت اولین سوپرادمین —"
 if $NO_ADMIN; then
   say "  --no-admin → از این مرحله رد می‌شود."
 elif $DRY_RUN; then
-  printf '%s[dry] node scripts/create-admin.mjs با ADMIN_PHONE/ADMIN_PASSWORD از محیط%s\n' "$C_DIM" "$C_OFF"
+  printf '%s[dry] node scripts/create-admin.mjs با ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL از محیط%s\n' "$C_DIM" "$C_OFF"
 else
-  AP="$ADMIN_PHONE"; AW="$ADMIN_PASSWORD"
+  AP="$ADMIN_PHONE"; AW="$ADMIN_PASSWORD"; AE="$ADMIN_EMAIL"
   if [[ -z "$AP" ]] && [[ -t 0 ]]; then
     printf '  شماره موبایل سوپرادمین (۱۱ رقم با 0؛ خالی = بعداً دستی): '
     read -r AP || true
@@ -386,18 +435,28 @@ else
     printf '  رمز سوپرادمین (حداقل ۸ کاراکتر، نمایش مخفی): '
     read -rs AW || true; printf '\n'
   fi
+  if [[ -n "$AP" ]] && [[ -z "$AE" ]] && [[ -t 0 ]]; then
+    printf '  ایمیل سوپرادمین (اختیاری؛ خالی = بدون ایمیل): '
+    read -r AE || true
+  fi
   AP="$(tr -d ' \r' <<< "$AP")"
+  AE="$(tr -d ' \r' <<< "$AE")"
+  if [[ -n "$AE" && ! "$AE" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; then
+    ADMIN_HINT=true
+    warn "  ایمیل «$AE» معتبر نیست — مرحلهٔ سوپرادمین رد شد. بعداً با --admin-email اصلاح کنید."
+    AP=""
+  fi
   if [[ -z "$AP" ]]; then
     ADMIN_HINT=true
     warn "  سوپرادمین ساخته نشد؛ هر وقت خواستید اجرا کنید:"
-    say "    cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs"
+    say "    cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' ADMIN_EMAIL='…' node scripts/create-admin.mjs"
   elif [[ ${#AW} -lt 8 ]]; then
     ADMIN_HINT=true
     warn "  رمز داده‌نشده/کوتاه است — مرحلهٔ سوپرادمین رد شد. بعداً: node scripts/create-admin.mjs (داخل $APP_DIR)"
   else
     # در سرورهای SSHِ غیرتعاملی (exec بدون TTY) read کار نمی‌کند؛ flag لازم است.
     # HG-2: اعتبارنامه‌ها از محیط می‌روند، نه argv — در `ps` و تاریخچهٔ shell نمی‌مانند.
-    if (cd "$APP_DIR" && APP_DIR="$APP_DIR" ADMIN_PHONE="$AP" ADMIN_PASSWORD="$AW" node scripts/create-admin.mjs); then
+    if (cd "$APP_DIR" && APP_DIR="$APP_DIR" ADMIN_PHONE="$AP" ADMIN_PASSWORD="$AW" ADMIN_EMAIL="$AE" node scripts/create-admin.mjs); then
       ok "  ورود مدیران: https://$DOMAIN با $AP"
       ADMIN_SET=true
     else
@@ -405,13 +464,16 @@ else
       warn "  create-admin ناموفق بود (دیتابیس/پریزما را بررسی کنید)؛ بعداً دستی اجرا کنید."
     fi
   fi
-  unset AW
+  unset AW AE
 fi
 
 say ""
 ok "${C_OK}bootstrap تمام شد.${C_OFF}"
 if $TLS_READY; then SCHEME="https"; else SCHEME="http"; fi
 say "  دامنه:   $SCHEME://$DOMAIN  (ساب‌دامین سالن‌ها: <slug>.$DOMAIN)"
+if [[ ${#DOMAIN_ALIASES[@]} -gt 0 ]]; then
+  say "  alias:    ${DOMAIN_ALIASES[*]} (همان سایت، بدون ساب‌دامین سالن)"
+fi
 say "  وضعیت:   pm2 status — لاگ: pm2 logs nobino-api"
 say "  سلامت:   curl \"http://127.0.0.1:$PORT/api/health?db=1\""
 say "  .env:    $APP_DIR/.env (رمزها همین‌جا؛ اگر PG تازه ساخت شد، رمز دیتابیس در DATABASE_URL است)"
@@ -423,11 +485,16 @@ fi
 say ""
 say "  باقی‌ماندهٔ دستی (اختیاری):"
 say "    ۱) DNS: A برای $DOMAIN و *.${DOMAIN} به IP همین سرور"
+if [[ ${#DOMAIN_ALIASES[@]} -gt 0 ]]; then
+  say "       و A برای دامنه‌های alias: ${DOMAIN_ALIASES[*]}"
+fi
 if $TLS_READY; then
   say "    ۲) HTTPS فعال شد (Let's Encrypt). بررسی تمدید: sudo certbot renew --dry-run"
   say "        (تمدید خودکار wildcard اختیاری است و به پلاگین DNS نیاز دارد.)"
 else
-  say "    ۲) HTTPS: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
+  SSL_HINT="sudo bash $APP_DIR/deploy/ssl.sh"
+  for d in "${DOMAINS[@]}"; do SSL_HINT+=" --domain $d"; done
+  say "    ۲) HTTPS: $SSL_HINT --email <ایمیل>"
   say "        پیش‌فرض: wildcard با چالش DNS از Let's Encrypt | http: فقط دامنهٔ ریشه"
 fi
 say "    ۳) پنل سوپرادمین: /api/health را چک، سپس در «تنظیمات سیستم» درگاه پرداخت/پیامک/کلیدها را کامل کنید"

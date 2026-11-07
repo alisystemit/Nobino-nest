@@ -14,8 +14,18 @@
 curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh | sudo bash -s -- --domain nobino.ir
 ```
 > همین فرمان مخزن را در `/opt/nobino` می‌گیرد و `deploy/bootstrap.sh` را اجرا می‌کند.
-> گزینه‌ها (`--app-dir`، `--branch`، `--port`، `--admin-phone`، …) و آموزش کامل
-> نصب در [`README.md`](../README.md) آمده است.
+> گزینه‌ها (`--app-dir`، `--branch`، `--port`، `--admin-phone`، `--admin-email`، …) و
+> آموزش کامل نصب در [`README.md`](../README.md) آمده است.
+
+**همان نصب + ایمیل سوپرادمین + چند دامنه (alias):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh \
+  | sudo bash -s -- --domain nobino.ir --domain nobino.com \
+      --admin-phone 09121110000 --admin-password 'YourStrong#Pass' \
+      --admin-email admin@nobino.ir
+```
+> دامنهٔ اول اصلی است و بقیه alias همان سایت (بدون ساب‌دامین سالن). فهرست alias در
+> `EXTRA_DOMAINS` فایل `.env` ذخیره می‌شود.
 
 **افزودن SSL بعد از نصب (Let's Encrypt، wildcard با چالش DNS):**
 ```bash
@@ -34,10 +44,10 @@ git clone <repo-url> /opt/nobino
 sudo bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir
 
 # شکل غیرتعاملی (مثلاً در script یا CI) — سوپرادمین هم خودکار ساخته می‌شود:
-sudo ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' \
+sudo ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' ADMIN_EMAIL=admin@nobino.ir \
      bash /opt/nobino/deploy/bootstrap.sh --domain nobino.ir
-# (پرچم‌های --admin-phone/--admin-password هم کار می‌کنند، ولی رمز روی argv
-#  در `ps` و تاریخچهٔ shell می‌ماند؛ شکل محیطی را ترجیح دهید.)
+# (پرچم‌های --admin-phone/--admin-password/--admin-email هم کار می‌کنند، ولی رمز روی
+#  argv در `ps` و تاریخچهٔ shell می‌ماند؛ شکل محیطی را ترجیح دهید.)
 ```
 > bootstrap همه‌چیز را اتوماتیک می‌سازد: NodeSource 24، PM2، PostgreSQL + دیتابیس
 > `nobino` با رمز تصادفی، فایل `.env` کامل (بدون CHANGE_ME؛ پیامک/ویس روی mock تا
@@ -47,8 +57,9 @@ sudo ADMIN_PHONE=09121110000 ADMIN_PASSWORD='YourStrong#Pass' \
 > در آن حالت `DATABASE_URL` را با `--database-url postgresql://…` بدهید؛ اگر ندهید
 > در اجرای تعاملی از شما پرسیده می‌شود و در `--dry-run`/CI هیچ پرسشی انجام نمی‌شود.
 > برای دیدن مراحل بدون تغییر سرور `--dry-run` را اضافه کنید.
-> **اولین سوپرادمین:** در پایان همان مرحله می‌پرسد (موبایل + رمز مخفی؛ حداقل ۸ کاراکتر).
-> اگر رد کنید بعداً با `cd /opt/nobino && ADMIN_PHONE=09… ADMIN_PASSWORD='…' node scripts/create-admin.mjs`
+> **اولین سوپرادمین:** در پایان همان مرحله می‌پرسد (موبایل + رمز مخفی + ایمیل
+> اختیاری؛ رمز حداقل ۸ کاراکتر).
+> اگر رد کنید بعداً با `cd /opt/nobino && ADMIN_PHONE=09… ADMIN_PASSWORD='…' ADMIN_EMAIL='…' node scripts/create-admin.mjs`
 > بسازید. با `--no-admin` هم می‌توان کلاً رد کرد.
 
 **سرور Ubuntu/Debian (نصب کامل، وقتی .env را خودتان آماده کرده‌اید):**
@@ -186,7 +197,8 @@ sudo bash deploy/install.sh --domain nobino.ir \
    قالب `deploy/ecosystem.config.cjs.template`؛ فیلد `user:` هم از `--user` پر می‌شود
    تا پس از ریستارت سرور، اپ از همان daemon بالا بیاید) + `pm2 save` + `pm2 startup`.
 6. vhost اِج‌انجی‌اِکس در `/etc/nginx/sites-available/nobino.conf` با
-   `server_name nobino.ir *.nobino.ir` (فایل‌های دیگر و `default` حذف/تغییر نمی‌شوند)؛
+   `server_name nobino.ir *.nobino.ir` (و دامنه‌های alias بدون wildcard؛ فایل‌های
+   دیگر و `default` حذف/تغییر نمی‌شوند)؛
    symlink موقت ساخته و **پیش از reload** با `nginx -t` تست می‌شود — اگر خطا بدهد
    همان لحظه از `sites-enabled` پاک می‌شود تا پیکربندی خراب روی سرور نماند.
 7. بررسی سلامت با `curl http://127.0.0.1:PORT/api/health?db=1`.
@@ -197,8 +209,8 @@ pm2 status && pm2 logs nobino-api --lines 40     # وضعیت و لاگ
 curl -s "http://127.0.0.1:3100/api/health?db=1"  # سلامت + وضعیت DB
 
 # اگر دیتابیس تازه و خالی است، اولین سوپرادمین (idempotent — اگر ADMIN باشد دست نمی‌زند):
-cd /opt/nobino && ADMIN_PASSWORD='YourStrong#Pass' node scripts/create-admin.mjs --phone 09121110000
-# (رمز را در متغیر محیطی بدهید تا در `ps` و تاریخچهٔ shell نماند)
+cd /opt/nobino && ADMIN_PASSWORD='YourStrong#Pass' ADMIN_EMAIL=admin@nobino.ir node scripts/create-admin.mjs --phone 09121110000
+# (رمز/ایمیل را در متغیر محیطی بدهید تا در `ps` و تاریخچهٔ shell نماند)
 # گم‌شدن رمز سوپرادمین (بازنش فقط با شمارهٔ خودِ ادمین موجود و فلگ صریح):
 ADMIN_PASSWORD='رمز#جدید' node scripts/create-admin.mjs --phone <همان‌شماره> --force-reset
 ```
@@ -208,14 +220,18 @@ ADMIN_PASSWORD='رمز#جدید' node scripts/create-admin.mjs --phone <همان
 # گواهی wildcard از Let's Encrypt با چالش DNS (تعاملی، پیش‌فرض):
 sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com
 
+# چند دامنه (دامنهٔ اول اصلی، بقیه alias همان سایت):
+sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --domain nobino.com --email you@example.com
+
 # فقط دامنهٔ ریشه و غیرتعاملی (ساب‌دامین‌ها پوشش داده نمی‌شوند):
 sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com --mode http
 ```
 > گواهی همیشه از Let's Encrypt صادر می‌شود. تمدید خودکار wildcard اختیاری است و
 > به پلاگین DNS ارائه‌دهندهٔ شما نیاز دارد (مثلاً `--mode cloudflare`).
 > اسکریپت هوک تمدید را نصب می‌کند و vhost را با بلوک ۴۴۳ بازسازی می‌کند
-> (`deploy/nginx/nobino.tls.conf.snippet`). کانفیگ کامل nginx و عیب‌یابی در بخش
-> SSL فایل [`README.md`](../README.md) آمده است.
+> (`deploy/nginx/nobino.tls.conf.snippet`). دامنه‌های alias در `EXTRA_DOMAINS`
+> فایل `.env` ذخیره می‌شوند. کانفیگ کامل nginx و عیب‌یابی در بخش SSL فایل
+> [`README.md`](../README.md) آمده است.
 
 **بازگشت به حالت قبل (بدون حذف اپ‌های دیگر):**
 ```bash

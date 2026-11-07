@@ -14,7 +14,8 @@
 #   ۶) vhost اِج‌انجی‌اِکس با ساب‌دامین‌های وایلدکارد (mah.nobino.ir و ...)
 #
 # گزینه‌ها:
-#   --domain <دامنه-ریشه>   دامنه‌ای که اپ رویش سرو می‌شود (پیش‌فرض: ROOT_DOMAIN در .env)
+#   --domain <دامنه-ریشه>   دامنهٔ اصلی؛ برای چند دامنه (alias) چند بار بدهید یا
+#                           با کاما جدا کنید (پیش‌فرض: ROOT_DOMAIN و EXTRA_DOMAINS در .env)
 #   --port <پورت>           پورت داخلی API/SPA (پیش‌فرض: 3100)
 #   --app-dir <مسیر>        مسیر نصب (پیش‌فرض: همین مخزن)
 #   --copy                  کپی مخزن به --app-dir قبل از بیلد
@@ -55,11 +56,32 @@ need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد 
 # مقدار را برای سمتِ راست sed فرار می‌کند: \  &  و جداکنندهٔ | (HI-7 از همین خانواده).
 sed_esc() { local s="${1:-}"; s="${s//\\/\\\\}"; s="${s//&/\\&}"; s="${s//|/\\|}"; printf '%s' "$s"; }
 
+# دامنه را نرمال می‌کند (پروتکل/مسیر/پورت/فاصله را می‌گیرد) و به فهرست اضافه می‌کند.
+# --domain می‌تواند چند بار بیاید یا با کاما/فاصله چند دامنه بگیرد.
+norm_domain() {
+  local d="${1:-}"
+  d="${d,,}"; d="${d#*://}"; d="${d%%/*}"; d="${d%%:*}"; d="${d//[[:space:]]/}"
+  printf '%s' "$d"
+}
+add_domains() {
+  local raw="${1:-}" part existing
+  raw="${raw//,/ }"
+  for part in $raw; do
+    part="$(norm_domain "$part")"
+    [[ -n "$part" ]] || continue
+    for existing in "${DOMAINS[@]:-}"; do
+      [[ "$existing" == "$part" ]] && continue 2
+    done
+    DOMAINS+=("$part")
+  done
+}
+
 # ── مقادیر پیش‌فرض ─────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_DIR="$REPO_DIR"
 DOMAIN=""
+DOMAINS=()
 PORT="3100"
 SERVICE_USER="${SUDO_USER:-root}"
 SKIP_BUILD=false
@@ -71,7 +93,8 @@ DO_COPY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --domain) need_value "$@"; DOMAIN="$2"; shift 2 ;;
+    --domain) need_value "$@"; add_domains "$2"; shift 2 ;;
+    --domain=*) add_domains "${1#*=}"; shift ;;
     --port) need_value "$@"; PORT="$2"; shift 2 ;;
     --app-dir) need_value "$@"; APP_DIR="$2"; shift 2 ;;
     --user) need_value "$@"; SERVICE_USER="$2"; shift 2 ;;
@@ -108,19 +131,39 @@ DB_URL="$(read_env DATABASE_URL)"; [[ -z "$DB_URL" ]] && DB_URL="${DATABASE_URL:
 [[ -n "$DB_URL" ]] || die "DATABASE_URL در .env خالی است."
 case "$DB_URL" in postgresql*://*) ;; *) die "DATABASE_URL باید با postgresql:// شروع شود." ;; esac
 
-[[ -z "$DOMAIN" ]] && DOMAIN="$(read_env ROOT_DOMAIN)"
-if [[ -z "$DOMAIN" ]]; then
-  DOMAIN="$(read_env SITE_URL)"; DOMAIN="${DOMAIN#*://}"; DOMAIN="${DOMAIN%%/*}"; DOMAIN="${DOMAIN%%:*}"
+# ── دامنه‌ها: --domain می‌تواند چند بار بیاید؛ دامنهٔ اول اصلی است ──
+ENV_ROOT="$(norm_domain "$(read_env ROOT_DOMAIN)")"
+ENV_EXTRA="$(read_env EXTRA_DOMAINS)"
+if [[ ${#DOMAINS[@]} -eq 0 ]]; then
+  [[ -n "$ENV_ROOT" ]] && add_domains "$ENV_ROOT"
+  [[ ${#DOMAINS[@]} -eq 0 ]] && add_domains "$(read_env SITE_URL)"
+  add_domains "$ENV_EXTRA"
+elif [[ -n "$ENV_ROOT" && "${DOMAINS[0]}" == "$ENV_ROOT" ]]; then
+  # دامنهٔ alias ذخیره‌شده در .env برای بازسازی vhost (مثلاً ssl.sh/update) حفظ شود
+  add_domains "$ENV_EXTRA"
 fi
-[[ -n "$DOMAIN" ]] || die "دامنهٔ ریشه را با --domain بدهید (مثلاً --domain nobino.ir)"
-# اگر کاربر دامنه را با پیشوند http یا پورت/مسیر داده باشد، پاک شود
-DOMAIN="${DOMAIN#*://}"; DOMAIN="${DOMAIN%%/*}"; DOMAIN="${DOMAIN%%:*}"
+[[ ${#DOMAINS[@]} -gt 0 ]] || die "دامنهٔ ریشه را با --domain بدهید (مثلاً --domain nobino.ir)"
+for d in "${DOMAINS[@]}"; do
+  [[ "$d" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$d»."
+done
+DOMAIN="${DOMAINS[0]}"
+DOMAIN_ALIASES=()
+[[ ${#DOMAINS[@]} -gt 1 ]] && DOMAIN_ALIASES=("${DOMAINS[@]:1}")
+# nginx: دامنهٔ ریشه + wildcard ساب‌دامین‌های سالن + دامنه‌های alias (بدون wildcard)
+SERVER_NAMES="$DOMAIN *.$DOMAIN"
+for d in "${DOMAIN_ALIASES[@]:-}"; do
+  [[ -n "$d" ]] && SERVER_NAMES+=" $d"
+done
+SSL_DOMAIN_ARGS="--domain $DOMAIN"
+for d in "${DOMAIN_ALIASES[@]:-}"; do
+  [[ -n "$d" ]] && SSL_DOMAIN_ARGS+=" --domain $d"
+done
 
 ENV_PORT="$(read_env PORT)"; if [[ -n "$ENV_PORT" && "$PORT" == "3100" ]]; then PORT="$ENV_PORT"; fi
 SITE_URL="$(read_env SITE_URL)"; [[ -z "$SITE_URL" ]] && SITE_URL="https://$DOMAIN"
 if $ENABLE_TLS || [[ "$SITE_URL" == https* ]]; then SPA_PROTO="https"; else SPA_PROTO="http"; fi
 
-ok "پیش‌بررسی: دامنه=${DOMAIN}  پورت=${PORT}  مسیر=${APP_DIR}  .env=${ENV_FILE}"
+ok "پیش‌بررسی: دامنه‌ها=${DOMAINS[*]}  پورت=${PORT}  مسیر=${APP_DIR}  .env=${ENV_FILE}"
 
 # ── ۰.۱) بررسی امنیتی .env (بک‌اند همین بررسی‌ها را در بوت production هم دارد) ──
 JWT_SECRET_VAL="$(read_env JWT_SECRET)"; [[ -z "$JWT_SECRET_VAL" ]] && JWT_SECRET_VAL="${JWT_SECRET:-}"
@@ -307,7 +350,8 @@ if ! $SKIP_NGINX; then
   fi
 
   TMP_CONF="$(mktemp /tmp/nobino-vhost.XXXXXX.conf)"
-  { cat "$UP_PART"; cat "$BODY"; } | sed -e "s|__DOMAIN__|$(sed_esc "$DOMAIN")|g" \
+  { cat "$UP_PART"; cat "$BODY"; } | sed -e "s|__SERVER_NAMES__|$(sed_esc "$SERVER_NAMES")|g" \
+      -e "s|__DOMAIN__|$(sed_esc "$DOMAIN")|g" \
       -e "s|__PORT__|$(sed_esc "$PORT")|g" \
       -e "s|__SPA_DIST__|$(sed_esc "$APP_DIR/frontend/dist")|g" \
       -e "s|__UPLOADS__|$(sed_esc "$APP_DIR/public/uploads")|g" \
@@ -399,12 +443,17 @@ fi
 say ""
 say "${C_OK}نصب پایان یافت.${C_OFF} مراحل باقی‌مانده:"
 say "  ۱) DNS: رکورد A برای ${DOMAIN} و یک رکورد CNAME/WILDCARD برای *.${DOMAIN} به IP همین سرور"
+if [[ ${#DOMAIN_ALIASES[@]} -gt 0 ]]; then
+  say "     و رکورد A برای دامنه‌های alias: ${DOMAIN_ALIASES[*]}"
+fi
 say "     (صدور DNS را خودمان انجام نمی‌دهیم.)"
-say "  ۲) گواهی HTTPS برای ساب‌دامین‌ها (چالش DNS لازم است):"
-say "       sudo apt-get install -y certbot python3-certbot-nginx"
-say "       sudo certbot certonly --manual --preferred-challenges dns -d ${DOMAIN} -d *.${DOMAIN}"
-say "       sudo bash deploy/install.sh --domain ${DOMAIN} --tls"
+say "  ۲) گواهی HTTPS (Let's Encrypt، wildcard برای ساب‌دامین‌ها؛ چالش DNS لازم است):"
+say "       sudo bash deploy/ssl.sh ${SSL_DOMAIN_ARGS} --email <ایمیل>"
+say "     برای دامنهٔ ریشه به‌صورت غیرتعاملی: --mode http (ساب‌دامین‌ها پوشش داده نمی‌شوند)"
 say "  ۳) در .env این‌ها را تنظیم کنید: SITE_URL=${SPA_PROTO}://${DOMAIN}  APP_URL=${SPA_PROTO}://${DOMAIN}  ROOT_DOMAIN=${DOMAIN}"
+if [[ ${#DOMAIN_ALIASES[@]} -gt 0 ]]; then
+  say "     و EXTRA_DOMAINS=\"$(IFS=,; printf '%s' "${DOMAIN_ALIASES[*]}")\" برای دامنه‌های alias"
+fi
 say "  ۴) به‌روزرسانی بعدی:  sudo bash deploy/update.sh"
 say "  ۵) اگر دیتابیس تازه و خالی است، اولین سوپرادمین را بسازید:"
 say "       cd ${APP_DIR} && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs   (رمز حداقل ۸ کاراکتر)"

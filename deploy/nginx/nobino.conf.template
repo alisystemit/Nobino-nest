@@ -1,6 +1,7 @@
 # =====================================================================
 # Nobino — vhost اِج‌انجی‌اِکس (نسخهٔ NestJS + SPA)
 # توسط deploy/install.sh تولید می‌شود؛ جای‌نگهدارها:
+#   __SERVER_NAMES__  فهرست دامنه‌ها (دامنهٔ ریشه + wildcard آن + دامنه‌های alias)
 #   __DOMAIN__  دامنهٔ ریشه (nobino.ir)
 #   __PORT__    پورت داخلی NestJS (3100)
 #   __SPA_DIST__  مسیر frontend/dist
@@ -14,7 +15,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name __DOMAIN__ *.__DOMAIN__;
+    server_name __SERVER_NAMES__;
 
     root __SPA_DIST__;
     index index.html;

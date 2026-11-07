@@ -10,13 +10,14 @@
 # سرویس و سوپرادمین).
 #
 # گزینه‌ها:
-#   --domain <دامنه>     اجباری — دامنهٔ سایت (مثلاً nobino.ir)
+#   --domain <دامنه>     اجباری — دامنهٔ اصلی (مثلاً nobino.ir)؛ برای چند دامنه (alias)
+#                        چند بار بدهید یا با کاما جدا کنید
 #   --app-dir <مسیر>     مسیر نصب (پیش‌فرض /opt/nobino)
 #   --branch <شاخه>      شاخهٔ گیت (پیش‌فرض master)
 #   -h, --help           همین راهنما
 #
 # بقیهٔ گزینه‌ها مستقیم به deploy/bootstrap.sh پاس می‌شوند:
-#   --port --pg-password --database-url --admin-phone --admin-password
+#   --port --pg-password --database-url --admin-phone --admin-password --admin-email
 #   --no-admin --no-firewall --with-postgres --dry-run
 #   --tls --email --ssl-mode --dns-credentials
 #
@@ -26,16 +27,18 @@
 #   --ssl-mode cloudflare اختیاری — تمدید خودکار wildcard با پلاگین DNS کلادفلر
 #
 # متغیرهای محیطی:
-#   ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (وقتی خود اسکریپت با
-#                                  root اجرا می‌شود؛ با sudo معمولاً env_reset
-#                                  آن‌ها را حذف می‌کند — از پرچم‌ها استفاده کنید)
+#   ADMIN_PHONE / ADMIN_PASSWORD / ADMIN_EMAIL   ساخت سوپرادمین اولیه (وقتی خود
+#                                  اسکریپت با root اجرا می‌شود؛ با sudo معمولاً
+#                                  env_reset آن‌ها را حذف می‌کند — از پرچم‌ها
+#                                  استفاده کنید)
 #   NOBINO_REPO / NOBINO_BRANCH / NOBINO_APP_DIR
 #
-# مثال با سوپرادمین از پیش تعیین‌شده:
+# مثال با سوپرادمین از پیش تعیین‌شده و دو دامنه:
 #   curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
-#     --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
+#     --domain example.org --admin-phone 09121110000 --admin-password 'YourStrong#Pass' \
+#     --admin-email admin@example.com
 # (پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
-#  sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... node scripts/create-admin.mjs)
+#  sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... ADMIN_EMAIL=... node scripts/create-admin.mjs)
 #
 # SSL پیشنهادی: بعد از نصب، در ترمینال (گواهی wildcard از Let's Encrypt):
 #   sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
@@ -60,13 +63,14 @@ Nobino — نصب‌کنندهٔ تک‌خطی (Ubuntu/Debian)
 سرویس و سوپرادمین).
 
 گزینه‌ها:
-  --domain <دامنه>     اجباری — دامنهٔ سایت (مثلاً nobino.ir)
+  --domain <دامنه>     اجباری — دامنهٔ اصلی (مثلاً nobino.ir)؛ برای چند دامنه (alias)
+                       چند بار بدهید یا با کاما جدا کنید
   --app-dir <مسیر>     مسیر نصب (پیش‌فرض /opt/nobino)
   --branch <شاخه>      شاخهٔ گیت (پیش‌فرض master)
   -h, --help           همین راهنما
 
 بقیهٔ گزینه‌ها مستقیم به deploy/bootstrap.sh پاس می‌شوند:
-  --port --pg-password --database-url --admin-phone --admin-password
+  --port --pg-password --database-url --admin-phone --admin-password --admin-email
   --no-admin --no-firewall --with-postgres --dry-run
   --tls --email --ssl-mode --dns-credentials
 
@@ -76,14 +80,15 @@ SSL (گواهی همیشه از Let's Encrypt؛ با --tls --email):
   --ssl-mode cloudflare  اختیاری — تمدید خودکار با پلاگین DNS کلادفلر
 
 متغیرهای محیطی:
-  ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (وقتی با root اجرا شود)
+  ADMIN_PHONE / ADMIN_PASSWORD / ADMIN_EMAIL   ساخت سوپرادمین اولیه (وقتی با root اجرا شود)
   NOBINO_REPO / NOBINO_BRANCH / NOBINO_APP_DIR
 
-مثال با سوپرادمین از پیش تعیین‌شده:
+مثال با سوپرادمین از پیش تعیین‌شده و دو دامنه:
   curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
-    --admin-phone 09121110000 --admin-password 'YourStrong#Pass'
+    --domain example.org --admin-phone 09121110000 --admin-password 'YourStrong#Pass' \
+    --admin-email admin@example.com
 (پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
- sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... node scripts/create-admin.mjs)
+ sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... ADMIN_EMAIL=... node scripts/create-admin.mjs)
 
 SSL پیشنهادی (بعد از نصب، در ترمینال):
   sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com

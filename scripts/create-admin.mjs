@@ -1,15 +1,16 @@
 // ساخت اولین سوپرادمین (با موبایل و رمز دلخواه) — برای نصب‌های تازه روی سرور خام
 //
-//   node scripts/create-admin.mjs --phone 09121110000 --password "MyStr0ng!Pass" [--name "مدیر سایت"]
+//   node scripts/create-admin.mjs --phone 09121110000 --password "MyStr0ng!Pass" [--name "مدیر سایت"] [--email admin@example.com]
 //
 // رفتار:
 //   • اگر دیتابیس از قبل کاربر ADMIN فعالِ دارای رمز داشته باشد: فقط پیام می‌دهد و با کد ۰ خارج می‌شود
 //     (idempotent — رمز کسی را عوض نمی‌کند). مگر اینکه با --force-reset همان شماره داده شود.
-//   • اگر شماره داده‌شده وجود داشته باشد: نقش/رمز همان کاربر ارتقا پیدا می‌کند.
+//     اگر --email بدهید، ایمیل همان سوپرادمین موجود به‌روزرسانی می‌شود.
+//   • اگر شماره داده‌شده وجود داشته باشد: نقش/رمز/ایمیل همان کاربر ارتقا پیدا می‌کند.
 //   • در غیر این صورت کاربر ADMIN تازه می‌سازد.
 //   • .env از کنار همین مخزن یا APP_DIR خوانده می‌شود (برای DATABASE_URL).
 // رمز با همان الگوریتم backend/src/lib/auth/password.ts هش می‌شود: scrypt:<salt>:<hex>.
-// هشدار: رمز را تا می‌توانید از متغیرهای محیطی (ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_NAME)
+// هشدار: رمز را تا می‌توانید از متغیرهای محیطی (ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL/ADMIN_NAME)
 // بدهید تا در shell history نماند؛ bootstrap.sh خودش امن می‌پرسد.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -36,19 +37,20 @@ function loadEnv() {
   return null;
 }
 /** راهنما و پرچم‌های مجاز — قبل از هر کاری (حتی پیش از بررسی DATABASE_URL) */
-const KNOWN_FLAGS = ["phone", "password", "name", "force-reset"];
+const KNOWN_FLAGS = ["phone", "password", "name", "email", "force-reset"];
 function usage() {
-  console.log(`کاربرد: node scripts/create-admin.mjs --phone 09121110000 --password <رمز> [--name "مدیر سایت"] [--force-reset]
+  console.log(`کاربرد: node scripts/create-admin.mjs --phone 09121110000 --password <رمز> [--name "مدیر سایت"] [--email admin@example.com] [--force-reset]
 
   --phone <09xxxxxxxxx>   شمارهٔ سوپرادمین (یا متغیر محیطی ADMIN_PHONE)؛ رقم فارسی
                           و شکل 9xxxxxxxxx (بدون صفر) هم پذیرفته می‌شود
   --password <رمز>        رمز عبور، حداقل ۸ کاراکتر (یا ADMIN_PASSWORD)
   --name <نام>            نام نمایشی (پیش‌فرض: مدیر سایت / ADMIN_NAME)
+  --email <ایمیل>         ایمیل پروفایل سوپرادمین (اختیاری؛ یا ADMIN_EMAIL)
   --force-reset           بازنویسی رمز سوپرادمینِ همین شماره (فقط با --phone همان شماره)
   --help                  همین راهنما
 
 مثال (رمز از محیط، تا در تاریخچهٔ shell نماند):
-  ADMIN_PHONE=09121110000 ADMIN_PASSWORD='MyStr0ng!Pass' node scripts/create-admin.mjs`);
+  ADMIN_PHONE=09121110000 ADMIN_PASSWORD='MyStr0ng!Pass' ADMIN_EMAIL=admin@example.com node scripts/create-admin.mjs`);
 }
 const givenFlags = process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.slice(2).split("=")[0]);
 if (givenFlags.includes("help") || process.argv.slice(2).includes("-h")) {
@@ -84,10 +86,16 @@ let phone = asciiDigits(rawPhone).replace(/\D/g, "");
 if (/^9\d{9}$/.test(phone)) phone = `0${phone}`;
 const password = arg("password") || process.env.ADMIN_PASSWORD || "";
 const name = (arg("name") || process.env.ADMIN_NAME || "مدیر سایت").trim();
+const rawEmail = (arg("email") || process.env.ADMIN_EMAIL || "").trim();
+const email = rawEmail ? rawEmail.toLowerCase() : "";
 const FORCE_RESET = process.argv.includes("--force-reset");
 
 if (!/^0\d{10}$/.test(phone)) {
   console.error(`❌ شماره موبایل معتبر نیست: «${rawPhone || "(خالی)"}» — ۱۱ رقم با 0 (یا ۱۰ رقم بدون صفر)، مثلاً 09121110000.`);
+  process.exit(1);
+}
+if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+  console.error(`❌ ایمیل معتبر نیست: «${rawEmail}» — مثلاً admin@example.com.`);
   process.exit(1);
 }
 if (password.length < 8) {
@@ -102,6 +110,16 @@ function hashPassword(pw) {
 
 const { PrismaClient } = await import("@prisma/client");
 const prisma = new PrismaClient();
+
+/** اگر ایمیل به کاربر دیگری تعلق دارد، پیام خطا می‌دهد و true برمی‌گرداند. */
+async function emailTakenByOther(userId) {
+  if (!email) return false;
+  const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, phone: true } });
+  if (!owner || (userId && owner.id === userId)) return false;
+  console.error(`❌ ایمیل «${email}» قبلاً برای کاربر ${owner.phone} ثبت شده است (ستون User.email یکتاست).`);
+  process.exitCode = 1;
+  return true;
+}
 
 try {
   const existingAdmin = await prisma.user.findFirst({
@@ -120,6 +138,15 @@ try {
       } else {
         console.log(`ℹ️ سوپرادمین فعال از قبل وجود دارد (${existingAdmin.phone}). چیزی تغییر نکرد.`);
         console.log(`   اگر رمز آن را گم کرده‌اید: node scripts/create-admin.mjs --phone ${existingAdmin.phone} --password <رمز جدید> --force-reset`);
+        // ایمیل فقط اگر خواسته شده و با کاربر دیگری تداخل ندارد، به همان ادمین اضافه می‌شود.
+        if (email && !(await emailTakenByOther(existingAdmin.id))) {
+          if (existingAdmin.email !== email) {
+            await prisma.user.update({ where: { id: existingAdmin.id }, data: { email } });
+            console.log(`   ایمیل سوپرادمین موجود به «${email}» به‌روزرسانی شد.`);
+          } else {
+            console.log(`   ایمیل سوپرادمین موجود همان «${email}» است.`);
+          }
+        }
       }
       skip = true;
     } else {
@@ -128,22 +155,26 @@ try {
   }
 
   if (!skip) {
-    const hash = hashPassword(password);
     const current = await prisma.user.findUnique({ where: { phone } });
-    let result;
-    if (current) {
-      result = await prisma.user.update({
-        where: { phone },
-        data: { role: "ADMIN", passwordHash: hash, isActive: true, verifiedAt: current.verifiedAt ?? new Date(), name: current.name || name },
-      });
-      console.log(`✅ کاربر موجود «${phone}» به سوپرادمین ارتقا یافت.`);
+    if (await emailTakenByOther(current?.id)) {
+      // ایمیل به کاربر دیگری تعلق دارد؛ هیچ تغییری نده.
     } else {
-      result = await prisma.user.create({
-        data: { phone, name, role: "ADMIN", passwordHash: hash, verifiedAt: new Date(), isActive: true },
-      });
-      console.log(`✅ سوپرادمین تازه ساخته شد.`);
+      const hash = hashPassword(password);
+      let result;
+      if (current) {
+        result = await prisma.user.update({
+          where: { phone },
+          data: { role: "ADMIN", passwordHash: hash, isActive: true, verifiedAt: current.verifiedAt ?? new Date(), name: current.name || name, ...(email ? { email } : {}) },
+        });
+        console.log(`✅ کاربر موجود «${phone}» به سوپرادمین ارتقا یافت.`);
+      } else {
+        result = await prisma.user.create({
+          data: { phone, name, role: "ADMIN", passwordHash: hash, verifiedAt: new Date(), isActive: true, ...(email ? { email } : {}) },
+        });
+        console.log(`✅ سوپرادمین تازه ساخته شد.`);
+      }
+      console.log(`   شماره: ${result.phone}${email ? `\n   ایمیل:  ${email}` : ""}\n   با همان شماره/رمز در «ورود مدیران» وارد شوید.\n   (env: ${envPath ?? "متغیرهای محیطی"})`);
     }
-    console.log(`   شماره: ${result.phone}\n   با همان شماره/رمز در «ورود مدیران» وارد شوید.\n   (env: ${envPath ?? "متغیرهای محیطی"})`);
   }
 } catch (e) {
   console.error(`❌ خطا: ${e?.message ?? e}`);
