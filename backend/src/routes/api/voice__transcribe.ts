@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { transcribeWithFallback, type SttProvider } from "@/lib/ai/stt";
 import { extractAppointment, extractSingleField, type ExtractedAppointment, type ExtractedField } from "@/lib/ai/parser";
+import { isAnyStaffPhrase, matchService, matchStaff, type CatalogItem } from "@/lib/ai/catalog-match";
 import { mergeExtracted } from "@/lib/ai/merge";
 import { storeFile } from "@/lib/storage";
 import { withinLimit } from "@/lib/plans/limits";
@@ -15,7 +16,37 @@ import {
   type AudioMime,
 } from "@/lib/upload-validation";
 
-const FIELDS: ExtractedField[] = ["name", "phone", "service", "date", "time"];
+const FIELDS: ExtractedField[] = ["name", "phone", "service", "staff", "date", "time"];
+
+type StaffRow = { id: string; name: string; serviceIds: string[] };
+
+/**
+ * پکیج و آرایشگرِ گفته‌شده را به شناسهٔ واقعیِ همان سالن نگاشت می‌کند.
+ * پکیج اجباری است: اگر تطبیق مبهم باشد (چند گزینه هم‌امتیاز) شناسه خالی می‌ماند و
+ * فهرست گزینه‌ها برمی‌گردد تا مشتری خودش انتخاب کند — نه اینکه یکی به‌زور ثبت شود.
+ * آرایشگر اختیاری است و فقط از میان کسانی که آن پکیج را انجام می‌دهند انتخاب می‌شود.
+ */
+function resolveCatalog(
+  extracted: Partial<ExtractedAppointment>,
+  transcript: string,
+  services: CatalogItem[],
+  staff: StaffRow[]
+) {
+  const serviceMatch = extracted.service ? matchService(extracted.service, services) : null;
+  const serviceId = serviceMatch && !serviceMatch.ambiguous ? serviceMatch.id : "";
+  const eligible = staff.filter((s) => !serviceId || s.serviceIds.length === 0 || s.serviceIds.includes(serviceId));
+  const staffMatch = extracted.staff
+    ? matchStaff(extracted.staff, eligible, { exclude: [extracted.name ?? ""] })
+    : null;
+  const staffId = staffMatch && !staffMatch.ambiguous ? staffMatch.id : "";
+  return {
+    serviceId,
+    staffId,
+    staffAny: isAnyStaffPhrase(transcript) || isAnyStaffPhrase(extracted.staff ?? ""),
+    serviceCandidates: serviceMatch?.ambiguous ? serviceMatch.candidates : [],
+    staffCandidates: staffMatch?.ambiguous ? staffMatch.candidates : [],
+  };
+}
 
 /** فرمت‌های صوتی مجاز — MediaRecorder مرورگرها معمولاً webm یا mp4 می‌دهد */
 const AUDIO_TYPES: readonly AudioMime[] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/aac"];
@@ -119,13 +150,21 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       provider = "text";
     }
 
-    // خدمات واقعی سالن برای تطبیق دقیق‌تر سرویس در استخراج
+    // کاتالوگ واقعی سالن: پکیج‌ها و آرایشگرها — تطبیق گفتار فقط با همین‌ها انجام می‌شود
     const services = await prisma.service.findMany({
       where: { salonId, isActive: true },
-      select: { name: true },
+      select: { id: true, name: true },
       orderBy: { name: "asc" },
     });
     const serviceNames = services.map((s) => s.name);
+    const staffRows = await prisma.staff.findMany({
+      where: { salonId, isActive: true },
+      select: { id: true, name: true, services: { select: { id: true } } },
+      orderBy: { name: "asc" },
+      take: 60,
+    });
+    const staff: StaffRow[] = staffRows.map((s) => ({ id: s.id, name: s.name, serviceIds: s.services.map((x) => x.id) }));
+    const staffNames = staff.map((s) => s.name);
 
     // ── حالت پرسش مجدد: فقط یک فیلد از صوت کوتاه استخراج و ادغام می‌شود ──
     if (field) {
@@ -139,6 +178,8 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       const single = await extractSingleField(field as ExtractedField, transcript, {
         timezone: salon.timezone,
         serviceNames,
+        staffNames,
+        customerName: partial.name,
       });
       const value = single[field as ExtractedField] as string | undefined;
       const extracted: Partial<ExtractedAppointment> = mergeExtracted(partial, value ? ({ [field]: value } as Partial<ExtractedAppointment>) : {});
@@ -184,6 +225,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
         field,
         fieldValue: value ?? null,
         extracted,
+        ...resolveCatalog(extracted, transcript, services, staff),
         salon: { id: salon.id, name: salon.name, slug: salon.slug },
       });
     }
@@ -200,11 +242,6 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       },
     });
 
-    const fresh = await extractAppointment(transcript, {
-      timezone: salon.timezone,
-      serviceNames,
-    });
-
     // اگر این برش ادامهٔ یک گفتگوی نیمه‌تمام باشد (متن/فایل بعد از ضبط‌های قبلی)،
     // مقادیر تازه فقط فیلدهای پرشده را جایگزین نتیجهٔ پیشین می‌کنند.
     let prior: Partial<ExtractedAppointment> = {};
@@ -213,7 +250,16 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
     } catch {
       prior = {};
     }
+
+    const fresh = await extractAppointment(transcript, {
+      timezone: salon.timezone,
+      serviceNames,
+      staffNames,
+      customerName: prior.name,
+    });
     const extracted = mergeExtracted(prior, fresh);
+    // «آرایشگر فرقی نمی‌کند» در برش تازه، ترجیحِ برش قبلی را هم پاک می‌کند
+    if (isAnyStaffPhrase(transcript)) delete extracted.staff;
 
     await prisma.voiceCall.update({
       where: { id: voiceCall.id },
@@ -230,6 +276,7 @@ export async function POST(req: Request, _ctx: { params: Record<string, string> 
       transcript,
       provider,
       extracted,
+      ...resolveCatalog(extracted, transcript, services, staff),
       salon: { id: salon.id, name: salon.name, slug: salon.slug },
     });
   } catch (err) {
