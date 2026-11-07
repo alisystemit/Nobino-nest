@@ -158,7 +158,10 @@ function mergeSplitHundreds(tokens: SpeechToken[]): SpeechToken[] {
     }
     if (token.value === "صد" && prevWord >= 0) {
       const prev = NUMBER_WORDS[out[prevWord].value];
-      if (prev?.cls === "unit" && prev.value >= 1 && prev.value <= 9) {
+      // «بیست و یک صد و ده» یعنی ۹۲۱ و ۱۱۰؛ «یک» پایانِ گروه قبلی است،
+      // نه شروع «یکصد». فقط «نه صد»ِ چسبیده (بدون «و» قبلش) ادغام می‌شود.
+      const afterAnd = out[prevWord - 1]?.kind === "word" && out[prevWord - 1].value === "و";
+      if (prev?.cls === "unit" && prev.value >= 1 && prev.value <= 9 && !afterAnd) {
         out[prevWord] = { kind: "word", value: HUNDRED_WORD_BY_UNIT[prev.value] };
         continue;
       }
