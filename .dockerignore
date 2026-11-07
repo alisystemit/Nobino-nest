@@ -25,6 +25,9 @@ public/voice/*
 !public/uploads/.gitkeep
 !public/voice/.gitkeep
 
+# مدل محلی ASR (چند صد مگابایت) — با volume سوار می‌شود، نه داخل ایمیج
+models/
+
 # فایل‌های توسعه/تست محلی
 coverage
 temp-patches/

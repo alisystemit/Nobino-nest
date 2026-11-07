@@ -1,26 +1,31 @@
 import { getSetting, settingOrEnv } from "@/lib/settings";
+import { localAsrStatus, transcribeLocal } from "@/lib/ai/asr-local";
 
 /**
  * زنجیره ربات‌های تبدیل گفتار به متن (STT) با fallback.
  *
- * ترتیب پیش‌فرض: ربات‌های رایگان اول (Groq → HuggingFace → Cloudflare → Deepgram)
- * و بعد سرویس‌های پولی (OpenAI). اگر هر ربات در دسترس نبود (کلید نداشت،
- * محدودیت نرخ داشت یا خطا داد) به ربات بعدی می‌رود و در پایان از Mock محلی
- * استفاده می‌کند تا ثبت نوبت هرگز به‌خاطر قطعی سرویس شکست نخورد.
+ * ترتیب پیش‌فرض: مدل محلی Shenava (بدون هزینه و بدون اینترنت) → ربات‌های رایگان
+ * (Groq → HuggingFace → Cloudflare → Deepgram) → سرویس پولی (OpenAI). اگر هر ربات
+ * در دسترس نبود (مدل/کلید نداشت، محدودیت نرخ داشت یا خطا داد) به ربات بعدی می‌رود
+ * و در پایان از Mock محلی استفاده می‌کند تا ثبت نوبت هرگز به‌خاطر قطعی سرویس
+ * شکست نخورد.
  *
  * ترتیب را می‌توان از تنظیمات `stt.order` (با کاما) تغییر داد.
  * فعال/غیرفعال کردن هر ربات: `stt.<id>.enabled` = true|false
  */
 
-export type SttProvider = "openai" | "groq" | "huggingface" | "cloudflare" | "deepgram" | "mock";
+export type SttProvider = "local" | "openai" | "groq" | "huggingface" | "cloudflare" | "deepgram" | "mock";
 
 type ProviderDef = {
   id: Exclude<SttProvider, "mock">;
   label: string;
   free: boolean;
-  envKey: string;
+  /** کلید محیطی معادل (اگر ربات کلید داشته باشد) */
+  envKey?: string;
   /** کلیدهای لازم؛ اگر همه خالی باشند ربات نادیده گرفته می‌شود */
   requiredSettings: string[];
+  /** بررسی اختصاصی دسترس‌پذیری — برای ربات‌هایی مثل مدل محلی که کلید API ندارند */
+  available?: () => Promise<{ ok: boolean; reason?: string }>;
   transcribe: (audio: Uint8Array, filename: string, mime: string) => Promise<string>;
 };
 
@@ -29,6 +34,17 @@ async function secret(key: string, envKey?: string): Promise<string | undefined>
 }
 
 const PROVIDERS: ProviderDef[] = [
+  {
+    id: "local",
+    label: "Shenava محلی (آفلاین)",
+    free: true,
+    requiredSettings: [],
+    available: () => localAsrStatus(),
+    async transcribe(audio) {
+      // تنظیمات (مسیر مدل، ffmpeg و تعداد ترد) داخل asr-local خوانده می‌شود
+      return transcribeLocal(audio);
+    },
+  },
   {
     id: "groq",
     label: "Groq Whisper (رایگان)",
@@ -153,7 +169,7 @@ const PROVIDERS: ProviderDef[] = [
   },
 ];
 
-const DEFAULT_ORDER: SttProvider[] = ["groq", "huggingface", "cloudflare", "deepgram", "openai"];
+const DEFAULT_ORDER: SttProvider[] = ["local", "groq", "huggingface", "cloudflare", "deepgram", "openai"];
 
 /**
  * توصیف فیلدهای پیکربندی هر ربات STT برای پنل تنظیمات (منبع واحد حقیقت).
@@ -171,12 +187,46 @@ export interface SttProviderMeta {
   id: Exclude<SttProvider, "mock">;
   label: string;
   free: boolean;
+  /** توضیح کارت در پنل تنظیمات (اختیاری؛ پیش‌فرض بر اساس free ساخته می‌شود) */
+  description?: string;
   /** مدل پیش‌فرض اگر فیلد model خالی بماند */
   modelDefault?: string;
+  /** فیلد «مدل» خودکار ساخته نشود (ربات‌های غیر API مثل مدل محلی) */
+  hideModelField?: boolean;
   fields: SttFieldMeta[];
 }
 
 export const sttProviderMeta: SttProviderMeta[] = [
+  {
+    id: "local",
+    label: "Shenava محلی (آفلاین)",
+    free: true,
+    description:
+      "مدل ۱۱۴M «شنوا کوچیک» با sherpa-onnx داخل خودِ بک‌اند اجرا می‌شود: بدون API، بدون هزینه و بدون اینترنت. مدل و ffmpeg در بوت خودکار آماده می‌شوند (AUTO_ASR=0 آن را خاموش می‌کند)؛ نیازی به نصب روی دستگاه کاربران نیست.",
+    hideModelField: true,
+    fields: [
+      {
+        key: "stt.local.model_dir",
+        label: "پوشهٔ مدل",
+        type: "string",
+        env: "SHENAVA_MODEL_DIR",
+        placeholder: "models/shenava-koochik-v1.0-sherpa-onnx",
+      },
+      {
+        key: "stt.local.num_threads",
+        label: "تعداد ترد CPU",
+        type: "string",
+        placeholder: "2",
+      },
+      {
+        key: "stt.local.ffmpeg",
+        label: "مسیر ffmpeg (اختیاری)",
+        type: "string",
+        env: "FFMPEG_PATH",
+        placeholder: "خالی = models/.bin یا ffmpeg در PATH",
+      },
+    ],
+  },
   {
     id: "groq",
     label: "Groq Whisper (رایگان)",
@@ -236,6 +286,14 @@ export const sttEnabledKey = (id: string) => `stt.${id}.enabled`;
 async function isAvailable(def: ProviderDef): Promise<boolean> {
   const enabled = await getSetting(`stt.${def.id}.enabled`);
   if (enabled === "false") return false;
+  if (def.available) {
+    try {
+      return (await def.available()).ok;
+    } catch {
+      return false;
+    }
+  }
+  if (!def.requiredSettings.length) return true;
   const primary = await secret(def.requiredSettings[0], def.envKey);
   if (!primary) return false;
   for (const key of def.requiredSettings.slice(1)) {
@@ -246,13 +304,19 @@ async function isAvailable(def: ProviderDef): Promise<boolean> {
 
 async function resolveOrder(): Promise<ProviderDef[]> {
   const raw = await getSetting("stt.order");
-  if (!raw) return PROVIDERS.filter((p) => DEFAULT_ORDER.includes(p.id)).sort(
-    (a, b) => DEFAULT_ORDER.indexOf(a.id) - DEFAULT_ORDER.indexOf(b.id)
-  );
+  const defaultOrder = () =>
+    PROVIDERS.filter((p) => DEFAULT_ORDER.includes(p.id)).sort(
+      (a, b) => DEFAULT_ORDER.indexOf(a.id) - DEFAULT_ORDER.indexOf(b.id)
+    );
+  if (!raw) return defaultOrder();
   const wanted = raw
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+  // نصب‌های قدیمی همین مقدار پیش‌فرض را دارند و مدل محلی در آن نیست؛ چون local
+  // بعداً اضافه شده، بدون نیاز به seed/تغییر دستی آن را اول می‌بریم. هر ترتیب
+  // دیگری (سلیقهٔ ادمین) دست‌نخورده می‌ماند و local در انتها اضافه می‌شود.
+  if (wanted.join(",") === "groq,huggingface,cloudflare,deepgram,openai") return defaultOrder();
   const ordered: ProviderDef[] = [];
   for (const id of wanted) {
     const found = PROVIDERS.find((p) => p.id === id);
@@ -265,11 +329,20 @@ async function resolveOrder(): Promise<ProviderDef[]> {
 
 /** فهرست وضعیت ربات‌های STT برای نمایش در پنل تنظیمات */
 export async function listSttProviders(): Promise<
-  { id: SttProvider; label: string; free: boolean; configured: boolean }[]
+  { id: SttProvider; label: string; free: boolean; configured: boolean; reason?: string }[]
 > {
-  const out: { id: SttProvider; label: string; free: boolean; configured: boolean }[] = [];
+  const out: { id: SttProvider; label: string; free: boolean; configured: boolean; reason?: string }[] = [];
   for (const def of await resolveOrder()) {
-    out.push({ id: def.id, label: def.label, free: def.free, configured: await isAvailable(def) });
+    const configured = await isAvailable(def);
+    let reason: string | undefined;
+    if (!configured && def.available) {
+      try {
+        reason = (await def.available()).reason;
+      } catch {
+        reason = undefined;
+      }
+    }
+    out.push({ id: def.id, label: def.label, free: def.free, configured, reason });
   }
   out.push({ id: "mock", label: "Mock محلی (همیشه در دسترس)", free: true, configured: true });
   return out;
@@ -292,7 +365,15 @@ export async function transcribeWithFallback(
 
   for (const def of await resolveOrder()) {
     if (!(await isAvailable(def))) {
-      errors.push(`${def.id}: تنظیم نشده`);
+      let why = "تنظیم نشده";
+      if (def.available) {
+        try {
+          why = (await def.available()).reason ?? "در دسترس نیست";
+        } catch {
+          why = "در دسترس نیست";
+        }
+      }
+      errors.push(`${def.id}: ${why}`);
       continue;
     }
     // تلاش دوباره کوتاه برای خطاهای موقت (محدودیت نرخ/شبکه)

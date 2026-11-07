@@ -36,6 +36,10 @@ public/voice/*
 !public/uploads/.gitkeep
 !public/voice/.gitkeep
 
+# مدل‌های محلی گفتار (ASR) — چند صد مگابایت؛ با `npm run asr:model` دانلود می‌شوند
+/models/*
+!/models/README.md
+
 # خروجی بیلد مینی‌اپ برای بسته‌بندی APK (از بیرون مخزن تولید/مصرف می‌شود)
 frontend/dist-apk/
 

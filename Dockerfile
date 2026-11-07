@@ -80,9 +80,13 @@ COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/public ./public
 
 # کاربر غیرریشه + دسترسی نوشتن روی public/uploads
-RUN groupadd --system --gid 1001 nobino \
+# ffmpeg برای تبدیل صدای webm/ogg/mp4 (خروجی MediaRecorder) به PCM مدل محلی لازم است
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 1001 nobino \
  && useradd --system --uid 1001 --gid 1001 --home-dir /app --shell /usr/sbin/nologin nobino \
- && mkdir -p /app/public/uploads /app/public/voice \
+ && mkdir -p /app/public/uploads /app/public/voice /app/models \
  && chown -R nobino:nobino /app
 USER nobino
 

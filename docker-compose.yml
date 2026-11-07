@@ -63,6 +63,10 @@ services:
       # آپلودهای محلی (اگر BLOB_READ_WRITE_TOKEN ست نشده باشد) بین restartها می‌مانند
       - uploads:/app/public/uploads
       - voice:/app/public/voice
+      # مدل محلی ASR (Shenava/sherpa-onnx) — در اولین بوت خودکار دانلود و اینجا
+      # نگه‌داری می‌شود؛ نیازی به دانلود دستی روی میزبان نیست. (جایگزین: bind mount
+      # ./models:/app/models با مالکیت قابل‌نوشتن برای uid=1001)
+      - asr_models:/app/models
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -74,3 +78,4 @@ volumes:
   pgdata:
   uploads:
   voice:
+  asr_models:
