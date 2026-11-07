@@ -17,7 +17,7 @@
 #      با --no-firewall کلاً دست نمی‌زند)
 #   ۷) در پایان deploy/install.sh را کامل اجرا می‌کند (بیلد + PM2 + nginx + سلامت)
 #   ۷.۵) اگر --tls بدهید، deploy/ssl.sh گواهی Let's Encrypt می‌گیرد و
-#      بلوک HTTPS را در nginx فعال می‌کند (wildcard با DNS یا Cloudflare)
+#      بلوک HTTPS را در nginx فعال می‌کند (پیش‌فرض wildcard با چالش DNS)
 #   ۸) ساخت اولین سوپرادمین با موبایل/رمز دلخواه (اگر دیتابیس خالی باشد؛
 #      با --admin-phone/--admin-password بدون پرسش، یا در پایان خودکار می‌پرسد)
 #
@@ -39,8 +39,8 @@
 #   --with-postgres       حتی اگر Postgres هست، یوزر/دیتابیس nobino بساز (بدون نصب دوباره)
 #   --tls                 بعد از نصب SSL بگیر و HTTPS را فعال کن (نیازمند --email)
 #   --email <ایمیل>       ایمیل حساب ACME برای Let's Encrypt
-#   --ssl-mode <حالت>     dns (پیش‌فرض، wildcard تعاملی) | cloudflare | http
-#   --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (برای ssl-mode=cloudflare)
+#   --ssl-mode <حالت>     dns (پیش‌فرض، wildcard تعاملی) | http | cloudflare (اختیاری)
+#   --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (فقط ssl-mode=cloudflare)
 #   --dry-run             فرمان‌های تغییردهنده فقط چاپ می‌شوند
 #
 # امنیت: هیچ داده‌ای به بیرون ارسال نمی‌شود. رمزها فقط در همین سرور
@@ -346,19 +346,25 @@ run bash "$APP_DIR/deploy/install.sh" "${INSTALL_ARGS[@]}"
 
 # ── ۸.۵) SSL / HTTPS ────────────────────────────────────────────────
 if $ENABLE_TLS; then
-  say "— ۸.۵) دریافت گواهی SSL و فعال‌سازی HTTPS —"
-  if [[ -z "$SSL_EMAIL" ]]; then
-    warn "  --email داده نشده؛ ادامه می‌دهیم ولی هشدار انقضای گواهی به شما نمی‌رسد."
-  fi
-  SSL_ARGS=(--domain "$DOMAIN" --app-dir "$APP_DIR" --mode "$SSL_MODE")
-  [[ -n "$SSL_EMAIL" ]] && SSL_ARGS+=(--email "$SSL_EMAIL")
-  [[ -n "$DNS_CREDENTIALS" ]] && SSL_ARGS+=(--dns-credentials "$DNS_CREDENTIALS")
-  $DRY_RUN && SSL_ARGS+=(--dry-run)
-  if bash "$APP_DIR/deploy/ssl.sh" "${SSL_ARGS[@]}"; then
-    TLS_READY=true
+  if [[ "$SSL_MODE" == "dns" ]] && ! $DRY_RUN && [[ ! -t 0 ]]; then
+    warn "  حالت DNS تعاملی است و در اجرای pipe (curl | bash) کار نمی‌کند؛ مرحلهٔ SSL رد شد."
+    warn "  بعد از نصب در ترمینال اجرا کنید: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
+    warn "  یا برای فقط دامنهٔ ریشه به‌صورت غیرتعاملی: --ssl-mode http"
   else
-    warn "  دریافت SSL ناموفق بود؛ سایت روی HTTP بالا است."
-    warn "  بعداً در ترمینال: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
+    say "— ۸.۵) دریافت گواهی SSL و فعال‌سازی HTTPS (Let's Encrypt) —"
+    if [[ -z "$SSL_EMAIL" ]]; then
+      warn "  --email داده نشده؛ ادامه می‌دهیم ولی هشدار انقضای گواهی به شما نمی‌رسد."
+    fi
+    SSL_ARGS=(--domain "$DOMAIN" --app-dir "$APP_DIR" --mode "$SSL_MODE")
+    [[ -n "$SSL_EMAIL" ]] && SSL_ARGS+=(--email "$SSL_EMAIL")
+    [[ -n "$DNS_CREDENTIALS" ]] && SSL_ARGS+=(--dns-credentials "$DNS_CREDENTIALS")
+    $DRY_RUN && SSL_ARGS+=(--dry-run)
+    if bash "$APP_DIR/deploy/ssl.sh" "${SSL_ARGS[@]}"; then
+      TLS_READY=true
+    else
+      warn "  دریافت SSL ناموفق بود؛ سایت روی HTTP بالا است."
+      warn "  بعداً در ترمینال: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
+    fi
   fi
 fi
 
@@ -418,11 +424,11 @@ say ""
 say "  باقی‌ماندهٔ دستی (اختیاری):"
 say "    ۱) DNS: A برای $DOMAIN و *.${DOMAIN} به IP همین سرور"
 if $TLS_READY; then
-  say "    ۲) HTTPS فعال شد. بررسی تمدید: sudo certbot renew --dry-run"
-  say "        (برای تمدید خودکار wildcard از --ssl-mode cloudflare استفاده کنید.)"
+  say "    ۲) HTTPS فعال شد (Let's Encrypt). بررسی تمدید: sudo certbot renew --dry-run"
+  say "        (تمدید خودکار wildcard اختیاری است و به پلاگین DNS نیاز دارد.)"
 else
   say "    ۲) HTTPS: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
-  say "        حالت‌ها: dns (wildcard تعاملی) | cloudflare (خودکار) | http (فقط دامنهٔ ریشه)"
+  say "        پیش‌فرض: wildcard با چالش DNS از Let's Encrypt | http: فقط دامنهٔ ریشه"
 fi
 say "    ۳) پنل سوپرادمین: /api/health را چک، سپس در «تنظیمات سیستم» درگاه پرداخت/پیامک/کلیدها را کامل کنید"
 say "        (SMS، پرداخت و صدای هوشمند عمداً خالی‌اند تا نصب بدون کلید هم بالا بیاید.)"

@@ -8,10 +8,10 @@
 # چون ساب‌دامین سالن‌ها (mah.nobino.ir) هم باید معتبر باشند، گواهی wildcard
 # لازم است و چالش DNS تنها راه بدون دسترسی به هر ساب‌دامین است.
 #
-# حالت‌ها (--mode):
+# حالت‌ها (--mode) — گواهی همیشه از Let's Encrypt گرفته می‌شود:
 #   dns         گواهی wildcard با چالش DNS دستی (تعاملی؛ تمدید خودکار ندارد)
-#   cloudflare  گواهی wildcard خودکار با API توکن Cloudflare (تمدید خودکار)
 #   http        فقط دامنهٔ ریشه با چالش HTTP-01 (ساب‌دامین‌ها پوشش داده نمی‌شوند)
+#   cloudflare  اختیاری — wildcard خودکار با پلاگین DNS کلادفلر (تمدید خودکار)
 #
 # گزینه‌ها:
 #   --domain <دامنه>          دامنهٔ ریشه (پیش‌فرض: ROOT_DOMAIN در .env)
@@ -51,23 +51,26 @@ Nobino — دریافت گواهی SSL و فعال‌سازی HTTPS
 
   sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com
 
-حالت‌ها (--mode):
-  dns         wildcard با چالش DNS دستی (پیش‌فرض، تعاملی)
-  cloudflare  wildcard خودکار با API توکن Cloudflare (تمدید خودکار)
+حالت‌ها (--mode) — گواهی در همهٔ حالت‌ها از Let's Encrypt صادر می‌شود:
+  dns         wildcard با چالش DNS دستی (پیش‌فرض، تعاملی، بدون تمدید خودکار)
   http        فقط دامنهٔ ریشه با HTTP-01 (ساب‌دامین‌ها پوشش داده نمی‌شوند)
+  cloudflare  اختیاری — wildcard خودکار با پلاگین DNS کلادفلر (تمدید خودکار)
 
 گزینه‌ها:
   --domain <دامنه>          پیش‌فرض: ROOT_DOMAIN در .env
   --email <ایمیل>           ایمیل حساب ACME
   --app-dir <مسیر>          پیش‌فرض: ریشهٔ همین مخزن
-  --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare
+  --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (فقط حالت cloudflare)
   --staging                 محیط staging لتس‌انکریپت (برای تست)
   --force                   صدور مجدد گواهی موجود
   --skip-nginx              بازسازی vhost را رد کن
   --dry-run                 فقط چاپ فرمان‌ها
   -h, --help                همین راهنما
 
-نمونهٔ Cloudflare:
+نمونهٔ پیشنهادی (wildcard، Let's Encrypt):
+  sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com
+
+نمونهٔ اختیاری Cloudflare (تمدید خودکار):
   printf 'dns_cloudflare_api_token = %s\n' "$CF_TOKEN" | sudo tee /etc/letsencrypt/cloudflare.ini
   sudo chmod 600 /etc/letsencrypt/cloudflare.ini
   sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com \
@@ -263,7 +266,7 @@ fi
 # ── زمان‌بند تمدید ──────────────────────────────────────────────────
 if [[ "$MODE" == "dns" ]]; then
   warn "گواهی DNS دستی تمدید خودکار ندارد؛ هر ~۹۰ روز همین فرمان را دوباره اجرا کنید."
-  warn "برای تمدید خودکار از --mode cloudflare (یا DNS plugin دیگر) استفاده کنید."
+  warn "برای تمدید خودکار از یک پلاگین DNS (مثلاً --mode cloudflare) استفاده کنید."
 elif ! $DRY_RUN; then
   if $IS_SNAP_CERTBOT; then
     if systemctl is-active --quiet snap.certbot.renew.timer 2>/dev/null; then

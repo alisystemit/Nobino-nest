@@ -17,14 +17,15 @@ curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/inst
 > گزینه‌ها (`--app-dir`، `--branch`، `--port`، `--admin-phone`، …) و آموزش کامل
 > نصب در [`README.md`](../README.md) آمده است.
 
-**همان نصب + SSL خودکار (wildcard با Cloudflare):**
+**افزودن SSL بعد از نصب (Let's Encrypt، wildcard با چالش DNS):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh \
-  | sudo bash -s -- --domain nobino.ir --tls --email you@example.com \
-      --ssl-mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
+sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com
 ```
-> برای چالش DNS دستی (بدون API) `--ssl-mode dns` بدهید؛ این حالت تعاملی است و
-> باید در ترمینال اجرا شود. جزئیات و کانفیگ nginx: بخش «SSL» در README.
+> باید در ترمینال (تعاملی) اجرا شود تا دو رکورد TXT چالش DNS را ثبت کنید.
+> گواهی مستقیماً از Let's Encrypt گرفته می‌شود و به Cloudflare یا سرویس دیگری
+> وابسته نیست. برای دامنهٔ ریشه به‌صورت غیرتعاملی: `--mode http` (ساب‌دامین‌ها
+> پوشش داده نمی‌شوند). تمدید خودکار اختیاری با پلاگین DNS (مثلاً Cloudflare).
+> جزئیات و کانفیگ nginx: بخش «SSL» در README.
 
 **VPS کاملاً خام (Ubuntu/Debian بدون هیچ چیزی) — نصب صفر‌تا‌صد:**
 ```bash
@@ -204,16 +205,17 @@ ADMIN_PASSWORD='رمز#جدید' node scripts/create-admin.mjs --phone <همان
 
 **SSL / HTTPS (بعد از نصب):**
 ```bash
-# wildcard با Cloudflare (خودکار + تمدید خودکار):
-sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com \
-     --mode cloudflare --dns-credentials /etc/letsencrypt/cloudflare.ini
+# گواهی wildcard از Let's Encrypt با چالش DNS (تعاملی، پیش‌فرض):
+sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com
 
-# یا wildcard با چالش DNS دستی (تعاملی، بدون تمدید خودکار):
-sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com --mode dns
+# فقط دامنهٔ ریشه و غیرتعاملی (ساب‌دامین‌ها پوشش داده نمی‌شوند):
+sudo bash /opt/nobino/deploy/ssl.sh --domain nobino.ir --email you@example.com --mode http
 ```
-> اسکریپت گواهی را می‌گیرد، هوک تمدید را نصب می‌کند و vhost را با بلوک ۴۴۳
-> بازسازی می‌کند (`deploy/nginx/nobino.tls.conf.snippet`). کانفیگ کامل nginx و
-> عیب‌یابی در بخش SSL فایل [`README.md`](../README.md) آمده است.
+> گواهی همیشه از Let's Encrypt صادر می‌شود. تمدید خودکار wildcard اختیاری است و
+> به پلاگین DNS ارائه‌دهندهٔ شما نیاز دارد (مثلاً `--mode cloudflare`).
+> اسکریپت هوک تمدید را نصب می‌کند و vhost را با بلوک ۴۴۳ بازسازی می‌کند
+> (`deploy/nginx/nobino.tls.conf.snippet`). کانفیگ کامل nginx و عیب‌یابی در بخش
+> SSL فایل [`README.md`](../README.md) آمده است.
 
 **بازگشت به حالت قبل (بدون حذف اپ‌های دیگر):**
 ```bash

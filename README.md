@@ -484,10 +484,10 @@ echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/
 |---|---|---|
 | `DNS problem: NXDOMAIN` | رکورد DNS هنوز منتشر نشده | `dig +short _acme-challenge.example.com TXT` و چند دقیقه صبر |
 | `nginx: cannot load certificate` | مسیر گواهی غلط یا گواهی صادر نشده | `ls /etc/letsencrypt/live/example.com/` و اجرای دوبارهٔ `install.sh --tls` |
-| خطای گواهی روی `mah.example.com` | گواهی wildcard صادر نشده | `--mode dns` یا `--mode cloudflare` (نه `http`) |
+| خطای گواهی روی `mah.example.com` | گواهی wildcard صادر نشده | `--mode dns` (یا در صورت استفاده از Cloudflare، `--mode cloudflare`) — نه `http` |
 | `403` روی `/.well-known/acme-challenge` | ریشهٔ اشتباه یا پورت ۸۰ بسته | بلوک ACME در nginx و `ufw allow 80` |
 | `ERR_TOO_MANY_REDIRECTS` | `SITE_URL` ناهماهنگ یا گواهی نصب‌نشده | `SITE_URL=https://example.com` و اجرای `install.sh --tls` |
-| تمدید خودکار اجرا نمی‌شود | حالت `dns` دستی | به `cloudflare` مهاجرت کنید یا هر ۹۰ روز دستی تمدید کنید |
+| تمدید خودکار اجرا نمی‌شود | حالت `dns` دستی | هر ۹۰ روز دستی تمدید کنید یا (اختیاری) از پلاگین DNS مانند `cloudflare` استفاده کنید |
 
 > بعد از فعال‌سازی HTTPS، در `.env` مقدار `SITE_URL` و `APP_URL` را
 > `https://example.com` بگذارید و سرویس را restart کنید. کوکی نشست به‌صورت

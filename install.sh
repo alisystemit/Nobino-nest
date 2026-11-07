@@ -20,10 +20,10 @@
 #   --no-admin --no-firewall --with-postgres --dry-run
 #   --tls --email --ssl-mode --dns-credentials
 #
-# SSL: با --tls و --email، گواهی Let's Encrypt گرفته و HTTPS فعال می‌شود.
+# SSL: گواهی همیشه از Let's Encrypt گرفته می‌شود.
 #   --ssl-mode dns        wildcard با چالش DNS دستی (تعاملی؛ در pipe کار نمی‌کند)
-#   --ssl-mode cloudflare wildcard خودکار با فایل اعتبارنامهٔ Cloudflare
-#   --ssl-mode http       فقط دامنهٔ ریشه با HTTP-01
+#   --ssl-mode http       فقط دامنهٔ ریشه با HTTP-01 (غیرتعاملی)
+#   --ssl-mode cloudflare اختیاری — تمدید خودکار wildcard با پلاگین DNS کلادفلر
 #
 # متغیرهای محیطی:
 #   ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (وقتی خود اسکریپت با
@@ -37,10 +37,8 @@
 # (پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
 #  sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... node scripts/create-admin.mjs)
 #
-# مثال نصب + SSL خودکار (Cloudflare):
-#   curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
-#     --tls --email you@example.com --ssl-mode cloudflare \
-#     --dns-credentials /etc/letsencrypt/cloudflare.ini
+# SSL پیشنهادی: بعد از نصب، در ترمینال (گواهی wildcard از Let's Encrypt):
+#   sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
 # =====================================================================
 set -euo pipefail
 
@@ -72,10 +70,10 @@ Nobino — نصب‌کنندهٔ تک‌خطی (Ubuntu/Debian)
   --no-admin --no-firewall --with-postgres --dry-run
   --tls --email --ssl-mode --dns-credentials
 
-SSL (با --tls --email):
+SSL (گواهی همیشه از Let's Encrypt؛ با --tls --email):
   --ssl-mode dns         wildcard با چالش DNS دستی (تعاملی؛ در pipe نه)
-  --ssl-mode cloudflare  wildcard خودکار با --dns-credentials
-  --ssl-mode http        فقط دامنهٔ ریشه با HTTP-01
+  --ssl-mode http        فقط دامنهٔ ریشه با HTTP-01 (غیرتعاملی)
+  --ssl-mode cloudflare  اختیاری — تمدید خودکار با پلاگین DNS کلادفلر
 
 متغیرهای محیطی:
   ADMIN_PHONE / ADMIN_PASSWORD   ساخت سوپرادمین اولیه (وقتی با root اجرا شود)
@@ -87,10 +85,8 @@ SSL (با --tls --email):
 (پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
  sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... node scripts/create-admin.mjs)
 
-مثال نصب + SSL خودکار (Cloudflare):
-  curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
-    --tls --email you@example.com --ssl-mode cloudflare \
-    --dns-credentials /etc/letsencrypt/cloudflare.ini
+SSL پیشنهادی (بعد از نصب، در ترمینال):
+  sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
 EOF
 }
 
