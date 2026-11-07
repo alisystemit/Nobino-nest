@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * شروع پروژهٔ Nobino (نسخهٔ NestJS) روی PaaS و سرور.
+ * Start the Nobino project (NestJS version) on PaaS and on a server.
  *
- * این فایل نقطهٔ ورود استاندارد پلتفرم‌هاست (`npm start`). کارها به ترتیب:
- *   ۱) اگر خروجی build نبود، ساخت (node scripts/build-release.mjs --skip-install)
- *   ۲) تولید Prisma Client و آماده‌سازی دیتابیس
- *        prisma/migrations موجود باشد → migrate deploy
- *        نبود                        → db push (پروژهٔ فعلی با db push ساخته شده)
- *        با DB_SETUP=skip|migrate|push می‌تید مسیر را عوض کنید
- *   ۳) اجرای backend/dist/main.js روی $PORT با SERVE_FRONTEND=1 تا SPA را هم سرو کند
- *   ۴) بعد از بالا آمدن سرور، یک prerender سبک برای صفحات سالن‌ها (خلفی)
+ * This file is the standard entry point for platforms (`npm start`). Steps:
+ *   1) If there is no build output, build it (node scripts/build-release.mjs --skip-install)
+ *   2) Generate the Prisma Client and prepare the database
+ *        prisma/migrations exists → migrate deploy
+ *        does not exist           → db push (the current project was created with db push)
+ *        DB_SETUP=skip|migrate|push changes the path
+ *   3) Run backend/dist/main.js on $PORT with SERVE_FRONTEND=1 so it also serves the SPA
+ *   4) After the server comes up, a light background prerender for the venue pages
  *
- * متغیرهای مؤثر: PORT (پیش‌فرض 3100)، HOST، SERVE_FRONTEND، DB_SETUP،
- * SKIP_BUILD، PRERENDER_ON_BOOT،
- * AUTO_SEED=1 → اجرای prisma/seed.mjs (بذر دیمو). روی production بی‌اثر است
- * مگر ALLOW_PROD_SEED=1، چون seed کاربر ادمین با رمز پیش‌فرض معلوم می‌سازد.
+ * Relevant variables: PORT (default 3100), HOST, SERVE_FRONTEND, DB_SETUP,
+ * SKIP_BUILD, PRERENDER_ON_BOOT,
+ * AUTO_SEED=1 → run prisma/seed.mjs (demo seed). Has no effect on production
+ * unless ALLOW_PROD_SEED=1, because seed creates an admin user with a known default password.
  */
 import { spawn, spawnSync, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -50,27 +50,27 @@ const distMain = join(ROOT, "backend", "dist", "main.js");
 const distIndex = join(ROOT, "frontend", "dist", "index.html");
 
 if (!envValue("DATABASE_URL")) {
-  console.warn("⚠️  DATABASE_URL تنظیم نشده؛ سرور روی env.ts خطا می‌دهد. از پلتفرم بخواهید آن را set کند.");
+  console.warn("⚠️  DATABASE_URL is not set; the server will fail at env.ts. Ask the platform to set it.");
 }
 
-// ── ۱) build در صورت نبود خروجی ────────────────────────────────────
+// ── 1) build if output is missing ───────────────────────────────────
 const needBuild = !SKIP_BUILD && (!existsSync(distMain) || !existsSync(distIndex));
 if (needBuild) {
-  log("خروجی build نیست — ساخت release...");
+  log("no build output — building release...");
   try {
     execFileSync(process.execPath, [join(ROOT, "scripts", "build-release.mjs"), "--skip-install", "--no-smoke"], {
       stdio: "inherit",
       cwd: ROOT,
     });
   } catch {
-    die("build-release ناموفق بود");
+    die("build-release failed");
   }
 } else if (SKIP_BUILD) {
-  log("SKIP_BUILD=1 — ساخت انجام نشد");
+  log("SKIP_BUILD=1 — skipped build");
 }
-if (!existsSync(distMain)) die("backend/dist/main.js وجود ندارد (build را اجرا کنید)");
+if (!existsSync(distMain)) die("backend/dist/main.js does not exist (run the build)");
 
-// ── ۲) Prisma: generate + آماده‌سازی دیتابیس ───────────────────────
+// ── 2) Prisma: generate + prepare the database ────────────────────
 if (existsSync(prismaCli)) {
   try {
     execFileSync(process.execPath, [prismaCli, "generate", "--schema", join("prisma", "schema.prisma")], {
@@ -78,7 +78,7 @@ if (existsSync(prismaCli)) {
       cwd: ROOT,
     });
   } catch {
-    console.warn("⚠️  prisma generate ناموفق بود (شاید کلاینت از قبل تولید شده باشد)");
+    console.warn("⚠️  prisma generate failed (the client may already have been generated)");
   }
 }
 
@@ -86,9 +86,9 @@ const hasMigrations = existsSync(join(ROOT, "prisma", "migrations"));
 let mode = DB_SETUP;
 if (mode === "auto") mode = hasMigrations ? "migrate" : "push";
 
-// db push در هر بوت، هر بار schema دیتابیس را دست‌کاری می‌کند. چون این مخزن
-// migration ندارد، مسیر درست همین است؛ پس فقط وقتی تکرار می‌شود که
-// schema.prisma از آخرین push موفق تغییر کرده باشد.
+// db push modifies the database schema on every boot. Since this repository has
+// no migrations, that is the correct path; so it is only repeated when
+// schema.prisma has changed since the last successful push.
 const SCHEMA_FILE = join(ROOT, "prisma", "schema.prisma");
 const SCHEMA_STAMP = join(ROOT, "node_modules", ".cache", "nobino-schema-stamp");
 function schemaChanged() {
@@ -104,17 +104,18 @@ function schemaChanged() {
 if (mode !== "skip" && envValue("DATABASE_URL")) {
   const stamp = mode === "push" ? schemaChanged() : { changed: true, hash: "" };
   if (mode === "push" && !stamp.changed) {
-    log("db push رد شد — schema.prisma از آخرین آماده‌سازی تغییر نکرده است (DB_SETUP=push برای اجرا اجباری)");
+    log("db push skipped — schema.prisma has not changed since the last preparation (DB_SETUP=push to force a run)");
   } else {
     const args =
       mode === "migrate"
         ? [prismaCli, "migrate", "deploy", "--schema", join("prisma", "schema.prisma")]
         : [prismaCli, "db", "push", "--skip-generate", "--schema", join("prisma", "schema.prisma")];
-    log(`آماده‌سازی دیتابیس (${mode === "migrate" ? "migrate deploy" : "db push"})...`);
-    // ME-8: زیر PM2/داکر stdin تTY نیست و با `stdio:"inherit"` پرامپت تخریبیِ
-    // `db push` (حذف ستون/جدول) می‌تواند بوت را معلق کند. stdin را ignore می‌دهیم
-    // تا EOF بگیرد و پریزما همان لحظه خطا بدهد؛ `--accept-data-loss` هرگز اضافه
-    // نمی‌شود، چون حذف بی‌سرویس داده در بوت خودکار قابل قبول نیست.
+    log(`preparing database (${mode === "migrate" ? "migrate deploy" : "db push"})...`);
+    // ME-8: under PM2/Docker stdin is not a TTY, and with `stdio:"inherit"` the
+    // destructive prompt of `db push` (dropping a column/table) can hang the boot.
+    // We set stdin to ignore so it gets EOF and Prisma errors out immediately;
+    // `--accept-data-loss` is never added, because silently deleting data during
+    // an automatic boot is not acceptable.
     const interactive = Boolean(process.stdin.isTTY);
     try {
       execFileSync(process.execPath, args, {
@@ -126,55 +127,55 @@ if (mode !== "skip" && envValue("DATABASE_URL")) {
           mkdirSync(dirname(SCHEMA_STAMP), { recursive: true });
           writeFileSync(SCHEMA_STAMP, stamp.hash, "utf8");
         } catch {
-          console.warn("⚠️  مُهر schema نوشته نشد — در بوت بعدی دوباره db push اجرا می‌شود.");
+          console.warn("⚠️  schema stamp was not written — db push will run again on the next boot.");
         }
       }
     } catch {
-      console.error(`❌ آماده‌سازی دیتابیس (${mode}) ناموفق بود — سرور بالا می‌آید ولی اسکیما به‌روز نیست.`);
+      console.error(`❌ database preparation (${mode}) failed — the server will start, but the schema is not up to date.`);
       if (mode === "migrate") {
         console.error(
-          "    اگر این دیتابیس قبلاً با db push ساخته شده، یک‌بار baseline را علامت بزنید:\n" +
+          "    If this database was previously created with db push, mark the baseline once:\n" +
             `    node ${prismaCli} migrate resolve --applied 0_init --schema prisma/schema.prisma`,
         );
       } else {
         console.error(
-          "    اگر پریزما روی حذف ستون/جدول اخطار داده، آگاهانه و دستی تصمیم بگیرید:\n" +
-            `    node ${prismaCli} db push --schema prisma/schema.prisma   (با --accept-data-loss فقط پس از بکاپ)`,
+          "    If Prisma warned about dropping a column/table, decide knowingly and manually:\n" +
+            `    node ${prismaCli} db push --schema prisma/schema.prisma   (use --accept-data-loss only after a backup)`,
         );
       }
     }
   }
   if (mode === "migrate" && !hasMigrations) {
-    console.warn("ℹ️  پوشهٔ prisma/migrations نیست؛ baseline بسازید (راهنما: prisma/migrations/README.md).");
+    console.warn("ℹ️  the prisma/migrations folder does not exist; create a baseline (see prisma/migrations/README.md).");
   }
 } else {
-  log(`آماده‌سازی دیتابیس رد شد (DB_SETUP=${mode})`);
+  log(`database preparation skipped (DB_SETUP=${mode})`);
 }
 
-// ── ۲.۵) بذر دیمو — فقط محیط توسعهٔ تازه ────────────────────────────
-// seed.mjs کاربر ادمین با رمز پیش‌فرض معلوم می‌سازد، پس روی production
-// بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود.
+// ── 2.5) demo seed — fresh development environments only ────────────
+// seed.mjs creates an admin user with a known default password, so on production
+// it does not run without ALLOW_PROD_SEED=1.
 if (/^(1|true|yes)$/i.test(envValue("AUTO_SEED"))) {
   const isProd = (envValue("NODE_ENV") || "production").toLowerCase() === "production";
   const allowed = !isProd || /^(1|true|yes)$/i.test(envValue("ALLOW_PROD_SEED"));
   if (!allowed) {
-    console.warn("⚠️  AUTO_SEED در production رد شد (ادمین پیش‌فرض با رمز معلوم) — برای اطمینان ALLOW_PROD_SEED=1.");
+    console.warn("⚠️  AUTO_SEED refused on production (default admin with a known password) — set ALLOW_PROD_SEED=1 to override.");
   } else {
     const seedScript = join(ROOT, "prisma", "seed.mjs");
     if (existsSync(seedScript)) {
-      log("AUTO_SEED=1 — اجرای prisma/seed.mjs");
+      log("AUTO_SEED=1 — running prisma/seed.mjs");
       try {
         execFileSync(process.execPath, [seedScript], { stdio: "inherit", cwd: ROOT });
       } catch {
-        console.warn("⚠️  seed ناموفق بود");
+        console.warn("⚠️  seed failed");
       }
     }
   }
 }
 
-// ── ۳) اجرای سرور ──────────────────────────────────────────────────
+// ── 3) run the server ──────────────────────────────────────────────
 const child = spawn(process.execPath, [distMain], {
-  cwd: ROOT, // مهم: public/uploads نسبت به cwd حل می‌شود
+  cwd: ROOT, // important: public/uploads is resolved relative to cwd
   env: { ...env, PORT: String(PORT), HOST: env.HOST || "0.0.0.0", SERVE_FRONTEND: env.SERVE_FRONTEND || "1", NODE_ENV: env.NODE_ENV || "production" },
   stdio: "inherit",
 });
@@ -182,8 +183,8 @@ const child = spawn(process.execPath, [distMain], {
 let requestedStop = false;
 child.on("exit", (code, signal) => {
   if (signal) {
-    console.log(`⏹  سرور با سیگنال ${signal} بسته شد (${requestedStop ? "توقف درخواستی" : "غیردرخواستی"}).`);
-    // سیگنال غیردرخواستی (OOM، کرش) نباید مثل توقف تمیز با کد ۰ دیده شود
+    console.log(`⏹  server closed with signal ${signal} (${requestedStop ? "requested stop" : "unrequested"}).`);
+    // An unrequested signal (OOM, crash) must not look like a clean stop with code 0
     process.exit(requestedStop ? 0 : 1);
   }
   process.exit(code ?? 0);
@@ -196,25 +197,25 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   });
 }
 
-// ── ۳.۵) آماده‌سازی خودکار مدل محلی ASR (بدون مسدود کردن بوت) ────────
-// کاربر/ادمین هیچ کاری نمی‌کند: بار اول مدل در پس‌زمینه دانلود می‌شود و تا آن
-// لحظه زنجیرهٔ STT از سرویس‌های ابری استفاده می‌کند (بدون خطا برای مشتری).
+// ── 3.5) automatic preparation of the local ASR model (without blocking boot) ────────
+// The user/admin does nothing: on the first run the model is downloaded in the background and until
+// that moment the STT chain uses the cloud services (with no error for the customer).
 if (/^(0|false|no|off)$/i.test(envValue("AUTO_ASR") || "1")) {
-  log("آماده‌سازی خودکار ASR خاموش است (AUTO_ASR=0)");
+  log("automatic ASR preparation is off (AUTO_ASR=0)");
 } else {
-  log("آماده‌سازی مدل محلی ASR در پس‌زمینه (اجرای اول: ~۴۵۹MB مدل + ffmpeg)");
+  log("preparing the local ASR model in the background (first run: ~459MB model + ffmpeg)");
   const asr = spawn(process.execPath, [join(ROOT, "scripts", "asr-setup.mjs")], {
     cwd: ROOT,
     env,
     stdio: "inherit",
   });
   asr.unref();
-  asr.on("exit", (code) => log(`آماده‌سازی ASR پایان یافت (کد ${code ?? "-"})`));
+  asr.on("exit", (code) => log(`ASR preparation finished (code ${code ?? "-"})`));
 }
 
-// ── ۴) prerender خلفی بعد از بالا آمدن سرور ────────────────────────
+// ── 4) background prerender after the server comes up ────────────────────────
 if (/^(0|false|no)$/i.test(env.PRERENDER_ON_BOOT || "")) {
-  log("prerender خلفی خاموش (PRERENDER_ON_BOOT=0)");
+  log("background prerender is off (PRERENDER_ON_BOOT=0)");
 } else {
   (async () => {
     const base = `http://127.0.0.1:${PORT}`;
@@ -228,16 +229,16 @@ if (/^(0|false|no)$/i.test(env.PRERENDER_ON_BOOT || "")) {
       }
     }
     if (!existsSync(distIndex)) return;
-    // مبنای سئو از محیط یا فایل .env خوانده می‌شود؛ آدرس لوکالِ خودِ سرور
-    // هرگز جانشین دامنه نمی‌شود (در آن حالت prerender sitemap/robots را پاک می‌کند).
+    // The SEO base comes from the environment or the .env file; the server's own local
+    // address never replaces the domain (in that case prerender wipes sitemap/robots).
     const site = envValue("VITE_SITE_URL") || envValue("SITE_URL") || envValue("VITE_APP_URL") || envValue("APP_URL");
     if (!site) {
-      console.warn("⚠️  مبنای سئو مشخص نیست (VITE_SITE_URL/SITE_URL در env یا .env) — prerender انجام نشد تا sitemap/robots کهنه یا لوکال نوشته نشود.");
+      console.warn("⚠️  SEO base is unknown (VITE_SITE_URL/SITE_URL in env or .env) — prerender skipped so sitemap/robots is not written stale or local.");
       return;
     }
-    log("prerender صفحات سئو (سالن‌ها)...");
-    // ME-11: هر دو stream را می‌گیریم و چاپ می‌کنیم — با stdio:"ignore" هشدارها
-    // (و «۰ صفحه سالن») در لاگ PM2 هرگز دیده نمی‌شدند.
+    log("prerendering SEO pages (venues)...");
+    // ME-11: we capture and print both streams — with stdio:"ignore" the warnings
+    // (and "0 venue pages") were never visible in the PM2 log.
     const r = spawnSync(process.execPath, ["prerender.mjs"], {
       cwd: join(ROOT, "frontend"),
       encoding: "utf8",
@@ -246,8 +247,8 @@ if (/^(0|false|no)$/i.test(env.PRERENDER_ON_BOOT || "")) {
     });
     const lines = `${r.stdout || ""}\n${r.stderr || ""}`.split(/\r?\n/).filter((l) => /prerender/.test(l));
     for (const line of lines) (r.status === 0 ? log : console.warn)("   " + line);
-    if (r.status === 0) log("prerender انجام شد");
-    else if (r.error) console.warn(`⚠️  prerender اجرا نشد: ${r.error.message}`);
-    else console.warn("⚠️  prerender کامل نشد — بک‌اند دادهٔ سئو نداد (صفحات سالن ساخته نشدند).");
+    if (r.status === 0) log("prerender completed");
+    else if (r.error) console.warn(`⚠️  prerender did not run: ${r.error.message}`);
+    else console.warn("⚠️  prerender did not complete — the backend returned no SEO data (venue pages were not generated).");
   })();
 }

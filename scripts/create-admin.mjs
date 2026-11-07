@@ -1,17 +1,17 @@
-// ساخت اولین سوپرادمین (با موبایل و رمز دلخواه) — برای نصب‌های تازه روی سرور خام
+// Creates the first superadmin (with any phone number and password) — for fresh installs on a bare server
 //
-//   node scripts/create-admin.mjs --phone 09121110000 --password "MyStr0ng!Pass" [--name "مدیر سایت"] [--email admin@example.com]
+//   node scripts/create-admin.mjs --phone 09121110000 --password "MyStr0ng!Pass" [--name "Site Admin"] [--email admin@example.com]
 //
-// رفتار:
-//   • اگر دیتابیس از قبل کاربر ADMIN فعالِ دارای رمز داشته باشد: فقط پیام می‌دهد و با کد ۰ خارج می‌شود
-//     (idempotent — رمز کسی را عوض نمی‌کند). مگر اینکه با --force-reset همان شماره داده شود.
-//     اگر --email بدهید، ایمیل همان سوپرادمین موجود به‌روزرسانی می‌شود.
-//   • اگر شماره داده‌شده وجود داشته باشد: نقش/رمز/ایمیل همان کاربر ارتقا پیدا می‌کند.
-//   • در غیر این صورت کاربر ADMIN تازه می‌سازد.
-//   • .env از کنار همین مخزن یا APP_DIR خوانده می‌شود (برای DATABASE_URL).
-// رمز با همان الگوریتم backend/src/lib/auth/password.ts هش می‌شود: scrypt:<salt>:<hex>.
-// هشدار: رمز را تا می‌توانید از متغیرهای محیطی (ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL/ADMIN_NAME)
-// بدهید تا در shell history نماند؛ bootstrap.sh خودش امن می‌پرسد.
+// Behavior:
+//   • If the database already has an active ADMIN user with a password: it only prints a message and exits with code 0
+//     (idempotent — it does not change anyone's password). Unless --force-reset is given for the same phone number.
+//     If you pass --email, the email of that same existing superadmin is updated.
+//   • If the given phone number exists: that user's role/password/email is upgraded.
+//   • Otherwise it creates a new ADMIN user.
+//   • .env is read from next to this repo or from APP_DIR (for DATABASE_URL).
+// The password is hashed with the same algorithm as backend/src/lib/auth/password.ts: scrypt:<salt>:<hex>.
+// Warning: pass the password via environment variables (ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL/ADMIN_NAME)
+// as much as possible so it does not stay in shell history; bootstrap.sh asks for it securely itself.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +20,7 @@ import { randomBytes, scryptSync } from "node:crypto";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 
-// ── بارگذاری .env (بدون وابستگی dotenv) ──
+// ── .env loading (without the dotenv dependency) ──
 function loadEnv() {
   const candidates = [process.env.APP_DIR ? resolve(process.env.APP_DIR, ".env") : null, resolve(ROOT, ".env")].filter(Boolean);
   for (const p of candidates) {
@@ -36,20 +36,20 @@ function loadEnv() {
   }
   return null;
 }
-/** راهنما و پرچم‌های مجاز — قبل از هر کاری (حتی پیش از بررسی DATABASE_URL) */
+/** Help and allowed flags — before anything else (even before checking DATABASE_URL) */
 const KNOWN_FLAGS = ["phone", "password", "name", "email", "force-reset"];
 function usage() {
-  console.log(`کاربرد: node scripts/create-admin.mjs --phone 09121110000 --password <رمز> [--name "مدیر سایت"] [--email admin@example.com] [--force-reset]
+  console.log(`Usage: node scripts/create-admin.mjs --phone 09121110000 --password <password> [--name "Site Admin"] [--email admin@example.com] [--force-reset]
 
-  --phone <09xxxxxxxxx>   شمارهٔ سوپرادمین (یا متغیر محیطی ADMIN_PHONE)؛ رقم فارسی
-                          و شکل 9xxxxxxxxx (بدون صفر) هم پذیرفته می‌شود
-  --password <رمز>        رمز عبور، حداقل ۸ کاراکتر (یا ADMIN_PASSWORD)
-  --name <نام>            نام نمایشی (پیش‌فرض: مدیر سایت / ADMIN_NAME)
-  --email <ایمیل>         ایمیل پروفایل سوپرادمین (اختیاری؛ یا ADMIN_EMAIL)
-  --force-reset           بازنویسی رمز سوپرادمینِ همین شماره (فقط با --phone همان شماره)
-  --help                  همین راهنما
+  --phone <09xxxxxxxxx>   Superadmin phone number (or the ADMIN_PHONE environment variable); Persian digits
+                          and the 9xxxxxxxxx form (without the leading zero) are also accepted
+  --password <password>   Password, at least 8 characters (or ADMIN_PASSWORD)
+  --name <name>           Display name (default: Site Admin / ADMIN_NAME)
+  --email <email>         Superadmin profile email (optional; or ADMIN_EMAIL)
+  --force-reset           Overwrite the password of the superadmin with this same phone number (only with --phone for that number)
+  --help                  This help
 
-مثال (رمز از محیط، تا در تاریخچهٔ shell نماند):
+Example (password from the environment, so it does not stay in shell history):
   ADMIN_PHONE=09121110000 ADMIN_PASSWORD='MyStr0ng!Pass' ADMIN_EMAIL=admin@example.com node scripts/create-admin.mjs`);
 }
 const givenFlags = process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.slice(2).split("=")[0]);
@@ -59,47 +59,47 @@ if (givenFlags.includes("help") || process.argv.slice(2).includes("-h")) {
 }
 const unknownFlags = givenFlags.filter((f) => f !== "help" && !KNOWN_FLAGS.includes(f));
 if (unknownFlags.length) {
-  console.error(`❌ پرچم ناشناخته: ${unknownFlags.map((f) => `--${f}`).join(", ")}\n`);
+  console.error(`❌ Unknown flag: ${unknownFlags.map((f) => `--${f}`).join(", ")}\n`);
   usage();
   process.exit(1);
 }
 
 const envPath = loadEnv();
 if (!process.env.DATABASE_URL) {
-  console.error("❌ DATABASE_URL پیدا نشد — فایل .env کنار مخزن باشد یا متغیر محیطی بدهید.");
+  console.error("❌ DATABASE_URL not found — put a .env file next to the repo or provide the environment variable.");
   process.exit(1);
 }
 
-// ── آرگومان‌ها ──
+// ── Arguments ──
 function arg(name) {
   const inline = process.argv.find((a) => a.startsWith(`--${name}=`));
   if (inline) return inline.slice(`--${name}=`.length);
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? process.argv[i + 1] : undefined;
 }
-// ME-4: کیبورد فارسی/عربی و شمارهٔ «بدون صفر» همان چیزی است که خودِ OTP
-// (auth__otp__request.ts: /^0?9\d{9}$/) می‌پذیرد؛ اینجا هم باید بپذیرد.
+// ME-4: the Persian/Arabic keyboard and the "no leading zero" phone number are exactly what OTP itself
+// (auth__otp__request.ts: /^0?9\d{9}$/) accepts; it must be accepted here too.
 const asciiDigits = (s) =>
   s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
 const rawPhone = (arg("phone") || process.env.ADMIN_PHONE || "").trim();
 let phone = asciiDigits(rawPhone).replace(/\D/g, "");
 if (/^9\d{9}$/.test(phone)) phone = `0${phone}`;
 const password = arg("password") || process.env.ADMIN_PASSWORD || "";
-const name = (arg("name") || process.env.ADMIN_NAME || "مدیر سایت").trim();
+const name = (arg("name") || process.env.ADMIN_NAME || "Site Admin").trim();
 const rawEmail = (arg("email") || process.env.ADMIN_EMAIL || "").trim();
 const email = rawEmail ? rawEmail.toLowerCase() : "";
 const FORCE_RESET = process.argv.includes("--force-reset");
 
 if (!/^0\d{10}$/.test(phone)) {
-  console.error(`❌ شماره موبایل معتبر نیست: «${rawPhone || "(خالی)"}» — ۱۱ رقم با 0 (یا ۱۰ رقم بدون صفر)، مثلاً 09121110000.`);
+  console.error(`❌ Invalid phone number: "${rawPhone || "(empty)"}" — 11 digits starting with 0 (or 10 digits without the leading zero), e.g. 09121110000.`);
   process.exit(1);
 }
 if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-  console.error(`❌ ایمیل معتبر نیست: «${rawEmail}» — مثلاً admin@example.com.`);
+  console.error(`❌ Invalid email: "${rawEmail}" — e.g. admin@example.com.`);
   process.exit(1);
 }
 if (password.length < 8) {
-  console.error("❌ رمز باید حداقل ۸ کاراکتر باشد (برای پنل پشتیبانی رمز قوی لازم است).");
+  console.error("❌ Password must be at least 8 characters (a strong password is required for the support panel).");
   process.exit(1);
 }
 
@@ -111,12 +111,12 @@ function hashPassword(pw) {
 const { PrismaClient } = await import("@prisma/client");
 const prisma = new PrismaClient();
 
-/** اگر ایمیل به کاربر دیگری تعلق دارد، پیام خطا می‌دهد و true برمی‌گرداند. */
+/** If the email belongs to another user, it prints an error and returns true. */
 async function emailTakenByOther(userId) {
   if (!email) return false;
   const owner = await prisma.user.findUnique({ where: { email }, select: { id: true, phone: true } });
   if (!owner || (userId && owner.id === userId)) return false;
-  console.error(`❌ ایمیل «${email}» قبلاً برای کاربر ${owner.phone} ثبت شده است (ستون User.email یکتاست).`);
+  console.error(`❌ Email "${email}" is already registered for user ${owner.phone} (the User.email column is unique).`);
   process.exitCode = 1;
   return true;
 }
@@ -129,35 +129,35 @@ try {
   if (existingAdmin) {
     const forceSame = FORCE_RESET && existingAdmin.phone === phone;
     if (!forceSame) {
-      // ME-3: --force-reset با شمارهٔ دیگر نباید ساکت و با کد ۰ تمام شود؛
-      // bootstrap.sh فقط کد خروج را می‌بیند و وگرنه «سوپرادمین آماده است» می‌گوید.
+      // ME-3: --force-reset with a different phone number must not end silently with code 0;
+      // bootstrap.sh only looks at the exit code and otherwise says "superadmin is ready".
       if (FORCE_RESET) {
-        console.error(`❌ --force-reset برای ${phone} داده شد ولی سوپرادمین موجود ${existingAdmin.phone} است — چیزی عوض نشد.`);
-        console.error(`   برای بازنشِ همان سوپرادمین موجود: --phone ${existingAdmin.phone}`);
+        console.error(`❌ --force-reset was given for ${phone} but the existing superadmin is ${existingAdmin.phone} — nothing was changed.`);
+        console.error(`   To reset that same existing superadmin: --phone ${existingAdmin.phone}`);
         process.exitCode = 1;
       } else {
-        console.log(`ℹ️ سوپرادمین فعال از قبل وجود دارد (${existingAdmin.phone}). چیزی تغییر نکرد.`);
-        console.log(`   اگر رمز آن را گم کرده‌اید: node scripts/create-admin.mjs --phone ${existingAdmin.phone} --password <رمز جدید> --force-reset`);
-        // ایمیل فقط اگر خواسته شده و با کاربر دیگری تداخل ندارد، به همان ادمین اضافه می‌شود.
+        console.log(`ℹ️ An active superadmin already exists (${existingAdmin.phone}). Nothing was changed.`);
+        console.log(`   If you lost its password: node scripts/create-admin.mjs --phone ${existingAdmin.phone} --password <new password> --force-reset`);
+        // The email is added to that same admin only if requested and it does not conflict with another user.
         if (email && !(await emailTakenByOther(existingAdmin.id))) {
           if (existingAdmin.email !== email) {
             await prisma.user.update({ where: { id: existingAdmin.id }, data: { email } });
-            console.log(`   ایمیل سوپرادمین موجود به «${email}» به‌روزرسانی شد.`);
+            console.log(`   The existing superadmin's email was updated to "${email}".`);
           } else {
-            console.log(`   ایمیل سوپرادمین موجود همان «${email}» است.`);
+            console.log(`   The existing superadmin's email is already "${email}".`);
           }
         }
       }
       skip = true;
     } else {
-      console.log("⚠️ --force-reset: رمز سوپرادمین همین شماره بازنویسی می‌شود.");
+      console.log("⚠️ --force-reset: the password of the superadmin with this phone number will be overwritten.");
     }
   }
 
   if (!skip) {
     const current = await prisma.user.findUnique({ where: { phone } });
     if (await emailTakenByOther(current?.id)) {
-      // ایمیل به کاربر دیگری تعلق دارد؛ هیچ تغییری نده.
+      // The email belongs to another user; make no changes.
     } else {
       const hash = hashPassword(password);
       let result;
@@ -166,20 +166,20 @@ try {
           where: { phone },
           data: { role: "ADMIN", passwordHash: hash, isActive: true, verifiedAt: current.verifiedAt ?? new Date(), name: current.name || name, ...(email ? { email } : {}) },
         });
-        console.log(`✅ کاربر موجود «${phone}» به سوپرادمین ارتقا یافت.`);
+        console.log(`✅ Existing user "${phone}" was upgraded to superadmin.`);
       } else {
         result = await prisma.user.create({
           data: { phone, name, role: "ADMIN", passwordHash: hash, verifiedAt: new Date(), isActive: true, ...(email ? { email } : {}) },
         });
-        console.log(`✅ سوپرادمین تازه ساخته شد.`);
+        console.log(`✅ New superadmin created.`);
       }
-      console.log(`   شماره: ${result.phone}${email ? `\n   ایمیل:  ${email}` : ""}\n   با همان شماره/رمز در «ورود مدیران» وارد شوید.\n   (env: ${envPath ?? "متغیرهای محیطی"})`);
+      console.log(`   Phone: ${result.phone}${email ? `\n   Email: ${email}` : ""}\n   Log in to "Admin login" with the same phone/password.\n   (env: ${envPath ?? "environment variables"})`);
     }
   }
 } catch (e) {
-  console.error(`❌ خطا: ${e?.message ?? e}`);
+  console.error(`❌ Error: ${e?.message ?? e}`);
   process.exitCode = 1;
 } finally {
-  // LO-6: خروج با process.exit(0) این finally را دور می‌زد و اتصال سرور تا timeout باز می‌ماند
+  // LO-6: exiting with process.exit(0) skipped this finally and left the server connection open until timeout
   await prisma.$disconnect();
 }

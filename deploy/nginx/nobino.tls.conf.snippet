@@ -1,15 +1,15 @@
 # =====================================================================
-# Nobino — بلوک HTTPS (افزوده می‌شود به انتهای nobino.conf توسط install.sh --tls)
-# جای‌نگهدارها: __SERVER_NAMES__  __DOMAIN__  __TLS_CRT__  __TLS_KEY__
+# Nobino — HTTPS block (appended to the end of nobino.conf by install.sh --tls)
+# Placeholders: __SERVER_NAMES__  __DOMAIN__  __TLS_CRT__  __TLS_KEY__
 #
-# ساب‌دامین‌های سالن‌ها به گواهی wildcard نیاز دارند:
+# Salon subdomains require a wildcard certificate:
 #   sudo certbot certonly --manual --preferred-challenges dns \
 #        -d __DOMAIN__ -d '*.__DOMAIN__'
-# (برای دامنه‌های alias، فقط خود دامنه در گواهی اضافه می‌شود.)
+# (For alias domains, only the domain itself is added to the certificate.)
 # =====================================================================
 
-# هدایت HTTP → HTTPS برای دامنهٔ ریشه و ساب‌دامین‌ها
-# (چالش ACME در مسیر /.well-known/acme-challenge مستثنی شده است.)
+# Redirect HTTP → HTTPS for the root domain and subdomains
+# (the ACME challenge path /.well-known/acme-challenge is excluded.)
 server {
     listen 80;
     listen [::]:80;
@@ -67,7 +67,7 @@ server {
         proxy_read_timeout 120s;
     }
 
-    # ^~ تا regex پایین (`\.(xml|txt)$`) فایل‌های آپلودی را نرباید
+    # ^~ so the regex below (`\.(xml|txt)$`) does not capture uploaded files
     location ^~ /uploads/ {
         alias __UPLOADS__/;
         try_files $uri @nobino_backend_tls;
@@ -92,8 +92,8 @@ server {
         add_header Cache-Control "public, immutable";
         try_files $uri @nobino_backend_tls;
     }
-    # فونت‌های یکن: در نسخهٔ TLS هم باید کش شوند (گزارش moshakafi: نسخهٔ TLS
-    # این بلوک را نداشت و در حالت --tls کش فونت می‌مرد)
+    # Fonts are served here too: the TLS version must cache them as well (bug report:
+    # the TLS version lacked this block and font caching broke under --tls)
     location ^~ /fonts/ {
         expires 30d;
         try_files $uri @nobino_backend_tls;

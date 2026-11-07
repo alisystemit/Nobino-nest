@@ -1,5 +1,5 @@
-# بخش مشترک: تعریف upstream بک‌اند NestJS (توسط install.sh به اول vhost افزوده می‌شود)
-# جای‌نگهدارها: __PORT__
+# Shared part: defines the NestJS backend upstream (added to the top of the vhost by install.sh)
+# Placeholders: __PORT__
 upstream nobino_backend {
     server 127.0.0.1:__PORT__ fail_timeout=10s;
     keepalive 16;

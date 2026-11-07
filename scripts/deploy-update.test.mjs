@@ -184,7 +184,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
   test("گزینهٔ ناشناخته و مقدار جاافتاده رد می‌شوند؛ هیچ دستوری اجرا نمی‌شود", () => {
     const a = runUpdate(["--frobnicate"]);
     assert.equal(a.rc, 1);
-    assert.match(a.out, /گزینهٔ ناشناخته/);
+    assert.match(a.out, /Unknown option/);
     assert.deepEqual(a.log, []);
     const b = runUpdate(["--keep"]);
     assert.equal(b.rc, 1);
@@ -263,7 +263,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     const meta = readFileSync(join(box.backupDir, `${dumps[0]}.meta`), "utf8");
     assert.match(meta, /commit=c1/);
     assert.match(meta, /db=nobino/);
-    assert.match(out, /پایان یافت/);
+    assert.match(out, /Update finished/);
     assert.ok(at(log, "curl") > iRestart, "بررسی سلامت بعد از restart");
     assert.ok(log.some((l) => l.includes("curl") && l.includes("127.0.0.1:3977")), "PORT از .env خوانده شد");
   });
@@ -288,7 +288,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.ok(left.some((f) => f.startsWith("nobino-c1-")), "بکاپ همین اجرا باید بماند");
     assert.ok(left.some((f) => f.startsWith("nobino-cc33333-")), "تازه‌ترین بکاپ قبلی باید بماند");
     assert.ok(!left.some((f) => f.startsWith("nobino-aa11111-")), "کهنه‌ترین باید حذف می‌شد");
-    assert.match(out, /بکاپ کهنه حذف شد/);
+    assert.match(out, /Old backup removed/);
     for (const f of left) assert.ok(existsSync(join(box.backupDir, `${f}.meta`)), `.meta کنار ${f} حذف نشد`);
     assert.equal(existsSync(join(box.backupDir, "nobino-aa11111-20261100-010000.dump.meta")), false);
   });
@@ -297,7 +297,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     const { rc, out, log, box } = runUpdate(["--no-backup"]);
     assert.equal(rc, 0, out);
     assert.equal(count(log, "pg_dump"), 0);
-    assert.match(out, /بکاپ رد شد/);
+    assert.match(out, /Backup skipped/);
     assert.equal(existsSync(box.backupDir), false);
     assert.ok(at(log, "pm2 restart") >= 0);
   });
@@ -314,7 +314,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
   test("pg_dump روی سرور نبود: می‌ایستد و راه‌حل را می‌گوید", () => {
     const { rc, out, log } = runUpdate([], { env: { W_MISSING: "pg_dump" } });
     assert.equal(rc, 1, out);
-    assert.match(out, /pg_dump در PATH نیست/);
+    assert.match(out, /pg_dump is not in PATH/);
     assert.match(out, /--no-backup/);
     assert.equal(at(log, "migrate deploy"), -1, "قبل از تغییر schema می‌ایستد");
   });
@@ -322,7 +322,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
   test("شکست migrate: ری‌استارت نمی‌کند و همان بکاپ + --rollback را نشان می‌دهد", () => {
     const { rc, out, log } = runUpdate([], { env: { W_NODE_FAIL: "migrate" } });
     assert.equal(rc, 1, out);
-    assert.match(out, /schema هم‌راستا نشد؛ سرویس ری‌استارت نشد/);
+    assert.match(out, /schema was not aligned; the service was not restarted/);
     assert.match(out, /--rollback --yes/);
     assert.match(out, /nobino-c1-\d{8}-\d{6}\.dump/);
     assert.equal(at(log, "pm2 restart"), -1, "با schema ناسازگار سرویس تازه بالا نمی‌آید");
@@ -363,15 +363,15 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.ok(iRestart > iMig);
     assert.equal(count(log, "pg_dump"), 0, "در مسیر rollback از وضعیت خراب بکاپ نمی‌گیریم");
     assert.ok(!log.some((l) => l.includes("pull")), "rollback نباید pull کند");
-    assert.match(out, /پایان یافت/);
-    assert.match(out, /بازگشت به حالت قبل از آخرین ارتقا/);
+    assert.match(out, /Update finished/);
+    assert.match(out, /went back to before the last upgrade/);
   });
 
   test("--rollback روی working tree کثیف می‌ایستد (کارِ کسی نمی‌سوزد)", () => {
     const box = fixture({ oldDumps: true });
     const { rc, out, log } = runUpdate(["--rollback", "--yes"], { box, env: { W_DIRTY: "1" } });
     assert.equal(rc, 1, out);
-    assert.match(out, /working tree کثیف/);
+    assert.match(out, /Working tree is dirty/);
     assert.equal(count(log, "pg_restore"), 0);
     assert.equal(count(log, "pm2 stop"), 0);
   });
@@ -386,7 +386,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     assert.ok(at(log, "pg_restore") >= 0);
     assert.ok(out.includes("manual-dec1.dump"), "بکاپِ خواسته‌شده معرفی شد");
     assert.equal(log.filter((l) => l.includes("checkout")).length, 0, "بدون کامیتِ شناخته‌شده checkout نمی‌کنیم");
-    assert.match(out, /کد را دستی/);
+    assert.match(out, /code back to the previous version manually/);
   });
 
   test("dry-run سخت‌گیریِ اجرا را ندارد: نقشه را تا آخر چاپ می‌کند", () => {
@@ -394,12 +394,12 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     // --dry-run فقط نقشهٔ راه را نشان می‌دهد (با نشانی جای‌گزین).
     const a = runUpdate(["--dry-run"], { env: { W_MISSING: "pg_dump" } });
     assert.equal(a.rc, 0, a.out);
-    assert.match(a.out, /pg_dump نیست/);
+    assert.match(a.out, /pg_dump is not in PATH/);
     assert.ok(a.out.split(/\r?\n/).some((l) => l.includes("[dry]") && l.includes("--dbname=nobino")));
     assert.match(a.out, /\[dry\] curl http:\/\/127\.0\.0\.1:3977\/api\/health\?db=1/);
     const b = runUpdate(["--dry-run"], { box: fixture({ envText: 'PORT="3977"\n' }) });
     assert.equal(b.rc, 0, b.out);
-    assert.match(b.out, /DATABASE_URL نیست/);
+    assert.match(b.out, /DATABASE_URL is missing/);
     assert.ok(b.out.includes("--dbname=postgresql://USER:PASS@HOST:5432/nobino"), "نشانی جای‌گزین چاپ شد");
     assert.equal(b.log.filter((l) => l.startsWith("pg_dump")).length, 0);
   });
@@ -408,7 +408,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     const box = fixture({ oldDumps: true });
     const { rc, out, log } = runUpdate(["--rollback", "--yes", "--dry-run"], { box, env: { W_MISSING: "pg_restore" } });
     assert.equal(rc, 0, out);
-    assert.match(out, /pg_restore نیست/);
+    assert.match(out, /pg_restore is missing/);
     assert.ok(out.split(/\r?\n/).some((l) => l.includes("[dry] pg_restore") && l.includes("--clean --if-exists")));
     assert.ok(out.includes("nobino-cc33333-20261102-010002.dump"), "بکاپ درست انتخاب شد");
     assert.equal(count(log, "pg_restore"), 0, "در dry-run چیزی اجرا نمی‌شود");
@@ -418,7 +418,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     const box = fixture({ oldDumps: true });
     const { rc, out, log } = runUpdate(["--rollback", "--yes"], { box, env: { W_RESTORE_FAIL: "1" } });
     assert.equal(rc, 1, out);
-    assert.match(out, /pg_restore ناموفق بود/);
+    assert.match(out, /pg_restore failed/);
     assert.match(out, /--single-transaction/);
     assert.equal(log.filter((l) => l.includes("checkout")).length, 0, "با بازگردانی ناقص کد جابه‌جا نمی‌شود");
     assert.equal(at(log, "migrate deploy"), -1, "سرویس بازسازی/بالا نمی‌آید");
@@ -429,7 +429,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     const box = fixture({ oldDumps: true });
     const { rc, out, log } = runUpdate(["--rollback", "--yes"], { box, env: { W_TABLES: "0" } });
     assert.equal(rc, 1, out);
-    assert.match(out, /هیچ جدولی/);
+    assert.match(out, /created no tables/);
     assert.equal(at(log, "migrate deploy"), -1);
   });
 
@@ -443,7 +443,7 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
     // اجرای بعدی روی HEAD معلق (بعد از همان rollback) نباید با «not on a branch» بمیرد
     const next = runUpdate([], { box, env: { W_DETACHED: "1", W_HEAD: "cc33333" } });
     assert.equal(next.rc, 0, next.out);
-    assert.match(next.out, /HEAD معلق/);
+    assert.match(next.out, /HEAD is detached/);
     assert.ok(next.log.some((l) => /git -C .* checkout main$/.test(l)), `بازگشت به شاخه انجام شد: ${next.log.join(" | ")}`);
     assert.ok(next.log.some((l) => l.includes("pull --ff-only")), "بعد از اتصال مجدد، pull طبیعی ادامه می‌یابد");
   });
@@ -461,8 +461,8 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
   test("HI-3: سلامت تأیید نشود → خروج ۱، نه هشدار", () => {
     const { rc, out, log } = runUpdate(["--no-pull"], { env: { W_CURL_FAIL: "1" } });
     assert.equal(rc, 1, out);
-    assert.match(out, /استقرار ناموفق است/);
-    assert.ok(!out.includes("به‌روزرسانی پایان یافت"), "پیام موفقیت چاپ نمی‌شود");
+    assert.match(out, /the deployment failed/);
+    assert.ok(!out.includes("Update finished"), "success message is not printed");
     assert.ok(at(log, "curl") >= 0);
     assert.ok(count(log, "curl") > 1, "باید چند بار تلاش شده باشد");
   });
@@ -470,18 +470,18 @@ describe("deploy/update.sh — بکاپ و بازگشت", { skip: bashOk ? false
   test("HI-3: سلامتی که از پروسهٔ دیگری روی همان پورت می‌آید، پذیرفته نمی‌شود", () => {
     const { rc, out, log } = runUpdate(["--no-pull"], { env: { W_PM2_PID: "4242", W_SS_PID: "9999" } });
     assert.equal(rc, 1, out);
-    assert.match(out, /پروسهٔ 9999/);
+    assert.match(out, /process 9999/);
     assert.ok(log.some((l) => l.startsWith("ss ")), "صاحب پورت بررسی شد");
     const good = runUpdate(["--no-pull"], { env: { W_PM2_PID: "4242", W_SS_PID: "4242" } });
     assert.equal(good.rc, 0, good.out);
-    assert.match(good.out, /سرور سالم است \(pid 4242/);
+    assert.match(good.out, /Server is healthy \(pid 4242/);
   });
 
   test("LO-4: فقط فایل‌های گیت‌شدهٔ کثیف جلوی rollback را می‌گیرند", () => {
     const box = fixture({ oldDumps: true });
     const dirty = runUpdate(["--rollback", "--yes"], { box, env: { W_DIRTY: "1" } });
     assert.equal(dirty.rc, 1, dirty.out);
-    assert.match(dirty.out, /working tree کثیف/);
+    assert.match(dirty.out, /Working tree is dirty/);
     // untracked (مثلاً پوشهٔ بکاپ داخل مخزن) نباید مسیر بازگشت را قفل کند
     const untrackedOnly = runUpdate(["--rollback", "--yes"], { box, env: { W_UNTRACKED: "1" } });
     assert.equal(untrackedOnly.rc, 0, untrackedOnly.out);

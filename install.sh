@@ -1,46 +1,46 @@
 #!/usr/bin/env bash
 # =====================================================================
-# Nobino — نصب‌کنندهٔ تک‌خطی (Ubuntu/Debian)
+# Nobino — one-line installer (Ubuntu/Debian)
 #
 #   curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh \
 #     | sudo bash -s -- --domain example.com
 #
-# این اسکریپت مخزن را در /opt/nobino می‌گیرد و بعد deploy/bootstrap.sh را
-# اجرا می‌کند؛ همان نصب کامل (Node، PM2، PostgreSQL، .env، بیلد، nginx،
-# سرویس و سوپرادمین).
+# This script fetches the repository into /opt/nobino and then runs
+# deploy/bootstrap.sh: the full install (Node, PM2, PostgreSQL, .env,
+# build, nginx, service, and super admin).
 #
-# گزینه‌ها:
-#   --domain <دامنه>     اجباری — دامنهٔ اصلی (مثلاً nobino.ir)؛ برای چند دامنه (alias)
-#                        چند بار بدهید یا با کاما جدا کنید
-#   --app-dir <مسیر>     مسیر نصب (پیش‌فرض /opt/nobino)
-#   --branch <شاخه>      شاخهٔ گیت (پیش‌فرض master)
-#   -h, --help           همین راهنما
+# Options:
+#   --domain <domain>    required — primary domain (e.g. nobino.ir); for extra
+#                        domains (aliases) repeat the flag or separate with commas
+#   --app-dir <path>     install path (default /opt/nobino)
+#   --branch <branch>    git branch (default master)
+#   -h, --help           show this help
 #
-# بقیهٔ گزینه‌ها مستقیم به deploy/bootstrap.sh پاس می‌شوند:
+# All other options are passed straight to deploy/bootstrap.sh:
 #   --port --pg-password --database-url --admin-phone --admin-password --admin-email
 #   --no-admin --no-firewall --with-postgres --dry-run
 #   --tls --email --ssl-mode --dns-credentials
 #
-# SSL: گواهی همیشه از Let's Encrypt گرفته می‌شود.
-#   --ssl-mode dns        wildcard با چالش DNS دستی (تعاملی؛ در pipe کار نمی‌کند)
-#   --ssl-mode http       فقط دامنهٔ ریشه با HTTP-01 (غیرتعاملی)
-#   --ssl-mode cloudflare اختیاری — تمدید خودکار wildcard با پلاگین DNS کلادفلر
+# SSL: certificates always come from Let's Encrypt.
+#   --ssl-mode dns        wildcard via manual DNS challenge (interactive; not usable in a pipe)
+#   --ssl-mode http       root domains only via HTTP-01 (non-interactive)
+#   --ssl-mode cloudflare optional — automatic wildcard renewal via the Cloudflare DNS plugin
 #
-# متغیرهای محیطی:
-#   ADMIN_PHONE / ADMIN_PASSWORD / ADMIN_EMAIL   ساخت سوپرادمین اولیه (وقتی خود
-#                                  اسکریپت با root اجرا می‌شود؛ با sudo معمولاً
-#                                  env_reset آن‌ها را حذف می‌کند — از پرچم‌ها
-#                                  استفاده کنید)
+# Environment variables:
+#   ADMIN_PHONE / ADMIN_PASSWORD / ADMIN_EMAIL   create the initial super admin
+#                                  (only when this script runs as root; sudo
+#                                  usually clears them via env_reset — use the
+#                                  flags instead)
 #   NOBINO_REPO / NOBINO_BRANCH / NOBINO_APP_DIR
 #
-# مثال با سوپرادمین از پیش تعیین‌شده و دو دامنه:
+# Example with a predefined super admin and two domains:
 #   curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
 #     --domain example.org --admin-phone 09121110000 --admin-password 'YourStrong#Pass' \
 #     --admin-email admin@example.com
-# (پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
+# (flags are visible in `ps`; safer: install without them, then run
 #  sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... ADMIN_EMAIL=... node scripts/create-admin.mjs)
 #
-# SSL پیشنهادی: بعد از نصب، در ترمینال (گواهی wildcard از Let's Encrypt):
+# Recommended SSL step after install, in a terminal (wildcard cert from Let's Encrypt):
 #   sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
 # =====================================================================
 set -euo pipefail
@@ -49,48 +49,48 @@ C_OK=$'\033[32m'; C_ERR=$'\033[31m'; C_OFF=$'\033[0m'
 say()  { printf '%s\n' "$*"; }
 ok()   { printf '%s✅ %s%s\n' "$C_OK" "$*" "$C_OFF"; }
 die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
-need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
+need_value() { [[ $# -ge 2 ]] || die "$1 requires a value (for example $1 <value>)"; }
 
 usage() {
   cat <<'EOF'
-Nobino — نصب‌کنندهٔ تک‌خطی (Ubuntu/Debian)
+Nobino — one-line installer (Ubuntu/Debian)
 
   curl -fsSL https://raw.githubusercontent.com/alisystemit/Nobino-nest/master/install.sh \
     | sudo bash -s -- --domain example.com
 
-این اسکریپت مخزن را در /opt/nobino می‌گیرد و بعد deploy/bootstrap.sh را
-اجرا می‌کند؛ همان نصب کامل (Node، PM2، PostgreSQL، .env، بیلد، nginx،
-سرویس و سوپرادمین).
+This script fetches the repository into /opt/nobino and then runs
+deploy/bootstrap.sh: the full install (Node, PM2, PostgreSQL, .env,
+build, nginx, service, and super admin).
 
-گزینه‌ها:
-  --domain <دامنه>     اجباری — دامنهٔ اصلی (مثلاً nobino.ir)؛ برای چند دامنه (alias)
-                       چند بار بدهید یا با کاما جدا کنید
-  --app-dir <مسیر>     مسیر نصب (پیش‌فرض /opt/nobino)
-  --branch <شاخه>      شاخهٔ گیت (پیش‌فرض master)
-  -h, --help           همین راهنما
+Options:
+  --domain <domain>    required — primary domain (e.g. nobino.ir); for extra
+                       domains (aliases) repeat the flag or separate with commas
+  --app-dir <path>     install path (default /opt/nobino)
+  --branch <branch>    git branch (default master)
+  -h, --help           show this help
 
-بقیهٔ گزینه‌ها مستقیم به deploy/bootstrap.sh پاس می‌شوند:
+All other options are passed straight to deploy/bootstrap.sh:
   --port --pg-password --database-url --admin-phone --admin-password --admin-email
   --no-admin --no-firewall --with-postgres --dry-run
   --tls --email --ssl-mode --dns-credentials
 
-SSL (گواهی همیشه از Let's Encrypt؛ با --tls --email):
-  --ssl-mode dns         wildcard با چالش DNS دستی (تعاملی؛ در pipe نه)
-  --ssl-mode http        فقط دامنهٔ ریشه با HTTP-01 (غیرتعاملی)
-  --ssl-mode cloudflare  اختیاری — تمدید خودکار با پلاگین DNS کلادفلر
+SSL (certificates always come from Let's Encrypt; use --tls --email):
+  --ssl-mode dns         wildcard via manual DNS challenge (interactive; not in a pipe)
+  --ssl-mode http        root domains only via HTTP-01 (non-interactive)
+  --ssl-mode cloudflare  optional — automatic renewal via the Cloudflare DNS plugin
 
-متغیرهای محیطی:
-  ADMIN_PHONE / ADMIN_PASSWORD / ADMIN_EMAIL   ساخت سوپرادمین اولیه (وقتی با root اجرا شود)
+Environment variables:
+  ADMIN_PHONE / ADMIN_PASSWORD / ADMIN_EMAIL   create the initial super admin (root only)
   NOBINO_REPO / NOBINO_BRANCH / NOBINO_APP_DIR
 
-مثال با سوپرادمین از پیش تعیین‌شده و دو دامنه:
+Example with a predefined super admin and two domains:
   curl -fsSL .../install.sh | sudo bash -s -- --domain example.com \
     --domain example.org --admin-phone 09121110000 --admin-password 'YourStrong#Pass' \
     --admin-email admin@example.com
-(پرچم‌ها در `ps` دیده می‌شوند؛ امن‌تر: نصب بدون آن‌ها و بعد
+(flags are visible in `ps`; safer: install without them, then run
  sudo env ADMIN_PHONE=... ADMIN_PASSWORD=... ADMIN_EMAIL=... node scripts/create-admin.mjs)
 
-SSL پیشنهادی (بعد از نصب، در ترمینال):
+Recommended SSL step (after install, in a terminal):
   sudo bash /opt/nobino/deploy/ssl.sh --domain example.com --email you@example.com
 EOF
 }
@@ -117,39 +117,39 @@ for ((i = 0; i < ${#ARGS[@]}; i++)); do
     --domain|--domain=*) HAS_DOMAIN=true ;;
   esac
 done
-$HAS_DOMAIN || die "دامنه لازم است:  ... | sudo bash -s -- --domain example.com"
+$HAS_DOMAIN || die "A domain is required:  ... | sudo bash -s -- --domain example.com"
 
-[[ "$(id -u)" == "0" ]] || die "با sudo اجرا کنید (یا با کاربر root)."
-command -v apt-get >/dev/null 2>&1 || die "این نصب‌کننده برای Ubuntu/Debian (apt) است."
+[[ "$(id -u)" == "0" ]] || die "Run with sudo (or as root)."
+command -v apt-get >/dev/null 2>&1 || die "This installer is for Ubuntu/Debian (apt)."
 
-# مسیر نسبی را مطلق کن تا bootstrap و سرویس PM2 بعداً گیج نشوند.
+# Make a relative path absolute so bootstrap and the PM2 service are not confused later.
 case "$APP_DIR" in
   /*) ;;
   *) APP_DIR="$PWD/$APP_DIR" ;;
 esac
 
-# git برای دریافت کد لازم است و bootstrap آن را دیرتر نصب می‌کند؛ پس همین‌جا
-# اگر نبود نصبش می‌کنیم (curl/ca-certificates هم برای HTTPS ضروری‌اند).
+# git is required to fetch the code and bootstrap installs it later; install it here
+# if missing (curl/ca-certificates are also required for HTTPS).
 if ! command -v git >/dev/null 2>&1; then
-  say "— نصب پیش‌نیازهای دریافت کد (git/curl/ca-certificates) —"
+  say "— Installing prerequisites for fetching the code (git/curl/ca-certificates) —"
   apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git
 fi
 
-say "— دریافت کد Nobino —"
+say "— Fetching Nobino code —"
 if [[ -d "$APP_DIR/.git" ]]; then
-  ok "کد از قبل در $APP_DIR هست؛ همان استفاده می‌شود."
-  say "   برای به‌روزرسانی بعدی:  sudo bash $APP_DIR/deploy/update.sh"
+  ok "Code already exists in $APP_DIR; reusing it."
+  say "   To update later:  sudo bash $APP_DIR/deploy/update.sh"
 elif [[ -e "$APP_DIR" && -n "$(ls -A "$APP_DIR" 2>/dev/null || true)" ]]; then
-  die "$APP_DIR وجود دارد ولی مخزن گیت نیست. یک مسیر خالی با --app-dir بدهید یا خودتان کد را آنجا بگذارید."
+  die "$APP_DIR exists but is not a git repository. Use an empty path via --app-dir or place the code there yourself."
 else
-  say "  $REPO_URL (شاخه: $BRANCH) → $APP_DIR"
+  say "  $REPO_URL (branch: $BRANCH) → $APP_DIR"
   mkdir -p "$(dirname "$APP_DIR")"
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
-  ok "کد دریافت شد."
+  ok "Code fetched."
 fi
 
-[[ -f "$APP_DIR/deploy/bootstrap.sh" ]] || die "deploy/bootstrap.sh در $APP_DIR پیدا نشد؛ دریافت کد ناتمام است."
+[[ -f "$APP_DIR/deploy/bootstrap.sh" ]] || die "deploy/bootstrap.sh not found in $APP_DIR; the code fetch is incomplete."
 
-say "— اجرای نصب کامل (deploy/bootstrap.sh) —"
+say "— Running the full install (deploy/bootstrap.sh) —"
 exec bash "$APP_DIR/deploy/bootstrap.sh" --app-dir "$APP_DIR" "${ARGS[@]}"

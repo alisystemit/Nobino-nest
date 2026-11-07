@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 /**
- * ساخت نسخهٔ قابل استقرار (release) پروژهٔ Nobino — نسخهٔ NestJS.
+ * Build a deployable release of the Nobino project — NestJS edition.
  *
- * اجرا:
- *   node scripts/build-release.mjs            # نصب + generate + build هر دو سمت + smoke-test
+ * Usage:
+ *   node scripts/build-release.mjs            # install + generate + build both sides + smoke test
  *   node scripts/build-release.mjs --skip-install
  *   node scripts/build-release.mjs --no-smoke
- *   node scripts/build-release.mjs --no-frontend   # فقط بک‌اند (بیلد و prerender فرانت انجام نمی‌شود)
- *   node scripts/build-release.mjs --strict    # خطای تایپ = شکست (پیش‌فرض: هشدار)
+ *   node scripts/build-release.mjs --no-frontend   # backend only (frontend build and prerender are skipped)
+ *   node scripts/build-release.mjs --strict    # type error = failure (default: warning)
  *
- * prerender فقط وقتی sitemap.xml/robots.txt می‌نویسد که مبنا (VITE_SITE_URL یا
- * SITE_URL) دامنهٔ عمومی باشد؛ در غیر آن نشانی لوکال روی دیسک نمی‌سوزد.
+ * prerender only writes sitemap.xml/robots.txt when the base (VITE_SITE_URL or
+ * SITE_URL) is a public domain; otherwise a local address never gets burned onto disk.
  *
- * چرا «آشتی‌جو»؟ این مخزن در چند session هم‌زمان ویرایش می‌شود، پس ممکن است در
- * لحظهٔ بیلد چند فایلِ کارِ‌در‌ادامه خطای تایپ داشته باشند؛`tsc` با وجود آن‌ها
- * خروجی می‌گیرد. برای pipeline استقرار، معیار واقعی «وجود dist معتبر + بوت موفق
- * سرور» است؛ خطاهای تایپ چاپ و هشدار داده می‌شوند ولی با `--strict` سخت‌گیرانه
- * رفتار می‌شود. (معیار توسعه: `npm run build:backend` که خطا را شکست می‌دهد؛
- * در حال حاضر بک‌اند بدون خطا بیلد می‌شود.)
+ * Why "lenient"? This repository is edited by several sessions at the same time, so at
+ * build time a few in-progress files may have type errors; `tsc` still produces output
+ * despite them. For a deployment pipeline, the real criteria are "a valid dist exists +
+ * the server boots successfully"; type errors are printed and warned about, but
+ * `--strict` makes the behavior strict. (Development criterion: `npm run build:backend`,
+ * which fails on errors; currently the backend builds without errors.)
  */
 import { spawnSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -40,20 +40,20 @@ const fail = (msg, extra) => {
 const KNOWN_FLAGS = ["--strict", "--skip-install", "--no-frontend", "--no-smoke", "--help", "-h"];
 const unknown = argv.filter((a) => a.startsWith("--") && !KNOWN_FLAGS.includes(a));
 if (unknown.length) {
-  console.error(`❌ گزینهٔ ناشناخته: ${unknown.join(", ")}\n   مجاز: ${KNOWN_FLAGS.filter((f) => f !== "-h").join(", ")}`);
+  console.error(`❌ Unknown option: ${unknown.join(", ")}\n   Allowed: ${KNOWN_FLAGS.filter((f) => f !== "-h").join(", ")}`);
   process.exit(1);
 }
 if (has("--help") || argv.includes("-h")) {
-  console.log(`کاربرد: node scripts/build-release.mjs [گزینه]
+  console.log(`Usage: node scripts/build-release.mjs [option]
 
-  --strict        خطاهای تایپ اسکریپت = شکست بیلد
-  --skip-install  npm install اجرا نمی‌شود (سرورهای آماده)
-  --no-frontend   بیلد فرانت‌اند و prerender رد می‌شود
-  --no-smoke      بوت سرور برای smoke test رد می‌شود
+  --strict        TypeScript type errors = build failure
+  --skip-install  npm install is not run (prepared servers)
+  --no-frontend   Frontend build and prerender are skipped
+  --no-smoke      Server boot for the smoke test is skipped
 
-متغیرهای محیطی مؤثر: SMOKE_PORT (عدد)، SMOKE_DB_REQUIRED (0|1)،
-SMOKE_PRELOAD (--require دلخواه برای بوت)، PRERENDER_API (سرور زنده در حالت --no-smoke)،
-VITE_SITE_URL / SITE_URL (مبنای سئو؛ اگر نبود prerender انجام نمی‌شود).`);
+Affecting environment variables: SMOKE_PORT (number), SMOKE_DB_REQUIRED (0|1),
+SMOKE_PRELOAD (custom --require for the boot), PRERENDER_API (live server in --no-smoke mode),
+VITE_SITE_URL / SITE_URL (SEO base; if absent, prerender is not performed).`);
   process.exit(0);
 }
 
@@ -65,14 +65,14 @@ const SMOKE_PORT = (() => {
   const raw = (process.env.SMOKE_PORT || "").trim();
   if (raw === "") return 3977;
   const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1024 || n > 65535) fail(`SMOKE_PORT نامعتبر است: «${raw}» — یک عدد بین 1024 و 65535 بدهید.`);
+  if (!Number.isInteger(n) || n < 1024 || n > 65535) fail(`SMOKE_PORT is invalid: "${raw}" — provide a number between 1024 and 65535.`);
   return n;
 })();
 
 function run(cmd, args, opts = {}) {
   const useShell = process.platform === "win32";
   const res = useShell
-    // در ویندوز npm/npx فقط با shell حل می‌شوند؛ آرگومان‌ها ثابت و داخلی‌اند
+    // on Windows npm/npx only resolve through the shell; the arguments are fixed and internal
     ? spawnSync([cmd, ...args].join(" "), {
         cwd: opts.cwd || ROOT,
         stdio: opts.capture ? ["ignore", "pipe", "pipe"] : "inherit",
@@ -89,7 +89,7 @@ function run(cmd, args, opts = {}) {
   return res;
 }
 
-// ── ۰) بررسی متغیرهای محیطی ────────────────────────────────────────
+// ── 0) Environment checks ──────────────────────────────────────────
 function readEnvFile(name) {
   for (const file of [".env.production", ".env"]) {
     const p = join(ROOT, file);
@@ -101,15 +101,15 @@ function readEnvFile(name) {
 }
 const envValue = (name) => (process.env[name] || readEnvFile(name) || "").trim();
 
-log("بررسی محیط...");
+log("Checking environment...");
 if (!envValue("DATABASE_URL")) {
-  warn("DATABASE_URL پیدا نشد — migrate/build بدون DB کار می‌کند ولی سرور بالا نمی‌آید.");
+  warn("DATABASE_URL not found — migrate/build work without a DB, but the server won't come up.");
 }
 if (!envValue("JWT_SECRET")) {
-  warn("JWT_SECRET تنظیم نشده؛ مقدار پیش‌فرض توسعه استفاده می‌شود (برای پروداکشن خطرناک است).");
+  warn("JWT_SECRET is not set; the development default is used (dangerous for production).");
 }
 
-// ── ۱) نصب وابستگی‌ها ──────────────────────────────────────────────
+// ── 1) Install dependencies ────────────────────────────────────────
 if (!SKIP_INSTALL) {
   for (const dir of ["", "backend", "frontend"]) {
     const cwd = dir ? join(ROOT, dir) : ROOT;
@@ -117,75 +117,75 @@ if (!SKIP_INSTALL) {
     const cmd = existsSync(join(cwd, "package-lock.json")) ? ["ci"] : ["install"];
     log(`npm ${cmd[0]} (${label})...`);
     const res = run("npm", cmd, { cwd });
-    if (res.status !== 0) fail(`npm ${cmd[0]} در ${label} ناموفق بود`);
+    if (res.status !== 0) fail(`npm ${cmd[0]} failed in ${label}`);
   }
 } else {
-  log("npm install رد شد (--skip-install)");
+  log("npm install skipped (--skip-install)");
 }
 
-// ── ۲) Prisma Client ───────────────────────────────────────────────
+// ── 2) Prisma Client ───────────────────────────────────────────────
 const prismaCli = join(ROOT, "node_modules", "prisma", "build", "index.js");
 if (existsSync(prismaCli)) {
-  log("تولید Prisma Client...");
+  log("Generating Prisma Client...");
   const res = run("node", [prismaCli, "generate", "--schema", join("prisma", "schema.prisma")]);
-  if (res.status !== 0) fail("prisma generate ناموفق بود");
+  if (res.status !== 0) fail("prisma generate failed");
 } else {
-  warn("CLI پریزما در node_modules نیست؛ نصب وابستگی‌ها کامل نشده؟");
+  warn("Prisma CLI is not in node_modules; was dependency installation incomplete?");
 }
 
-// ── ۳) بیلد بک‌اند ─────────────────────────────────────────────────
-log("ساخت بک‌اند (tsc + tsc-alias)...");
+// ── 3) Backend build ───────────────────────────────────────────────
+log("Building backend (tsc + tsc-alias)...");
 const backendDir = join(ROOT, "backend");
 const tsc = run("npx", ["tsc", "-p", "tsconfig.build.json"], { cwd: backendDir, capture: true });
 const tscOut = `${tsc.stdout || ""}${tsc.stderr || ""}`;
 if (tsc.status !== 0) {
   const lines = tscOut.split(/\r?\n/).filter((l) => /error TS\d+/.test(l));
-  if (STRICT) fail("tsc بک‌اند خطا دارد (--strict):\n" + lines.join("\n"));
-  warn(`tsc بک‌اند ${lines.length} خطای تایپ گزارش کرد (dist ساخته می‌شود):`);
+  if (STRICT) fail("backend tsc has errors (--strict):\n" + lines.join("\n"));
+  warn(`backend tsc reported ${lines.length} type errors (dist is still built):`);
   for (const l of lines.slice(0, 12)) console.log("    " + l);
-  if (lines.length > 12) console.log(`    … و ${lines.length - 12} خطای دیگر`);
+  if (lines.length > 12) console.log(`    … and ${lines.length - 12} more errors`);
 }
 const alias = run("npx", ["tsc-alias", "-p", "tsconfig.build.json"], { cwd: backendDir, capture: true });
-if (alias.status !== 0) fail("tsc-alias ناموفق بود", alias.stderr);
+if (alias.status !== 0) fail("tsc-alias failed", alias.stderr);
 
-// ── ۴) بیلد فرانت ──────────────────────────────────────────────────
+// ── 4) Frontend build ──────────────────────────────────────────────
 if (!SKIP_FRONTEND) {
   const frontendDir = join(ROOT, "frontend");
   const feTsc = run("npx", ["tsc", "-b"], { cwd: frontendDir, capture: true });
   if (feTsc.status !== 0) {
     const lines = `${feTsc.stdout || ""}${feTsc.stderr || ""}`.split(/\r?\n/).filter((l) => /error TS\d+/.test(l));
-    if (STRICT) fail("tsc فرانت خطا دارد (--strict):\n" + lines.join("\n"));
-    warn(`tsc فرانت ${lines.length} خطای تایپ گزارش کرد (vite build typecheck نمی‌کند):`);
+    if (STRICT) fail("frontend tsc has errors (--strict):\n" + lines.join("\n"));
+    warn(`frontend tsc reported ${lines.length} type errors (vite build does no typecheck):`);
     for (const l of lines.slice(0, 8)) console.log("    " + l);
   }
-  log("ساخت SPA (vite build)...");
-  // NODE_ENV را صریح پروداکشن می‌گذاریم: .env ریشه `NODE_ENV="development"` دارد و
-  // Vite (به‌خاطر envDir همان پوشه) آن را برای build هم برمی‌دارد، پس بدون این خط
-  // راکتِ development در dist می‌نشیند. frontend/scripts/vite-build.mjs همین کاری را
-  // برای `npm run build` می‌کند؛ اینجا مستقیم‌ترین معادل است.
+  log("Building SPA (vite build)...");
+  // We set NODE_ENV explicitly to production: the root .env has `NODE_ENV="development"` and
+  // Vite (because of envDir being the same folder) picks it up for the build too, so without this
+  // line the development React ends up in dist. frontend/scripts/vite-build.mjs does the same thing
+  // for `npm run build`; this is the most direct equivalent here.
   const vite = run("node", ["scripts/vite-build.mjs"], { cwd: frontendDir });
-  if (vite.status !== 0) fail("vite build ناموفق بود");
-  log("prerender بعد از بوت سرور انجام می‌شود (تا صفحات سالن‌ها از API گرفته شوند)...");
+  if (vite.status !== 0) fail("vite build failed");
+  log("prerender runs after the server boots (so salon pages are fetched from the API)...");
 } else {
-  log("بیلد فرانت رد شد (--no-frontend)");
+  log("frontend build skipped (--no-frontend)");
 }
 
-// ── ۵) بررسی خروجی‌ها ──────────────────────────────────────────────
+// ── 5) Check outputs ───────────────────────────────────────────────
 const distMain = join(backendDir, "dist", "main.js");
 const distIndex = join(ROOT, "frontend", "dist", "index.html");
-if (!existsSync(distMain)) fail("backend/dist/main.js ساخته نشد");
-ok("backend/dist/main.js موجود است");
-if (!SKIP_FRONTEND && !existsSync(distIndex)) fail("frontend/dist/index.html ساخته نشد");
+if (!existsSync(distMain)) fail("backend/dist/main.js was not created");
+ok("backend/dist/main.js exists");
+if (!SKIP_FRONTEND && !existsSync(distIndex)) fail("frontend/dist/index.html was not created");
 
-// ── ۶) smoke test: بوت واقعی سرور ──────────────────────────────────
-/** prerender صفحات سئو: به سرورِ در حال اجرا نیاز دارد.
- *  مبنا فقط از VITE_SITE_URL/SITE_URL گرفته می‌شود؛ هرگز آدرس خودِ سرور smoke
- *  (۱۲۷.۰.۰.۱:پورت) جانشین دامنه نمی‌شود — prerender در آن حالت canonical
- *  نسبی می‌نویسد و sitemap را روی دیسک نمی‌سوزاند. */
+// ── 6) smoke test: real server boot ────────────────────────────────
+/** prerender SEO pages: requires a running server.
+ *  The base is taken only from VITE_SITE_URL/SITE_URL; the smoke server's own address
+ *  (127.0.0.1:port) never replaces the domain — in that case prerender writes relative
+ *  canonical URLs and doesn't burn the sitemap onto disk. */
 function runPrerender(apiBase) {
   const site = envValue("VITE_SITE_URL") || envValue("SITE_URL") || envValue("VITE_APP_URL");
   if (!site) {
-    warn("مبنای سئو مشخص نیست (VITE_SITE_URL/SITE_URL در env یا .env) — prerender انجام نمی‌شود تا sitemap/robots لوکال روی دیست نوشته یا حذف نشود.");
+    warn("SEO base is unknown (VITE_SITE_URL/SITE_URL in env or .env) — prerender is skipped so a local sitemap/robots is not written to or deleted from dist.");
     return false;
   }
   const res = run("node", ["prerender.mjs"], {
@@ -197,13 +197,13 @@ function runPrerender(apiBase) {
   if (res.status === 0) {
     for (const line of out.split(/\r?\n/).filter(Boolean).slice(-3)) log("prerender: " + line);
   } else {
-    warn("prerender کامل نشد؛ صفحات عمومی با shell اسپا سرو می‌شوند.");
+    warn("prerender did not complete; public pages are served by the SPA shell.");
     for (const line of out.split(/\r?\n/).filter(Boolean).slice(-4)) warn("prerender: " + line);
   }
   return res.status === 0;
 }
 
-/** آیا سروری روی این آدرس پاسخ می‌دهد؟ (برای prerender در حالت --no-smoke) */
+/** Does a server answer at this address? (for prerender in --no-smoke mode) */
 async function apiReachable(apiBase) {
   try {
     const ac = new AbortController();
@@ -216,23 +216,23 @@ async function apiReachable(apiBase) {
 }
 
 if (SKIP_SMOKE) {
-  log("smoke test رد شد (--no-smoke)");
-  // بدون سرورِ در حال اجرا هرگز prerender نمی‌کنیم؛ در غیر این صورت
-  // sitemap/canonical با آدرس لوکالِ smoke-test روی دیسک می‌سوزد (B2).
+  log("smoke test skipped (--no-smoke)");
+  // Without a running server we never prerender; otherwise
+  // sitemap/canonical would burn the smoke-test local address onto disk (B2).
   const explicitApi = (process.env.PRERENDER_API || "").trim();
   if (SKIP_FRONTEND) {
-    log("prerender رد شد (--no-frontend)");
+    log("prerender skipped (--no-frontend)");
   } else if (!explicitApi) {
-    warn("prerender در حالت --no-smoke انجام نشود (سروری در حال اجرا نیست). برای ساخت صفحات سئو از smoke test استفاده کنید یا PRERENDER_API را به سرور زندهٔ خود بچرخانید.");
+    warn("prerender is not performed in --no-smoke mode (no server is running). Use the smoke test to build the SEO pages, or point PRERENDER_API at your live server.");
   } else if (await apiReachable(explicitApi)) {
     runPrerender(explicitApi);
   } else {
-    warn(`PRERENDER_API=${explicitApi} در دسترس نیست — prerender انجام نشد.`);
+    warn(`PRERENDER_API=${explicitApi} is unreachable — prerender was skipped.`);
   }
 } else {
-  log(`بوت سرور روی پورت ${SMOKE_PORT} برای smoke test...`);
-  // SMOKE_PRELOAD: یک --require دلخواه (مثلاً stub اتصال Prisma) برای محیطی که
-  // دیتابیس ندارد؛ در استقرار واقعی لازم نیست.
+  log(`Booting server on port ${SMOKE_PORT} for the smoke test...`);
+  // SMOKE_PRELOAD: an optional --require (e.g. a Prisma connection stub) for an environment
+  // without a database; not needed in a real deployment.
   const preload = (process.env.SMOKE_PRELOAD || "").trim();
   const child = spawn("node", [...(preload ? ["--require", preload] : []), distMain], {
     cwd: ROOT,
@@ -276,12 +276,12 @@ if (SKIP_SMOKE) {
       /* keep defaults */
     }
     try {
-      // مسیر عمیق: باید با fallback اسپا یا صفحهٔ prerender شده پاسخ دهد (نه ۴۰۴)
+      // deep path: must answer with the SPA fallback or a prerendered page (not a 404)
       deepStatus = (await fetch(`${apiBase}/packages`, { signal: AbortSignal.timeout(5000) })).status;
     } catch {
       /* keep defaults */
     }
-    // prerender در همین لحظه که سرور بالاست اجرا می‌شود تا صفحات سالن‌ها ساخته شوند
+    // prerender runs right now, while the server is up, so the salon pages get generated
     if (!SKIP_FRONTEND) runPrerender(apiBase);
   }
 
@@ -291,27 +291,27 @@ if (SKIP_SMOKE) {
 
   if (!health) {
     const dbDown = /Can't reach database server|P1001|ECONNREFUSED/i.test(bootLog);
-    // شکست به‌خاطر نداشتن دیتابیس «موفق» حساب نمی‌شود؛ صریحً با SMOKE_DB_REQUIRED=0 رد کنید.
+    // A failure caused by a missing database is not counted as "success"; explicitly skip it with SMOKE_DB_REQUIRED=0.
     if (dbDown && /^(0|false|no)$/i.test(process.env.SMOKE_DB_REQUIRED || "")) {
-      warn("دیتابیس در دسترس نبود و با SMOKE_DB_REQUIRED=0 رد شد — smoke test کامل انجام نشده است.");
+      warn("The database was unreachable and was skipped with SMOKE_DB_REQUIRED=0 — the smoke test was not fully performed.");
       console.error(bootLog.split(/\r?\n/).filter((l) => /Prisma|P100|database/i.test(l)).slice(0, 4).join("\n"));
     } else {
       console.error(bootLog.slice(-3000));
       if (dbDown) {
-        fail("سرور بالا نیامد: دیتابیس در دسترس نیست. PostgreSQL را بالا بیاورید (یا DATABASE_URL را درست کنید)؛ اگر واقعاً بدون DB تست می‌کنید: SMOKE_DB_REQUIRED=0");
+        fail("server did not come up: the database is unreachable. Start PostgreSQL (or fix DATABASE_URL); if you really want to test without a DB: SMOKE_DB_REQUIRED=0");
       }
-      fail("سرور در 30 ثانیه بالا نیامد /api/health نداد");
+      fail("server did not come up within 30 seconds / /api/health did not respond");
     }
   } else {
     ok(`/api/health → ${health.status} | db=${health.db || "n/a"} | servingSpa=${health.servingSpa}`);
-    if (health.db === "down") warn("دیتابیس از /api/health?db=1 پاسخ نداد (liveness همچنان 200 است).");
+    if (health.db === "down") warn("The database did not respond from /api/health?db=1 (liveness is still 200).");
     if (existsSync(distIndex)) {
-      if (spaStatus === 200 && spaIsHtml) ok(`SPA در / پاسخ داد (HTTP ${spaStatus})`);
-      else fail(`SPA سرو نشد (HTTP ${spaStatus}, html=${spaIsHtml})`);
-      if (deepStatus === 200) ok("fallback اسپا در مسیر عمیق /packages کار کرد");
-      else fail(`مسیر عمیق /packages کد ${deepStatus} داد — fallback اسپا شکسته است (بروزر رفرش روی مسیرهای عمیق 404 می‌گیرد).`);
+      if (spaStatus === 200 && spaIsHtml) ok(`SPA responded at / (HTTP ${spaStatus})`);
+      else fail(`SPA was not served (HTTP ${spaStatus}, html=${spaIsHtml})`);
+      if (deepStatus === 200) ok("SPA fallback worked on the deep path /packages");
+      else fail(`deep path /packages returned ${deepStatus} — the SPA fallback is broken (browser refresh on deep paths gets a 404).`);
     }
   }
 }
 
-ok("release آماده است. شروع با: node scripts/paas-start.mjs");
+ok("release is ready. Start with: node scripts/paas-start.mjs");

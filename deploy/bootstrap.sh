@@ -1,53 +1,53 @@
 #!/usr/bin/env bash
 # =====================================================================
-# Nobino (نسخهٔ NestJS) — bootstrap یک‌فرمانی برای VPS کاملاً خام
+# Nobino (NestJS edition) — one-command bootstrap for a completely fresh VPS
 #
 #   sudo bash deploy/bootstrap.sh --domain nobino.ir
 #
-# از یک Ubuntu/Debian که «هیچ چیز» نصب ندارد، همه‌کار را اتوماتیک می‌کند:
-#   ۱) پیش‌نیازهای OS (curl/ca-certificates/gnupg/git/rsync)
-#   ۲) ساخت swap اگر رمز کمتر از ۲ گیگ است (بیلد vite/Prisma خاموش نشود)
-#   ۳) Node.js 24 از NodeSource + PM2
-#   ۴) PostgreSQL سروری + یوزر/دیتابیس `nobino` با رمز تصادفی
-#      — اگر روی سرور Postgres از قبل داده دارد، دست نمی‌زند مگر --with-postgres
-#   ۵) ساخت خودکار .env از deploy/env.production.example با
-#      DATABASE_URL/JWT_SECRET/CRON_SECRET/دامنه‌های پرشده (بدون CHANGE_ME)
-#      — اگر .env موجود باشد، بی‌آن کار نمی‌کند
-#   ۶) ufw: فقط SSH + 80 + 443 + 8443 باز می‌شود (اگر ufw فعال نیست، فعال می‌کند؛
-#      با --no-firewall کلاً دست نمی‌زند)
-#   ۷) در پایان deploy/install.sh را کامل اجرا می‌کند (بیلد + PM2 + nginx + سلامت)
-#   ۷.۵) اگر --tls بدهید، deploy/ssl.sh گواهی Let's Encrypt می‌گیرد و
-#      بلوک HTTPS را در nginx فعال می‌کند (پیش‌فرض wildcard با چالش DNS)
-#   ۸) ساخت اولین سوپرادمین با موبایل/رمز/ایمیل دلخواه (اگر دیتابیس خالی باشد؛
-#      با --admin-phone/--admin-password/--admin-email بدون پرسش، یا در پایان خودکار می‌پرسد)
+# From an Ubuntu/Debian install with "nothing" on it, it does everything automatically:
+#   1) OS prerequisites (curl/ca-certificates/gnupg/git/rsync)
+#   2) Create swap if RAM is under 2 GB (so the vite/Prisma build is not killed)
+#   3) Node.js 24 from NodeSource + PM2
+#   4) Server PostgreSQL + `nobino` user/database with a random password
+#      — if the server Postgres already has data, it is left alone unless --with-postgres
+#   5) Automatic .env from deploy/env.production.example with
+#      DATABASE_URL/JWT_SECRET/CRON_SECRET/domains filled in (no CHANGE_ME)
+#      — if .env already exists, it is left untouched
+#   6) ufw: only SSH + 80 + 443 + 8443 are opened (enables ufw if it is not active;
+#      with --no-firewall it is not touched at all)
+#   7) At the end it runs deploy/install.sh in full (build + PM2 + nginx + health)
+#   7.5) With --tls, deploy/ssl.sh obtains a Let's Encrypt certificate and
+#      enables the HTTPS block in nginx (wildcard with DNS challenge by default)
+#   8) Create the first superadmin with any mobile/password/email (if the database is
+#      empty; with --admin-phone/--admin-password/--admin-email without prompts, otherwise it asks automatically at the end)
 #
-# گزینه‌ها:
-#   --domain <دامنه>      ضروری (مثلاً nobino.ir) — دامنهٔ اصلی؛ برای چند دامنه (alias)
-#                         چند بار بدهید یا با کاما جدا کنید (مثل --domain nobino.ir --domain nobino.com)
-#   --repo <git-url>      آدرس git مخزن؛ اگر مخزن این اسکریپت نیست کلون می‌شود
-#   --app-dir <مسیر>      مسیر نصب (پیش‌فرض /opt/nobino؛ اگر مخزن جاری همان جا نیست کلون/کپی می‌شود)
-#   --port <پورت>         پورت داخلی (پیش‌فرض 3100)
-#   --pg-password <رمز>   رمز یوزر دیتابیس (پیش‌فرض: تصادفی؛ در .env و پیام پایانی می‌بینید)
-#   --database-url <نشانی>  نشانی دیتابیس آماده؛ وقتی Postgres همین سرور هست و
-#                        نمی‌خواهید سؤال بپرسد (CI و curl|bash از این گزینه استفاده کنند)
-#   --admin-phone <موبایل>   شمارهٔ سوپرادمین اولیه (هم‌شکل ورود مدیران، ۱۱ رقم با 0)
-#   --admin-password <رمز>   رمز سوپرادمین اولیه (حداقل ۸ کاراکتر)
-#   --admin-email <ایمیل>    ایمیل پروفایل سوپرادمین (اختیاری؛ یا متغیر ADMIN_EMAIL)
-#                        — اگر تا می‌توانید به‌جای این پرچم‌ها، متغیرهای محیطی
-#                          ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL را بدهید تا رمز
-#                          در `ps` و تاریخچهٔ shell نماند
-#   --no-admin            ساخت سوپرادمین را انجام نده (بعداً دستی: scripts/create-admin.mjs)
-#   --no-firewall         ufw را لمس نکن
-#   --with-postgres       حتی اگر Postgres هست، یوزر/دیتابیس nobino بساز (بدون نصب دوباره)
-#   --tls                 بعد از نصب SSL بگیر و HTTPS را فعال کن (نیازمند --email)
-#   --email <ایمیل>       ایمیل حساب ACME برای Let's Encrypt
-#   --ssl-mode <حالت>     dns (پیش‌فرض، wildcard تعاملی) | http | cloudflare (اختیاری)
-#   --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (فقط ssl-mode=cloudflare)
-#   --dry-run             فرمان‌های تغییردهنده فقط چاپ می‌شوند
+# Options:
+#   --domain <domain>     required (e.g. nobino.ir) — the main domain; for multiple domains (alias)
+#                         pass it multiple times or separate with commas (e.g. --domain nobino.ir --domain nobino.com)
+#   --repo <git-url>      git URL of the repository; cloned if the current directory is not this repo
+#   --app-dir <path>      install path (default /opt/nobino; cloned/copied there if the current repo is not already there)
+#   --port <port>         internal port (default 3100)
+#   --pg-password <pass>  database user password (default: random; shown in .env and the final message)
+#   --database-url <url>  ready-made database URL; for when Postgres is already on this server and
+#                        you do not want a prompt (CI and curl|bash should use this option)
+#   --admin-phone <phone>   initial superadmin number (same format as admin login, 11 digits starting with 0)
+#   --admin-password <pass>   initial superadmin password (at least 8 characters)
+#   --admin-email <email>    superadmin profile email (optional; or the ADMIN_EMAIL variable)
+#                        — if possible, pass the environment variables
+#                          ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL instead of these flags so the
+#                          password does not stay in `ps` and shell history
+#   --no-admin            do not create the superadmin (later manually: scripts/create-admin.mjs)
+#   --no-firewall         do not touch ufw
+#   --with-postgres       even if Postgres exists, create the nobino user/database (without reinstalling)
+#   --tls                 obtain SSL after install and enable HTTPS (requires --email)
+#   --email <email>       ACME account email for Let's Encrypt
+#   --ssl-mode <mode>     dns (default, interactive wildcard) | http | cloudflare (optional)
+#   --dns-credentials <path>  Cloudflare credentials file (only ssl-mode=cloudflare)
+#   --dry-run             commands that change things are only printed
 #
-# امنیت: هیچ داده‌ای به بیرون ارسال نمی‌شود. رمزها فقط در همین سرور
-# (فایل .env با مجوز 600) می‌مانند. به PHP/MySQL/برنامه‌ها و اعتبارنامه‌های
-# موجود دیگر دست زده نمی‌شود.
+# Security: no data is sent anywhere. Passwords stay only on this server
+# (.env file with mode 600). PHP/MySQL/apps and existing other
+# credentials are not touched.
 # =====================================================================
 set -euo pipefail
 
@@ -57,14 +57,14 @@ ok()   { printf '%s✅ %s%s\n' "$C_OK" "$*" "$C_OFF"; }
 warn() { printf '%s⚠️  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
 die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 run()  { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else "$@"; fi; }
-# runsh: اجرای فرمان با پوستهٔ فرعی (برای پایپ/ریدایرکت/append)
+# runsh: run the command through a subshell (for pipes/redirects/append)
 runsh() { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else bash -c "$*"; fi; }
-# گزینهٔ مقداردار بدون مقدار نباید با «$2: unbound variable» بمیرد (ME-5).
-need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
+# A value-taking option with no value must not die with "$2: unbound variable" (ME-5).
+need_value() { [[ $# -ge 2 ]] || die "$1 needs a value (e.g. $1 <value>)"; }
 
-# دامنه را نرمال می‌کند (پروتکل/مسیر/پورت/فاصله/نقطهٔ پایانی) و پیشوند «*.» را
-# برمی‌دارد؛ wildcard دامنهٔ اصلی خودکار اضافه می‌شود. --domain می‌تواند چند بار
-# بیاید یا با کاما/فاصله چند دامنه بگیرد.
+# Normalizes the domain (protocol/path/port/spaces/trailing dot) and strips the
+# "*." prefix; the wildcard for the main domain is added automatically. --domain can be
+# given multiple times or take several domains separated by commas/spaces.
 norm_domain() {
   local d="${1:-}"
   d="${d,,}"; d="${d#*://}"; d="${d%%/*}"; d="${d%%:*}"; d="${d//[[:space:]]/}"
@@ -90,8 +90,8 @@ read_env() {
 
 DOMAINS=()
 DOMAIN="" REPO_URL="" APP_DIR="/opt/nobino" PORT="3100" PG_PASSWORD=""
-# رمز/شماره/ایمیل سوپرادمین از محیط هم پذیرفته می‌شود تا روی argv (در `ps`) و در
-# تاریخچهٔ shell نماند (HG-2).
+# The superadmin password/number/email is also accepted from the environment so it does not
+# stay on argv (in `ps`) and in shell history (HG-2).
 ADMIN_PHONE="${ADMIN_PHONE:-}" ADMIN_PASSWORD="${ADMIN_PASSWORD:-}" ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 DBURL_CLI="" NO_ADMIN=false
 ADMIN_SET=false ADMIN_HINT=false
@@ -123,42 +123,42 @@ while [[ $# -gt 0 ]]; do
     --dns-credentials) need_value "$@"; DNS_CREDENTIALS="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
-    *) die "گزینهٔ ناشناخته: $1 (--help را ببینید)" ;;
+    *) die "Unknown option: $1 (see --help)" ;;
   esac
 done
 
-# ── دامنه‌ها: --domain چند بار/با کاما؛ دامنهٔ اول اصلی است ──────────
+# ── Domains: --domain multiple times/with commas; the first domain is the main one ──────────
 if [[ ${#DOMAINS[@]} -eq 0 ]]; then
   add_domains "$(read_env ROOT_DOMAIN)"
 fi
 if [[ ${#DOMAINS[@]} -eq 0 ]]; then
-  die "دامنه لازم است:  sudo bash deploy/bootstrap.sh --domain nobino.ir"
+  die "A domain is required:  sudo bash deploy/bootstrap.sh --domain nobino.ir"
 fi
 if [[ -n "$(read_env ROOT_DOMAIN)" && "${DOMAINS[0]}" == "$(norm_domain "$(read_env ROOT_DOMAIN)")" ]]; then
-  # دامنه‌های alias ذخیره‌شده در .env برای بازسازی vhost حفظ شوند
+  # keep alias domains stored in .env so the vhost can be rebuilt
   add_domains "$(read_env EXTRA_DOMAINS)"
 fi
 for d in "${DOMAINS[@]}"; do
-  [[ "$d" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$d» — فقط حروف/عدد/نقطه/خط تیره (مثلاً nobino.ir)."
+  [[ "$d" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "Invalid domain: '$d' — only letters/digits/dot/hyphen (e.g. nobino.ir)."
 done
 DOMAIN="${DOMAINS[0]}"
 DOMAIN_ALIASES=()
 [[ ${#DOMAINS[@]} -gt 1 ]] && DOMAIN_ALIASES=("${DOMAINS[@]:1}")
 EXTRA_DOMAINS="$(IFS=,; printf '%s' "${DOMAIN_ALIASES[*]:-}")"
 if [[ -n "$ADMIN_EMAIL" && ! "$ADMIN_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; then
-  die "ایمیل سوپرادمین معتبر نیست: «$ADMIN_EMAIL» (مثلاً admin@example.com)."
+  die "Invalid superadmin email: '$ADMIN_EMAIL' (e.g. admin@example.com)."
 fi
-[[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT >= 1024 && PORT <= 65535 )) || die "--port یک عدد بین 1024 و 65535 است (دادید: $PORT)."
-case "$SSL_MODE" in dns|cloudflare|http) ;; *) die "--ssl-mode باید dns یا cloudflare یا http باشد (دادید: $SSL_MODE)." ;; esac
+[[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT >= 1024 && PORT <= 65535 )) || die "--port must be a number between 1024 and 65535 (you gave: $PORT)."
+case "$SSL_MODE" in dns|cloudflare|http) ;; *) die "--ssl-mode must be dns or cloudflare or http (you gave: $SSL_MODE)." ;; esac
 if $ENABLE_TLS && [[ "$SSL_MODE" == "cloudflare" && -z "$DNS_CREDENTIALS" ]]; then
-  die "برای --tls --ssl-mode cloudflare باید --dns-credentials <مسیر فایل> هم بدهید."
+  die "For --tls --ssl-mode cloudflare you must also pass --dns-credentials <file path>."
 fi
-[[ "$(id -u)" == "0" ]] || die "با sudo اجرا کنید."
-command -v apt-get >/dev/null 2>&1 || die "این اسکریپت برای Ubuntu/Debian (apt) است."
-command -v systemctl >/dev/null 2>&1 || die "systemctl لازم است (روی LXC قدیمی/WSL ممکن نیست)."
+[[ "$(id -u)" == "0" ]] || die "Run with sudo."
+command -v apt-get >/dev/null 2>&1 || die "This script is for Ubuntu/Debian (apt)."
+command -v systemctl >/dev/null 2>&1 || die "systemctl is required (not possible on old LXC/WSL)."
 
-# HI-8: بدون `|| true` پایانی — اگر هیچ‌یک از دو مسیر مقداری نساخت، تابع
-# ناموفق برمی‌گردد و caller با die می‌ایستد (رمز خالی در .env مجاز نیست).
+# HI-8: no trailing `|| true` — if neither of the two paths produced a value, the function
+# returns failure and the caller stops with die (an empty secret in .env is not allowed).
 rand_secret() {
   local s
   s="$(openssl rand -hex 32 2>/dev/null || true)"
@@ -172,108 +172,108 @@ rand_pg() {
   [[ ${#s} -ge 24 ]] || return 1
   printf '%s' "$s"
 }
-# در ایمیج‌های مینیمال ممکن است sudo نباشد — runuser (util-linux) جایگزین است
+# Minimal images may not have sudo — runuser (util-linux) is the substitute
 if command -v sudo >/dev/null 2>&1; then PGRUN="sudo -u postgres"; else PGRUN="runuser -u postgres --"; fi
-[[ -z "$PG_PASSWORD" || "$PG_PASSWORD" =~ ^[A-Za-z0-9]+$ ]] || die "رمز --pg-password فقط می‌تواند حروف لاتین/عدد باشد (بدون علامت خاص)."
+[[ -z "$PG_PASSWORD" || "$PG_PASSWORD" =~ ^[A-Za-z0-9]+$ ]] || die "--pg-password can only contain Latin letters/digits (no special characters)."
 
-# ── ۱) کد پروژه در مسیر نصب ──────────────────────────────────────────
-say "— ۱) آماده‌سازی کد در $APP_DIR —"
+# ── 1) project code in the install path ──────────────────────────────────────────
+say "— 1) Preparing the code in $APP_DIR —"
 if [[ -f "$APP_DIR/package.json" && -f "$APP_DIR/deploy/install.sh" ]]; then
-  ok "  مخزن از قبل در $APP_DIR است (همین‌جا استفاده می‌شود)"
+  ok "  The repo is already in $APP_DIR (using it as-is)"
 elif [[ -n "$REPO_URL" ]]; then
   if [[ ! -d "$APP_DIR" ]]; then
     run git clone "$REPO_URL" "$APP_DIR"
   else
-    warn "  $APP_DIR وجود دارد اما مخزن نیست؛ کلون نمی‌شود. مسیر را با --app-dir عوض کنید."
-    die "  در $APP_DIR فایل package.json/deploy/install.sh نیست."
+    warn "  $APP_DIR exists but is not the repo; not cloning. Change the path with --app-dir."
+    die "  package.json/deploy/install.sh not found in $APP_DIR."
   fi
 elif [[ -f "$REPO_DIR/deploy/install.sh" && "$REPO_DIR" != "$APP_DIR" ]]; then
-  say "  --repo داده نشد؛ کپی مخزن جاری (این اسکریپت داخل مخزن است) به $APP_DIR"
+  say "  --repo not given; copying the current repo (this script lives inside it) to $APP_DIR"
   run mkdir -p "$APP_DIR"
   run rsync -a --exclude node_modules --exclude .pgdata --exclude .git --exclude backend/dist \
       --exclude frontend/dist --exclude public/uploads --exclude public/voice "$REPO_DIR/" "$APP_DIR/"
 else
-  die "  نه کدی در $APP_DIR هست و نه --repo داده‌اید. مخزن را به این مسیر ببرید (git clone یا scp/tar) و دوباره اجرا کنید."
+  die "  There is no code in $APP_DIR and --repo was not given. Move the repo to this path (git clone or scp/tar) and run again."
 fi
-[[ -f "$APP_DIR/deploy/install.sh" ]] || { $DRY_RUN && warn "  (dry-run) deploy/install.sh در $APP_DIR نیست چون کپی/کلون اجرا نشد" || die "deploy/install.sh در $APP_DIR پیدا نشد."; }
+[[ -f "$APP_DIR/deploy/install.sh" ]] || { $DRY_RUN && warn "  (dry-run) deploy/install.sh is not in $APP_DIR because the copy/clone did not run" || die "deploy/install.sh not found in $APP_DIR."; }
 
-# ── ۲) پیش‌نیازهای OS ───────────────────────────────────────────────
-say "— ۲) پیش‌نیازهای سیستم (apt) —"
+# ── 2) OS prerequisites ───────────────────────────────────────────────
+say "— 2) System prerequisites (apt) —"
 NEEDS=()
 for pkg in curl ca-certificates gnupg git rsync openssl locales; do
   dpkg -s "$pkg" >/dev/null 2>&1 || NEEDS+=("$pkg")
 done
 if [[ ${#NEEDS[@]} -gt 0 ]]; then
-  say "  نصب: ${NEEDS[*]}"
+  say "  Installing: ${NEEDS[*]}"
   run apt-get update -qq
   run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${NEEDS[@]}"
 else
-  ok "  همهٔ پیش‌نیازها موجود است"
+  ok "  All prerequisites are present"
 fi
 
-# ── ۳) swap اگر رم پایین است ────────────────────────────────────────
+# ── 3) swap if RAM is low ────────────────────────────────────────
 MEM_MB="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null || true)"; MEM_MB="${MEM_MB:-4096}"
 if [[ "$MEM_MB" -lt 2048 ]] && ! swapon --show 2>/dev/null | grep -q '^/'; then
-  say "— ۳) رم ${MEM_MB}MB → ساخت swapfile ۲ گیگ (برای پایداری بیلد) —"
+  say "— 3) RAM ${MEM_MB}MB → creating a 2 GB swapfile (for build stability) —"
   if [[ ! -f /swapfile ]]; then
     run fallocate -l 2G /swapfile || run dd if=/dev/zero of=/swapfile bs=1M count=2048
     run chmod 600 /swapfile
     run mkswap /swapfile
     run swapon /swapfile
     grep -q '^/swapfile' /etc/fstab || runsh "echo '/swapfile none swap sw 0 0' >> /etc/fstab"
-    ok "  swap فعال شد"
+    ok "  swap enabled"
   else
     run swapon /swapfile || true
   fi
 else
-  say "— ۳) swap: نیاز نبود (رم ${MEM_MB}MB یا swap فعال) —"
+  say "— 3) swap: not needed (RAM ${MEM_MB}MB or swap already active) —"
 fi
 
-# ── ۴) Node.js + PM2 ────────────────────────────────────────────────
-say "— ۴) Node.js و PM2 —"
+# ── 4) Node.js + PM2 ────────────────────────────────────────────────
+say "— 4) Node.js and PM2 —"
 node_major() { command -v node >/dev/null 2>&1 && node -v | sed 's/^v\([0-9]*\).*/\1/' || echo 0; }
 if [[ "$(node_major)" -lt 20 ]]; then
-  say "  Node $(node -v 2>/dev/null || echo 'ندارد') → نصب NodeSource 24"
+  say "  Node $(node -v 2>/dev/null || echo 'none') → installing NodeSource 24"
   run curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup
   run bash /tmp/nodesource_setup
   run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
 fi
 ok "  Node $(node -v)"
-if ! command -v npm >/dev/null 2>&1; then die "  npm بعد از نصب Node پیدا نشد."; fi
+if ! command -v npm >/dev/null 2>&1; then die "  npm not found after installing Node."; fi
 if ! command -v pm2 >/dev/null 2>&1; then
-  say "  نصب PM2"
+  say "  Installing PM2"
   run npm install -g pm2@latest --no-audit --no-fund
 fi
-command -v openssl >/dev/null 2>&1 || die "openssl لازم است (ساخت رمز)."
+command -v openssl >/dev/null 2>&1 || die "openssl is required (to generate secrets)."
 
-# ── ۵) PostgreSQL ───────────────────────────────────────────────────
-say "— ۵) PostgreSQL —"
+# ── 5) PostgreSQL ───────────────────────────────────────────────────
+say "— 5) PostgreSQL —"
 PG_EXISTS=false
 if pg_isready -q 2>/dev/null || systemctl is-active --quiet postgresql 2>/dev/null; then
   PG_EXISTS=true
 fi
 if $PG_EXISTS && ! $FORCE_PG; then
-  ok "  Postgres از قبل اجراست؛ چیزی نصب/تغییر نمی‌کند."
-  warn "  .env باید DATABASE_URL خودش را داشته باشد؛ bootstrap آن را نمی‌سازد (مگر --with-postgres)."
+  ok "  Postgres is already running; nothing is installed/changed."
+  warn "  .env must have its own DATABASE_URL; bootstrap does not create it (unless --with-postgres)."
   PG_MODE="external"
 else
   if ! $PG_EXISTS; then
-    say "  نصب postgresql سروری"
+    say "  Installing the postgresql server"
     run apt-get install -y -qq postgresql postgresql-contrib
   fi
   run systemctl enable --now postgresql
   PG_MODE="local"
-  [[ -n "$PG_PASSWORD" ]] || PG_PASSWORD="$(rand_pg)" || die "  رمز تصادفی دیتابیس ساخته نشد (/dev/urandom در دسترس نیست)؛ با --pg-password <رمز> بدهید."
-  # یوزر/دیتابیس اختصاصی (idempotent — اگر هست، فقط رمز را ست نمی‌کند دوباره)
+  [[ -n "$PG_PASSWORD" ]] || PG_PASSWORD="$(rand_pg)" || die "  Could not generate a random database password (/dev/urandom unavailable); pass --pg-password <password>."
+  # Dedicated user/database (idempotent — if it exists, the password is not set again)
   runsh "$PGRUN psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='nobino'\" | grep -q 1 || $PGRUN psql -qc \"CREATE ROLE nobino LOGIN PASSWORD '$PG_PASSWORD'\""
   runsh "$PGRUN psql -tAc \"SELECT 1 FROM pg_database WHERE datname='nobino'\" | grep -q 1 || $PGRUN psql -qc \"CREATE DATABASE nobino OWNER nobino\""
-  # listens محلی برای اتصال TCP از اپ (بدون تغییر دیگر تنظیمات)
-  # مسیر conf را واقعی پیدا می‌کنیم (Ubuntu: /etc/postgresql/<ver>/main؛ Debian: /etc/postgresql/<ver>/main؛ RHEL-family: /var/lib/pgsql)
+  # listens locally for the TCP connection from the app (no other setting changed)
+  # we find the real conf path (Ubuntu: /etc/postgresql/<ver>/main; Debian: /etc/postgresql/<ver>/main; RHEL-family: /var/lib/pgsql)
   PGCONF=""
   for c in /etc/postgresql/*/main/postgresql.conf /usr/etc/postgresql/main/postgresql.conf /etc/postgresql/1*/main/postgresql.conf /var/lib/pgsql/data/postgresql.conf /etc/postgresql/9*/main/postgresql.conf; do
     [[ -f "$c" ]] && { PGCONF="$c"; break; }
   done
-  # اگر هیچ conf پیدا نشد، از خودِ Postgres می‌پرسیم (اجرا به‌عنوان یوزر postgres)
+  # if no conf was found, we ask Postgres itself (run as the postgres user)
   if [[ -z "$PGCONF" ]]; then
     PGCONF="$($PGRUN psql -tAc 'show config_file' 2>/dev/null | tr -d '\r' | head -1 || true)"
   fi
@@ -287,49 +287,49 @@ else
   if $DRY_RUN; then
     printf '%s[dry] psycopg2 check skipped%s\n' "$C_DIM" "$C_OFF"
   else
-    PGPASSWORD="$PG_PASSWORD" psql "host=127.0.0.1 user=nobino dbname=nobino" -tAc "select 'db-ok'" | grep -q db-ok || die "اتصال nobino به دیتابیس برقرار نشد؛ pg_hba را بررسی کنید."
+    PGPASSWORD="$PG_PASSWORD" psql "host=127.0.0.1 user=nobino dbname=nobino" -tAc "select 'db-ok'" | grep -q db-ok || die "Could not connect nobino to the database; check pg_hba."
   fi
-  ok "  دیتابیس «nobino» با یوزر «nobino» آماده است"
+  ok "  Database 'nobino' with user 'nobino' is ready"
 fi
 
-# ── ۶) ساخت خودکار .env ─────────────────────────────────────────────
-say "— ۶) فایل .env —"
+# ── 6) automatic .env generation ─────────────────────────────────────────────
+say "— 6) The .env file —"
 ENVF="$APP_DIR/.env"
 if [[ -f "$ENVF" ]]; then
-  ok "  .env از قبل وجود دارد؛ دست نمی‌زنیم."
+  ok "  .env already exists; leaving it alone."
 else
-  [[ -f "$APP_DIR/deploy/env.production.example" ]] || die "  قالب env.production.example نیست."
-  # HI-8: اگر ساخت رمز تصادفی نشد، باید ایستاد — وگرنه .env با JWT_SECRET=""
-  # نوشته می‌شود، گیت CHANGE_ME رد می‌شود و سرویس در boot کرش‌لوپ می‌گیرد.
-  JWT="$(rand_secret)" || die "  JWT تصادفی ساخته نشد (openssl و /dev/urandom هر دو ناموفق)؛ .env را دستی بسازید."
-  CS="$(rand_secret)"  || die "  CRON_SECRET تصادفی ساخته نشد؛ .env را دستی بسازید."
+  [[ -f "$APP_DIR/deploy/env.production.example" ]] || die "  The env.production.example template is missing."
+  # HI-8: if generating a random secret fails, we must stop — otherwise .env is
+  # written with JWT_SECRET="", the CHANGE_ME gate passes and the service ends up in a crash loop on boot.
+  JWT="$(rand_secret)" || die "  Could not generate a random JWT (both openssl and /dev/urandom failed); create .env manually."
+  CS="$(rand_secret)"  || die "  Could not generate a random CRON_SECRET; create .env manually."
   if [[ "$PG_MODE" == "local" ]]; then
     DBURL="postgresql://nobino:${PG_PASSWORD}@localhost:5432/nobino?schema=public"
   elif [[ -n "$DBURL_CLI" ]]; then
     DBURL="$DBURL_CLI"
   elif $DRY_RUN; then
-    # HI-6: dry-run هرگز نباید منتظر ورودی بماند (CI و `curl | bash` stdin
-    # غیرتعاملی دارند)؛ نشانی نمایشی کافی است چون چیزی نوشته نمی‌شود.
+    # HI-6: dry-run must never wait for input (CI and `curl | bash` have a
+    # non-interactive stdin); a placeholder URL is enough because nothing is written.
     DBURL="postgresql://USER:PASS@localhost:5432/nobino"
-    warn "  dry-run: برای دیدن نشانی واقعی در نقشه، --database-url بدهید."
+    warn "  dry-run: pass --database-url to see the real address in the plan."
   else
-    printf '  DATABASE_URL موجود این سرور را وارد کنید: '
+    printf '  Enter the existing DATABASE_URL for this server: '
     read -r DBURL_IN || true
     DBURL="${DBURL_IN:-}"
-    [[ -n "$DBURL" ]] || die "  برای Postgres موجود سرور باید DATABASE_URL داده شود (--database-url یا --with-postgres برای ساخت یوزر/دیتابیس nobino)."
+    [[ -n "$DBURL" ]] || die "  For an existing server Postgres, DATABASE_URL must be given (--database-url, or --with-postgres to create the nobino user/database)."
   fi
-  case "$DBURL" in postgresql*://*) ;; *) die "  DATABASE_URL باید با postgresql:// شروع شود: «${DBURL:0:24}…»" ;; esac
-  [[ "$DBURL" != *'"'* ]] || die "  DATABASE_URL نمی‌تواند کاراکتر نقل‌قول («) داشته باشد؛ مقدار در .env داخل کووت نوشته می‌شود."
+  case "$DBURL" in postgresql*://*) ;; *) die "  DATABASE_URL must start with postgresql://: '${DBURL:0:24}…'" ;; esac
+  [[ "$DBURL" != *'"'* ]] || die "  DATABASE_URL cannot contain a quote character; the value is written into .env inside quotes."
   if [[ "$PG_MODE" != "local" ]]; then
-    say "  (Postgres همین سرور: POSTGRES_PASSWORD در .env خالی می‌ماند — فقط docker-compose به آن نیاز دارد.)"
+    say "  (Server Postgres: POSTGRES_PASSWORD stays empty in .env — only docker-compose needs it.)"
   fi
 
-  # HI-7: خط‌به‌خط و بر پایهٔ کلید جای‌گزینی می‌شود — نه sed (که `&` و `|` و `\`
-  # در مقدار معنای ویژه دارند) و نه `${line//توکن/مقدار}` (که در bash ≥5.2 همان
-  # کار `&` را می‌کند). هر کلید، مقدار خودشان را کامل می‌نویسد، پس هیچ کاراکتری
-  # از دامنه/نشانی نمی‌تواند خط را خراب کند. نوشتن هم اتمی است: فایل کامل در
-  # .env.new ساخته و بعد mv می‌شود؛ اگر چیزی می‌شکست .env نیمه‌کاره (یا صفر
-  # بایت) باقی نمی‌ماند که اجرای بعدی بگوید «.env هست، دست نمی‌زنیم».
+  # HI-7: replacement is line by line and key based — not sed (where `&`, `|` and `\`
+  # are special inside the value) and not `${line//token/value}` (which in bash ≥5.2 does
+  # the same thing with `&`). Each key writes its own value completely, so no character
+  # from a domain/URL can corrupt the line. Writing is also atomic: the whole file is built
+  # in .env.new and then mv'd; if anything breaks, no half-written (or zero-byte) .env is
+  # left behind for the next run to say ".env exists, leaving it alone".
   gen_env() {
     local src="$1" dst="$2" line key
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -353,27 +353,27 @@ else
   }
 
   if $DRY_RUN; then
-    printf '%s[dry] generate .env از قالب example (domain=%s, port=%s, رمزهای تصادفی, DATABASE_URL از %s)%s\n' \
-      "$C_DIM" "$DOMAIN" "$PORT" "$([[ "$PG_MODE" == "local" ]] && echo "postgres محلی" || echo "--database-url/پرسش")" "$C_OFF"
+    printf '%s[dry] generate .env from the example template (domain=%s, port=%s, random secrets, DATABASE_URL from %s)%s\n' \
+      "$C_DIM" "$DOMAIN" "$PORT" "$([[ "$PG_MODE" == "local" ]] && echo "local postgres" || echo "--database-url/prompt")" "$C_OFF"
   else
     ENV_TMP="$(mktemp "$APP_DIR/.env.new.XXXXXX")"
     if gen_env "$APP_DIR/deploy/env.production.example" "$ENV_TMP"; then
       chmod 600 "$ENV_TMP"
       mv -f "$ENV_TMP" "$ENVF"
-      grep -q "CHANGE_ME" "$ENVF" && die "  هنوز CHANGE_ME در .env هست — الگوی env.example عوض شده؛ دستی پر کنید."
-      ok "  .env ساخته شد (رمزهای تصادفی، دامنهٔ $DOMAIN، پورت $PORT) — مجوز 600"
+      grep -q "CHANGE_ME" "$ENVF" && die "  CHANGE_ME is still present in .env — the env.example template changed; fill it in manually."
+      ok "  .env created (random secrets, domain $DOMAIN, port $PORT) — mode 600"
     else
       rm -f "$ENV_TMP"
-      die "  ساخت .env ناتمام ماند؛ $ENVF نوشته نشد (دلیلی نبود که اجرای بعدی آن را «موجود» حساب کند)."
+      die "  .env generation was incomplete; $ENVF was not written (so the next run has no reason to count it as existing)."
     fi
   fi
 fi
-# SMS/پرداخت/STT عمداً خالی می‌مانند؛ بعداً از پنل سوپرادمین پر می‌شوند.
+# SMS/payment/STT are intentionally left empty; they are filled in later from the superadmin panel.
 
-# ── ۷) فایروال ──────────────────────────────────────────────────────
-say "— ۷) فایروال —"
+# ── 7) Firewall ──────────────────────────────────────────────────────
+say "— 7) Firewall —"
 if $NO_FIREWALL || ! command -v ufw >/dev/null 2>&1; then
-  say "  بدون تغییر فایروال (ufw نصب نیست یا --no-firewall)"
+  say "  Firewall left unchanged (ufw not installed or --no-firewall)"
 else
   SSH_PORT="$(sshd -T 2>/dev/null | awk '$1=="port"{print $2; exit}' || true)"; SSH_PORT="${SSH_PORT:-22}"
   run ufw allow "$SSH_PORT"/tcp comment 'nobino-bootstrap-ssh'
@@ -381,29 +381,29 @@ else
   run ufw allow 443/tcp
   run ufw allow 8443/tcp
   if ! $DRY_RUN && ! ufw status | grep -qi "Status: active"; then
-    say "  فعال‌سازی ufw (قاعدهٔ پیش‌فرض deny incoming)"
+    say "  Enabling ufw (default policy deny incoming)"
     runsh "yes | ufw --force enable"
   fi
-  ok "  پورت‌های $SSH_PORT/80/443/8443 باز، بقیه پشت ufw"
+  ok "  Ports $SSH_PORT/80/443/8443 open, the rest behind ufw"
 fi
 
-# ── ۸) install.sh کامل ──────────────────────────────────────────────
-say "— ۸) اجرای deploy/install.sh (بیلد + PM2 + nginx + سلامت) —"
+# ── 8) full install.sh ──────────────────────────────────────────────
+say "— 8) Running deploy/install.sh (build + PM2 + nginx + health) —"
 INSTALL_ARGS=(--port "$PORT" --app-dir "$APP_DIR")
 for d in "${DOMAINS[@]}"; do INSTALL_ARGS+=(--domain "$d"); done
 $DRY_RUN && INSTALL_ARGS+=(--dry-run)
 run bash "$APP_DIR/deploy/install.sh" "${INSTALL_ARGS[@]}"
 
-# ── ۸.۵) SSL / HTTPS ────────────────────────────────────────────────
+# ── 8.5) SSL / HTTPS ────────────────────────────────────────────────
 if $ENABLE_TLS; then
   if [[ "$SSL_MODE" == "dns" ]] && ! $DRY_RUN && [[ ! -t 0 ]]; then
-    warn "  حالت DNS تعاملی است و در اجرای pipe (curl | bash) کار نمی‌کند؛ مرحلهٔ SSL رد شد."
-    warn "  بعد از نصب در ترمینال اجرا کنید: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
-    warn "  یا برای فقط دامنهٔ ریشه به‌صورت غیرتعاملی: --ssl-mode http"
+    warn "  DNS mode is interactive and does not work in a pipe run (curl | bash); SSL step skipped."
+    warn "  After install, run in a terminal: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <email>"
+    warn "  or, for the root domain only and non-interactively: --ssl-mode http"
   else
-    say "— ۸.۵) دریافت گواهی SSL و فعال‌سازی HTTPS (Let's Encrypt) —"
+    say "— 8.5) Obtaining the SSL certificate and enabling HTTPS (Let's Encrypt) —"
     if [[ -z "$SSL_EMAIL" ]]; then
-      warn "  --email داده نشده؛ ادامه می‌دهیم ولی هشدار انقضای گواهی به شما نمی‌رسد."
+      warn "  --email not given; continuing, but certificate expiry warnings will not reach you."
     fi
     SSL_ARGS=(--app-dir "$APP_DIR" --mode "$SSL_MODE")
     for d in "${DOMAINS[@]}"; do SSL_ARGS+=(--domain "$d"); done
@@ -413,92 +413,92 @@ if $ENABLE_TLS; then
     if bash "$APP_DIR/deploy/ssl.sh" "${SSL_ARGS[@]}"; then
       TLS_READY=true
     else
-      warn "  دریافت SSL ناموفق بود؛ سایت روی HTTP بالا است."
-      warn "  بعداً در ترمینال: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <ایمیل>"
+      warn "  SSL acquisition failed; the site is running over HTTP."
+      warn "  Later, in a terminal: sudo bash $APP_DIR/deploy/ssl.sh --domain $DOMAIN --email <email>"
     fi
   fi
 fi
 
-# ── ۹) اولین سوپرادمین ──────────────────────────────────────────────
-# بعد از install.sh اجرا می‌شود چون node_modules + Prisma client + schema
-# دیتابیس را همان مرحله می‌سازد. اگر ADMIN دیگری باشد، idempotent است.
-say "— ۹) ساخت اولین سوپرادمین —"
+# ── 9) the first superadmin ──────────────────────────────────────────────
+# It runs after install.sh because that step creates node_modules + Prisma client + the
+# database schema. If there is already another ADMIN, it is idempotent.
+say "— 9) Creating the first superadmin —"
 if $NO_ADMIN; then
-  say "  --no-admin → از این مرحله رد می‌شود."
+  say "  --no-admin → skipping this step."
 elif $DRY_RUN; then
-  printf '%s[dry] node scripts/create-admin.mjs با ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL از محیط%s\n' "$C_DIM" "$C_OFF"
+  printf '%s[dry] node scripts/create-admin.mjs with ADMIN_PHONE/ADMIN_PASSWORD/ADMIN_EMAIL from the environment%s\n' "$C_DIM" "$C_OFF"
 else
   AP="$ADMIN_PHONE"; AW="$ADMIN_PASSWORD"; AE="$ADMIN_EMAIL"
   if [[ -z "$AP" ]] && [[ -t 0 ]]; then
-    printf '  شماره موبایل سوپرادمین (۱۱ رقم با 0؛ خالی = بعداً دستی): '
+    printf '  Superadmin mobile number (11 digits starting with 0; empty = do it manually later): '
     read -r AP || true
   fi
   if [[ -n "$AP" ]] && [[ -z "$AW" ]] && [[ -t 0 ]]; then
-    printf '  رمز سوپرادمین (حداقل ۸ کاراکتر، نمایش مخفی): '
+    printf '  Superadmin password (at least 8 characters, input hidden): '
     read -rs AW || true; printf '\n'
   fi
   if [[ -n "$AP" ]] && [[ -z "$AE" ]] && [[ -t 0 ]]; then
-    printf '  ایمیل سوپرادمین (اختیاری؛ خالی = بدون ایمیل): '
+    printf '  Superadmin email (optional; empty = no email): '
     read -r AE || true
   fi
   AP="$(tr -d ' \r' <<< "$AP")"
   AE="$(tr -d ' \r' <<< "$AE")"
   if [[ -n "$AE" && ! "$AE" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; then
     ADMIN_HINT=true
-    warn "  ایمیل «$AE» معتبر نیست — مرحلهٔ سوپرادمین رد شد. بعداً با --admin-email اصلاح کنید."
+    warn "  Email '$AE' is invalid — superadmin step skipped. Fix it later with --admin-email."
     AP=""
   fi
   if [[ -z "$AP" ]]; then
     ADMIN_HINT=true
-    warn "  سوپرادمین ساخته نشد؛ هر وقت خواستید اجرا کنید:"
+    warn "  Superadmin was not created; run this whenever you want:"
     say "    cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' ADMIN_EMAIL='…' node scripts/create-admin.mjs"
   elif [[ ${#AW} -lt 8 ]]; then
     ADMIN_HINT=true
-    warn "  رمز داده‌نشده/کوتاه است — مرحلهٔ سوپرادمین رد شد. بعداً: node scripts/create-admin.mjs (داخل $APP_DIR)"
+    warn "  Password missing/too short — superadmin step skipped. Later: node scripts/create-admin.mjs (inside $APP_DIR)"
   else
-    # در سرورهای SSHِ غیرتعاملی (exec بدون TTY) read کار نمی‌کند؛ flag لازم است.
-    # HG-2: اعتبارنامه‌ها از محیط می‌روند، نه argv — در `ps` و تاریخچهٔ shell نمی‌مانند.
+    # On non-interactive SSH servers (exec without a TTY) read does not work; a flag is required.
+    # HG-2: credentials go through the environment, not argv — they do not stay in `ps` and shell history.
     if (cd "$APP_DIR" && APP_DIR="$APP_DIR" ADMIN_PHONE="$AP" ADMIN_PASSWORD="$AW" ADMIN_EMAIL="$AE" node scripts/create-admin.mjs); then
-      ok "  ورود مدیران: https://$DOMAIN با $AP"
+      ok "  Admin login: https://$DOMAIN with $AP"
       ADMIN_SET=true
     else
       ADMIN_HINT=true
-      warn "  create-admin ناموفق بود (دیتابیس/پریزما را بررسی کنید)؛ بعداً دستی اجرا کنید."
+      warn "  create-admin failed (check the database/Prisma); run it manually later."
     fi
   fi
   unset AW AE
 fi
 
 say ""
-ok "${C_OK}bootstrap تمام شد.${C_OFF}"
+ok "${C_OK}bootstrap finished.${C_OFF}"
 if $TLS_READY; then SCHEME="https"; else SCHEME="http"; fi
-say "  دامنه:   $SCHEME://$DOMAIN  (ساب‌دامین سالن‌ها: <slug>.$DOMAIN)"
+say "  Domain:   $SCHEME://$DOMAIN  (salon subdomains: <slug>.$DOMAIN)"
 if [[ ${#DOMAIN_ALIASES[@]} -gt 0 ]]; then
-  say "  alias:    ${DOMAIN_ALIASES[*]} (همان سایت، بدون ساب‌دامین سالن)"
+  say "  alias:    ${DOMAIN_ALIASES[*]} (same site, without the salon subdomain)"
 fi
-say "  وضعیت:   pm2 status — لاگ: pm2 logs nobino-api"
-say "  سلامت:   curl \"http://127.0.0.1:$PORT/api/health?db=1\""
-say "  .env:    $APP_DIR/.env (رمزها همین‌جا؛ اگر PG تازه ساخت شد، رمز دیتابیس در DATABASE_URL است)"
+say "  Status:   pm2 status — logs: pm2 logs nobino-api"
+say "  Health:   curl \"http://127.0.0.1:$PORT/api/health?db=1\""
+say "  .env:    $APP_DIR/.env (secrets are here; if PG was just created, the database password is in DATABASE_URL)"
 if $ADMIN_SET; then
-  say "  ورود مدیران: $SCHEME://$DOMAIN با $AP (رمزی که دادید)"
+  say "  Admin login: $SCHEME://$DOMAIN with $AP (the password you supplied)"
 elif $ADMIN_HINT; then
-  say "  ورود مدیران: هنوز سوپرادمین ندارید — cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs"
+  say "  Admin login: no superadmin yet — cd $APP_DIR && ADMIN_PHONE=09xxxxxxxxx ADMIN_PASSWORD='…' node scripts/create-admin.mjs"
 fi
 say ""
-say "  باقی‌ماندهٔ دستی (اختیاری):"
-say "    ۱) DNS: A برای $DOMAIN و *.${DOMAIN} به IP همین سرور"
+say "  Remaining manual steps (optional):"
+say "    1) DNS: A record for $DOMAIN and *.${DOMAIN} to this server's IP"
 if [[ ${#DOMAIN_ALIASES[@]} -gt 0 ]]; then
-  say "       و A برای دامنه‌های alias: ${DOMAIN_ALIASES[*]}"
+  say "       and A records for the alias domains: ${DOMAIN_ALIASES[*]}"
 fi
 if $TLS_READY; then
-  say "    ۲) HTTPS فعال شد (Let's Encrypt). بررسی تمدید: sudo certbot renew --dry-run"
-  say "        (تمدید خودکار wildcard اختیاری است و به پلاگین DNS نیاز دارد.)"
+  say "    2) HTTPS is enabled (Let's Encrypt). Check renewal: sudo certbot renew --dry-run"
+  say "        (Automatic wildcard renewal is optional and requires the DNS plugin.)"
 else
   SSL_HINT="sudo bash $APP_DIR/deploy/ssl.sh"
   for d in "${DOMAINS[@]}"; do SSL_HINT+=" --domain $d"; done
-  say "    ۲) HTTPS: $SSL_HINT --email <ایمیل>"
-  say "        پیش‌فرض: wildcard با چالش DNS از Let's Encrypt | http: فقط دامنهٔ ریشه"
+  say "    2) HTTPS: $SSL_HINT --email <email>"
+  say "        default: wildcard via the Let's Encrypt DNS challenge | http: root domain only"
 fi
-say "    ۳) پنل سوپرادمین: /api/health را چک، سپس در «تنظیمات سیستم» درگاه پرداخت/پیامک/کلیدها را کامل کنید"
-say "        (SMS، پرداخت و صدای هوشمند عمداً خالی‌اند تا نصب بدون کلید هم بالا بیاید.)"
-say "    ۴) به‌روزرسانی بعدی: sudo bash deploy/update.sh"
+say "    3) Superadmin panel: check /api/health, then complete the payment gateway/SMS/keys under 'System settings'"
+say "        (SMS, payment and smart voice are intentionally empty so the install comes up even without keys.)"
+say "    4) Next update: sudo bash deploy/update.sh"

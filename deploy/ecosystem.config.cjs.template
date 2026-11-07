@@ -1,28 +1,28 @@
 /**
- * قالب سرویس PM2 نوبینو (نسخهٔ NestJS).
- * install.sh این فایل را با جایگزینی __APP_DIR__ و __PORT__ به
- * deploy/ecosystem.config.cjs تبدیل می‌کند؛ پس این فایل را ویرایش کنید نه خروجی را.
+ * Nobino PM2 service template (NestJS edition).
+ * install.sh turns this file into deploy/ecosystem.config.cjs by replacing
+ * __APP_DIR__ and __PORT__; so edit this file, not the generated output.
  *
- * اجرا:   pm2 start deploy/ecosystem.config.cjs
- * وضعیت:  pm2 status
- * لاگ:    pm2 logs nobino-api
- * restart بدون قطعی: pm2 reload nobino-api
+ * Start:   pm2 start deploy/ecosystem.config.cjs
+ * Status:  pm2 status
+ * Logs:    pm2 logs nobino-api
+ * Zero-downtime restart: pm2 reload nobino-api
  */
 module.exports = {
   apps: [
     {
       name: "nobino-api",
-      // کاربر سرویس — install.sh این را با `--user` جایگزین می‌کند؛ بدون این
-      // فیلد، پس از ریستارت سرور pm2 daemon ریشه اپ را از کاربر سرویس بالا
-      // نمی‌آورد (g18).
+      // Service user — install.sh replaces this from `--user`; without this
+      // field, after a server restart the root pm2 daemon cannot bring the app
+      // up as the service user (g18).
       user: "__USER__",
-      // cwd مهم است: مسیر آپلودها و فایل‌های استاتیک نسبت به آن حل می‌شود
-      // (public/uploads و frontend/dist).
+      // cwd matters: upload paths and static files are resolved relative to it
+      // (public/uploads and frontend/dist).
       cwd: "__APP_DIR__",
       script: "backend/dist/main.js",
-      // تک‌پروسه: کران‌های @nestjs/schedule در هر instance اجرا می‌شوند، پس
-      // cluster/instances > 1 باعث تکرار پیامک‌ها می‌شود. برای مقیاس افقی،
-      // کران را به یک سرویس جدا (AUTOMATION_BASE_URL + cron خارجی) منتقل کنید.
+      // Single process: @nestjs/schedule cron jobs run in every instance, so
+      // cluster/instances > 1 causes duplicate SMS. For horizontal scaling,
+      // move cron to a separate service (AUTOMATION_BASE_URL + external cron).
       exec_mode: "fork",
       instances: 1,
       autorestart: true,
@@ -33,8 +33,8 @@ module.exports = {
         NODE_ENV: "production",
         PORT: "__PORT__",
         HOST: "0.0.0.0",
-        // SPA (frontend/dist) هم از همین پورت سرو می‌شود؛ اگر nginx مستقیم
-        // سرو می‌کند، ضرری ندارد (nginx اول فایل را از دیسک می‌دهد).
+        // The SPA (frontend/dist) is also served on this port; if nginx serves
+        // it directly that is harmless (nginx serves the file from disk first).
         SERVE_FRONTEND: "1",
       },
       error_file: "logs/error.log",

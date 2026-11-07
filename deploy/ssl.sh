@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
 # =====================================================================
-# Nobino — دریافت گواهی SSL و فعال‌سازی HTTPS
+# Nobino — obtain an SSL certificate and enable HTTPS
 #
 #   sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com
 #
-# پیش‌فرض: گواهی wildcard برای «دامنه + *.دامنه» با چالش DNS (Let's Encrypt).
-# چون ساب‌دامین سالن‌ها (mah.nobino.ir) هم باید معتبر باشند، گواهی wildcard
-# لازم است و چالش DNS تنها راه بدون دسترسی به هر ساب‌دامین است.
+# Default: a wildcard certificate for "domain + *.domain" with the DNS challenge (Let's Encrypt).
+# Because the hall subdomains (mah.nobino.ir) must also be valid, a wildcard certificate
+# is required, and the DNS challenge is the only way without access to each subdomain.
 #
-# حالت‌ها (--mode) — گواهی همیشه از Let's Encrypt گرفته می‌شود:
-#   dns         گواهی wildcard با چالش DNS دستی (تعاملی؛ تمدید خودکار ندارد)
-#   http        فقط دامنهٔ ریشه با چالش HTTP-01 (ساب‌دامین‌ها پوشش داده نمی‌شوند)
-#   cloudflare  اختیاری — wildcard خودکار با پلاگین DNS کلادفلر (تمدید خودکار)
+# Modes (--mode) — the certificate always comes from Let's Encrypt:
+#   dns         wildcard certificate with the manual DNS challenge (interactive; no automatic renewal)
+#   http        root domain only with the HTTP-01 challenge (subdomains are not covered)
+#   cloudflare  optional — automatic wildcard with the Cloudflare DNS plugin (automatic renewal)
 #
-# گزینه‌ها:
-#   --domain <دامنه>          دامنهٔ ریشه (پیش‌فرض: ROOT_DOMAIN در .env)
-#   --email <ایمیل>           ایمیل حساب ACME (برای هشدار انقضا)
-#   --app-dir <مسیر>          مسیر نصب (پیش‌فرض: ریشهٔ همین مخزن)
+# Options:
+#   --domain <domain>         root domain (default: ROOT_DOMAIN in .env)
+#   --email <email>           ACME account email (for expiry warnings)
+#   --app-dir <path>          install path (default: root of this repository)
 #   --mode <dns|cloudflare|http>
-#   --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (حالت cloudflare)
-#   --staging                 استفاده از محیط staging لتس‌انکریپت (برای تست)
-#   --force                   صدور مجدد حتی اگر گواهی موجود باشد
-#   --skip-nginx              پیکربندی nginx را بازسازی نکن
-#   --dry-run                 فقط فرمان‌ها را چاپ کن
-#   -h, --help                همین راهنما
+#   --dns-credentials <path>  Cloudflare credentials file (cloudflare mode)
+#   --staging                 use the Let's Encrypt staging environment (for testing)
+#   --force                   reissue even if a certificate already exists
+#   --skip-nginx              do not rebuild the nginx configuration
+#   --dry-run                 only print the commands
+#   -h, --help                this help
 #
-# فایل اعتبارنامهٔ Cloudflare (مجوز 600):
-#   dns_cloudflare_api_token = <token با دسترسی Zone.DNS:Edit>
+# Cloudflare credentials file (mode 600):
+#   dns_cloudflare_api_token = <token with Zone.DNS:Edit access>
 #
-# نصب certbot: نسخهٔ رسمی از snap نصب می‌شود (snap install --classic certbot)
-# و پلاگین‌های DNS هم به‌صورت snap جدا و snap connect. اگر snap نبود یا نصبش
-# شکست خورد، به بسته‌های apt برمی‌گردد.
+# Installing certbot: the official version is installed from snap (snap install --classic certbot)
+# and the DNS plugins as separate snaps with snap connect. If snap is missing or its install
+# fails, it falls back to the apt packages.
 #
-# بعد از صدور، همین اسکریپت vhost را با بلوک ۴۴۳ بازسازی می‌کند:
+# After issuing, this same script rebuilds the vhost with the 443 block:
 #   deploy/nginx/nobino.tls.conf.snippet  →  /etc/nginx/sites-available/nobino.conf
 # =====================================================================
 set -euo pipefail
@@ -43,11 +43,11 @@ ok()   { printf '%s✅ %s%s\n' "$C_OK" "$*" "$C_OFF"; }
 warn() { printf '%s⚠️  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
 die()  { printf '%s❌ %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 run()  { if $DRY_RUN; then printf '%s[dry] %s%s\n' "$C_DIM" "$*" "$C_OFF"; else "$@"; fi; }
-need_value() { [[ $# -ge 2 ]] || die "$1 به یک مقدار نیاز دارد (مثلاً $1 <مقدار>)"; }
+need_value() { [[ $# -ge 2 ]] || die "$1 requires a value (e.g. $1 <value>)"; }
 
-# دامنه را نرمال می‌کند (پروتکل/مسیر/پورت/فاصله/نقطهٔ پایانی) و پیشوند «*.» را
-# برمی‌دارد؛ wildcard دامنهٔ اصلی خودکار اضافه می‌شود. --domain می‌تواند چند بار
-# بیاید یا با کاما/فاصله چند دامنه بگیرد.
+# Normalizes a domain (protocol/path/port/whitespace/trailing dot) and strips the "*." prefix;
+# the wildcard for the main domain is added automatically. --domain can appear several times
+# or take several domains separated by commas/spaces.
 norm_domain() {
   local d="${1:-}"
   d="${d,,}"; d="${d#*://}"; d="${d%%/*}"; d="${d%%:*}"; d="${d//[[:space:]]/}"
@@ -69,34 +69,34 @@ add_domains() {
 
 usage() {
   cat <<'EOF'
-Nobino — دریافت گواهی SSL و فعال‌سازی HTTPS
+Nobino — obtain an SSL certificate and enable HTTPS
 
   sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com
 
-حالت‌ها (--mode) — گواهی در همهٔ حالت‌ها از Let's Encrypt صادر می‌شود:
-  dns         wildcard با چالش DNS دستی (پیش‌فرض، تعاملی، بدون تمدید خودکار)
-  http        فقط دامنهٔ ریشه با HTTP-01 (ساب‌دامین‌ها پوشش داده نمی‌شوند)
-  cloudflare  اختیاری — wildcard خودکار با پلاگین DNS کلادفلر (تمدید خودکار)
+Modes (--mode) — in all modes the certificate is issued by Let's Encrypt:
+  dns         wildcard with the manual DNS challenge (default, interactive, no automatic renewal)
+  http        root domain only with HTTP-01 (subdomains are not covered)
+  cloudflare  optional — automatic wildcard with the Cloudflare DNS plugin (automatic renewal)
 
-گزینه‌ها:
-  --domain <دامنه>          پیش‌فرض: ROOT_DOMAIN در .env — برای چند دامنه (alias)
-                            چند بار بدهید یا با کاما جدا کنید؛ دامنهٔ اول اصلی است
-  --email <ایمیل>           ایمیل حساب ACME
-  --app-dir <مسیر>          پیش‌فرض: ریشهٔ همین مخزن
-  --dns-credentials <مسیر>  فایل اعتبارنامهٔ Cloudflare (فقط حالت cloudflare)
-  --staging                 محیط staging لتس‌انکریپت (برای تست)
-  --force                   صدور مجدد گواهی موجود
-  --skip-nginx              بازسازی vhost را رد کن
-  --dry-run                 فقط چاپ فرمان‌ها
-  -h, --help                همین راهنما
+Options:
+  --domain <domain>         default: ROOT_DOMAIN in .env — for multiple domains (alias)
+                            pass it several times or separate with commas; the first domain is the main one
+  --email <email>           ACME account email
+  --app-dir <path>          default: root of this repository
+  --dns-credentials <path>  Cloudflare credentials file (cloudflare mode only)
+  --staging                 Let's Encrypt staging environment (for testing)
+  --force                   reissue the existing certificate
+  --skip-nginx              skip rebuilding the vhost
+  --dry-run                 only print the commands
+  -h, --help                this help
 
-نمونهٔ پیشنهادی (wildcard، Let's Encrypt):
+Recommended example (wildcard, Let's Encrypt):
   sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com
 
-نمونهٔ چند دامنه (دامنهٔ اول اصلی، بقیه alias همان سایت):
+Multiple domains example (the first domain is the main one, the rest are aliases of the same site):
   sudo bash deploy/ssl.sh --domain nobino.ir --domain nobino.com --email you@example.com
 
-نمونهٔ اختیاری Cloudflare (تمدید خودکار):
+Optional Cloudflare example (automatic renewal):
   printf 'dns_cloudflare_api_token = %s\n' "$CF_TOKEN" | sudo tee /etc/letsencrypt/cloudflare.ini
   sudo chmod 600 /etc/letsencrypt/cloudflare.ini
   sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com \
@@ -127,19 +127,19 @@ while [[ $# -gt 0 ]]; do
     --skip-nginx)      SKIP_NGINX=true; shift ;;
     --dry-run)         DRY_RUN=true; shift ;;
     -h|--help)         usage; exit 0 ;;
-    *)                 die "گزینهٔ ناشناخته: $1 (--help را ببینید)" ;;
+    *)                 die "Unknown option: $1 (see --help)" ;;
   esac
 done
 
-[[ "$(id -u)" == "0" ]] || die "با sudo اجرا کنید:  sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com"
-command -v apt-get >/dev/null 2>&1 || die "این اسکریپت برای Ubuntu/Debian (apt) است."
+[[ "$(id -u)" == "0" ]] || die "Run with sudo:  sudo bash deploy/ssl.sh --domain nobino.ir --email you@example.com"
+command -v apt-get >/dev/null 2>&1 || die "This script is for Ubuntu/Debian (apt)."
 
 read_env() {
   [[ -f "$APP_DIR/.env" ]] || return 0
   awk -v k="$1" 'BEGIN{FS="="} $1==k { v=substr($0, index($0,"=")+1); gsub(/\r$/,"",v); gsub(/^"/,"",v); gsub(/"$/,"",v); print v }' "$APP_DIR/.env" | tail -1
 }
 
-# ── دامنه‌ها: --domain چند بار/با کاما؛ دامنهٔ اول اصلی است ──────────
+# ── Domains: --domain several times/with commas; the first domain is the main one ──
 if [[ ${#DOMAINS[@]} -eq 0 ]]; then
   add_domains "$(read_env ROOT_DOMAIN)"
   [[ ${#DOMAINS[@]} -eq 0 ]] && add_domains "$(read_env SITE_URL)"
@@ -147,21 +147,21 @@ if [[ ${#DOMAINS[@]} -eq 0 ]]; then
 elif [[ "${DOMAINS[0]}" == "$(norm_domain "$(read_env ROOT_DOMAIN)")" ]]; then
   add_domains "$(read_env EXTRA_DOMAINS)"
 fi
-[[ ${#DOMAINS[@]} -gt 0 ]] || die "دامنه لازم است:  --domain nobino.ir"
+[[ ${#DOMAINS[@]} -gt 0 ]] || die "A domain is required:  --domain nobino.ir"
 for d in "${DOMAINS[@]}"; do
-  [[ "$d" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "دامنه معتبر نیست: «$d»."
+  [[ "$d" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "Invalid domain: '$d'."
 done
 DOMAIN="${DOMAINS[0]}"
 DOMAIN_ALIASES=()
 [[ ${#DOMAINS[@]} -gt 1 ]] && DOMAIN_ALIASES=("${DOMAINS[@]:1}")
 
-case "$MODE" in dns|cloudflare|http) ;; *) die "--mode باید dns یا cloudflare یا http باشد (دادید: $MODE)." ;; esac
+case "$MODE" in dns|cloudflare|http) ;; *) die "--mode must be dns, cloudflare or http (got: $MODE)." ;; esac
 
 CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
 CERT_CRT="$CERT_DIR/fullchain.pem"
 CERT_KEY="$CERT_DIR/privkey.pem"
 
-# آیا گواهی موجود همهٔ دامنه‌های فعلی را پوشش می‌دهد؟ (افزودن alias تازه = صدور مجدد)
+# Does the existing certificate cover all current domains? (adding a new alias = reissue)
 cert_covers_domains() {
   [[ -f "$CERT_CRT" ]] || return 1
   command -v openssl >/dev/null 2>&1 || return 1
@@ -181,19 +181,19 @@ cert_covers_domains() {
   return 0
 }
 
-# آیا گواهی صادر شود؟ (اگر موجود و پوشش‌دهندهٔ همهٔ دامنه‌ها بود، فقط nginx بازسازی می‌شود)
+# Should the certificate be issued? (if it exists and covers all domains, only nginx is rebuilt)
 ISSUE=true
 if [[ -f "$CERT_CRT" ]] && ! $FORCE; then
   if cert_covers_domains; then
     ISSUE=false
-    ok "گواهی از قبل موجود است: $CERT_CRT"
-    say "   برای صدور مجدد اجباری: --force"
+    ok "A certificate already exists: $CERT_CRT"
+    say "   For a forced reissue: --force"
   else
-    warn "گواهی موجود همهٔ دامنه‌های فعلی (${DOMAINS[*]}) را پوشش نمی‌دهد؛ دوباره صادر می‌شود."
+    warn "The existing certificate does not cover all current domains (${DOMAINS[*]}); it will be issued again."
   fi
 fi
 
-# ── certbot: snap (نسخهٔ رسمی) با fallback به apt ───────────────────
+# ── certbot: snap (official version) with fallback to apt ──────────
 CERTBOT_BIN="$(command -v certbot 2>/dev/null || true)"
 IS_SNAP_CERTBOT=false
 if [[ -n "$CERTBOT_BIN" ]]; then
@@ -210,7 +210,7 @@ install_certbot_snap() {
   run snap install core || true
   run snap refresh core || true
   run snap install --classic certbot || return 1
-  # symlink تا `certbot` در PATH مقدم بر نسخهٔ apt باشد
+  # symlink so that `certbot` in PATH takes precedence over the apt version
   if ! $DRY_RUN && [[ ! -e /usr/local/bin/certbot ]]; then
     ln -sfn /snap/bin/certbot /usr/local/bin/certbot
   fi
@@ -218,29 +218,29 @@ install_certbot_snap() {
   IS_SNAP_CERTBOT=true
 }
 
-# ── بررسی حالت cloudflare ───────────────────────────────────────────
+# ── cloudflare mode checks ──────────────────────────────────────────
 if [[ "$MODE" == "cloudflare" ]]; then
-  [[ -n "$DNS_CREDENTIALS" ]] || die "برای --mode cloudflare باید --dns-credentials <مسیر فایل> بدهید."
-  [[ -f "$DNS_CREDENTIALS" ]] || die "فایل اعتبارنامه پیدا نشد: $DNS_CREDENTIALS"
+  [[ -n "$DNS_CREDENTIALS" ]] || die "For --mode cloudflare you must provide --dns-credentials <file path>."
+  [[ -f "$DNS_CREDENTIALS" ]] || die "Credentials file not found: $DNS_CREDENTIALS"
   PERM="$(stat -c '%a' "$DNS_CREDENTIALS" 2>/dev/null || echo '')"
   if [[ -n "$PERM" && "$PERM" != "600" && "$PERM" != "400" ]]; then
-    warn "مجوز $DNS_CREDENTIALS برابر $PERM است؛ بهتر است 600 باشد:  sudo chmod 600 $DNS_CREDENTIALS"
+    warn "The permissions of $DNS_CREDENTIALS are $PERM; 600 is better:  sudo chmod 600 $DNS_CREDENTIALS"
   fi
 fi
 
-# ── حالت dns دستی فقط هنگام صدور به ورودی تعاملی نیاز دارد ──────────
+# ── manual dns mode only needs interactive input when issuing ───────
 if $ISSUE && [[ "$MODE" == "dns" ]] && ! $DRY_RUN && [[ ! -t 0 ]]; then
-  die "حالت DNS دستی تعاملی است و stdin ترمینال نیست. این اسکریپت را مستقیم در ترمینال اجرا کنید، یا از --mode cloudflare (خودکار) / --mode http استفاده کنید."
+  die "Manual DNS mode is interactive and stdin is not a terminal. Run this script directly in a terminal, or use --mode cloudflare (automatic) / --mode http."
 fi
 
-# ── نصب certbot: snap (رسمی) → در صورت خطا apt ──────────────────────
+# ── installing certbot: snap (official) → apt on error ─────────────
 if $ISSUE; then
   if ! $IS_SNAP_CERTBOT && command -v snap >/dev/null 2>&1; then
-    say "— نصب certbot از snap (نسخهٔ رسمی Let's Encrypt) —"
+    say "— Installing certbot from snap (official Let's Encrypt version) —"
     if install_certbot_snap; then
-      ok "certbot از snap آماده است: $CERTBOT_BIN"
+      ok "certbot from snap is ready: $CERTBOT_BIN"
     else
-      warn "نصب snap ناموفق بود؛ از apt استفاده می‌شود."
+      warn "The snap installation failed; apt is used instead."
       IS_SNAP_CERTBOT=false
       CERTBOT_BIN="$(command -v certbot 2>/dev/null || true)"
     fi
@@ -248,12 +248,12 @@ if $ISSUE; then
 
   if $IS_SNAP_CERTBOT; then
     if [[ "$MODE" == "cloudflare" ]] && ! certbot_has_plugin dns-cloudflare; then
-      say "— نصب پلاگین snap: certbot-dns-cloudflare —"
+      say "— Installing the snap plugin: certbot-dns-cloudflare —"
       run snap install certbot-dns-cloudflare \
-        || die "پلاگین snap نصب نشد؛ از --mode dns یا --mode http استفاده کنید."
+        || die "The snap plugin was not installed; use --mode dns or --mode http."
       run snap set certbot trust-plugin-with-root=ok || true
       run snap connect certbot:plugin certbot-dns-cloudflare \
-        || die "اتصال پلاگین انجام نشد: sudo snap connect certbot:plugin certbot-dns-cloudflare"
+        || die "Plugin connection failed: sudo snap connect certbot:plugin certbot-dns-cloudflare"
     fi
   else
     PKGS=()
@@ -263,30 +263,30 @@ if $ISSUE; then
       cloudflare) certbot_has_plugin dns-cloudflare || PKGS+=(python3-certbot-dns-cloudflare) ;;
     esac
     if [[ ${#PKGS[@]} -gt 0 ]]; then
-      say "— نصب با apt: ${PKGS[*]} —"
+      say "— Installing with apt: ${PKGS[*]} —"
       run apt-get update -qq
       run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${PKGS[@]}"
     fi
     [[ -n "$CERTBOT_BIN" ]] || CERTBOT_BIN="$(command -v certbot 2>/dev/null || true)"
     if ! $DRY_RUN && [[ -z "$CERTBOT_BIN" ]]; then
-      die "certbot نصب نشد؛ دستی «sudo snap install --classic certbot» را اجرا کنید."
+      die "certbot was not installed; run 'sudo snap install --classic certbot' manually."
     fi
   fi
 fi
 
-# ── صدور گواهی ──────────────────────────────────────────────────────
+# ── issuing the certificate ────────────────────────────────────────
 if $ISSUE; then
-  say "— درخواست گواهی از Let's Encrypt (mode=$MODE) —"
+  say "— Requesting a certificate from Let's Encrypt (mode=$MODE) —"
   CERTBOT=("${CERTBOT_BIN:-certbot}" certonly --cert-name "$DOMAIN" --agree-tos)
   if [[ -n "$EMAIL" ]]; then
     CERTBOT+=(--email "$EMAIL" --no-eff-email)
   else
     CERTBOT+=(--register-unsafely-without-email)
-    warn "بدون --email ثبت می‌شود؛ هشدار انقضا به دستتان نمی‌رسد."
+    warn "Registering without --email; you will not receive expiry warnings."
   fi
   $STAGING && CERTBOT+=(--staging)
   $FORCE && CERTBOT+=(--force-renewal)
-  # گواهی: دامنهٔ اصلی + wildcard ساب‌دامین‌ها؛ دامنه‌های alias فقط خودشان
+  # certificate: main domain + wildcard for the subdomains; alias domains only themselves
   CERT_DOMAIN_ARGS=()
   if [[ "$MODE" == "http" ]]; then
     for d in "${DOMAINS[@]}"; do CERT_DOMAIN_ARGS+=(-d "$d"); done
@@ -302,12 +302,12 @@ if $ISSUE; then
   case "$MODE" in
     dns)
       CERTBOT+=(--manual --preferred-challenges dns "${CERT_DOMAIN_ARGS[@]}")
-      say "   certbot برای هر دامنه رکورد(های) TXT روی _acme-challenge می‌خواهد؛"
-      say "   همهٔ مقادیر را با هم ثبت کنید و تا انتشار DNS صبر کنید."
+      say "   certbot will ask for TXT record(s) on _acme-challenge for each domain;"
+      say "   add all the values together and wait for DNS propagation."
       ;;
     http)
       CERTBOT+=(--nginx -n "${CERT_DOMAIN_ARGS[@]}")
-      warn "حالت http فقط دامنه‌های ریشه را پوشش می‌دهد؛ ساب‌دامین سالن‌ها گواهی معتبر ندارند."
+      warn "http mode only covers the root domains; the hall subdomains have no valid certificate."
       ;;
     cloudflare)
       CERTBOT+=(--dns-cloudflare --dns-cloudflare-credentials "$DNS_CREDENTIALS" -n "${CERT_DOMAIN_ARGS[@]}")
@@ -317,11 +317,11 @@ if $ISSUE; then
     printf '%s[dry] %s%s\n' "$C_DIM" "${CERTBOT[*]}" "$C_OFF"
   else
     "${CERTBOT[@]}"
-    ok "گواهی صادر شد: $CERT_CRT"
+    ok "Certificate issued: $CERT_CRT"
   fi
 fi
 
-# ── هوک تمدید: بعد از هر تمدید موفق nginx ری‌لود شود ─────────────────
+# ── renewal hook: reload nginx after each successful renewal ────────
 if ! $DRY_RUN; then
   HOOK_DIR="/etc/letsencrypt/renewal-hooks/deploy"
   install -d -m 755 "$HOOK_DIR"
@@ -330,45 +330,45 @@ if ! $DRY_RUN; then
 systemctl reload nginx 2>/dev/null || service nginx reload 2>/dev/null || true
 EOS
   chmod 755 "$HOOK_DIR/reload-nginx.sh"
-  ok "هوک تمدید نصب شد: $HOOK_DIR/reload-nginx.sh"
+  ok "Renewal hook installed: $HOOK_DIR/reload-nginx.sh"
 fi
 
-# ── زمان‌بند تمدید ──────────────────────────────────────────────────
+# ── renewal timer ───────────────────────────────────────────────────
 if [[ "$MODE" == "dns" ]]; then
-  warn "گواهی DNS دستی تمدید خودکار ندارد؛ هر ~۹۰ روز همین فرمان را دوباره اجرا کنید."
-  warn "برای تمدید خودکار از یک پلاگین DNS (مثلاً --mode cloudflare) استفاده کنید."
+  warn "A manual DNS certificate has no automatic renewal; run this same command again every ~90 days."
+  warn "For automatic renewal use a DNS plugin (e.g. --mode cloudflare)."
 elif ! $DRY_RUN; then
   if $IS_SNAP_CERTBOT; then
     if systemctl is-active --quiet snap.certbot.renew.timer 2>/dev/null; then
-      ok "زمان‌بند تمدید خودکار snap فعال است (snap.certbot.renew.timer)"
+      ok "The snap automatic renewal timer is active (snap.certbot.renew.timer)"
     else
-      warn "زمان‌بند snap.certbot.renew.timer فعال نیست؛ «sudo systemctl start snap.certbot.renew.timer» را بررسی کنید."
+      warn "The snap.certbot.renew.timer is not active; check 'sudo systemctl start snap.certbot.renew.timer'."
     fi
   elif systemctl list-unit-files 2>/dev/null | grep -q '^certbot.timer'; then
     run systemctl enable --now certbot.timer
-    ok "certbot.timer فعال شد (تمدید خودکار)"
+    ok "certbot.timer enabled (automatic renewal)"
   else
-    warn "زمان‌بند تمدید پیدا نشد؛ وضعیت را با «systemctl list-timers | grep certbot» ببینید یا cron روزانه «certbot renew --quiet» بگذارید."
+    warn "No renewal timer found; check the status with 'systemctl list-timers | grep certbot' or set up a daily cron 'certbot renew --quiet'."
   fi
 fi
 
-# ── بازسازی vhost با بلوک HTTPS ─────────────────────────────────────
+# ── rebuilding the vhost with the HTTPS block ───────────────────────
 if ! $SKIP_NGINX; then
   if [[ -f "$APP_DIR/deploy/install.sh" && -f "$APP_DIR/.env" ]]; then
-    say "— بازسازی vhost با بلوک ۴۴۳ (deploy/install.sh --tls) —"
+    say "— Rebuilding the vhost with the 443 block (deploy/install.sh --tls) —"
     REBUILD_ARGS=(--app-dir "$APP_DIR" --tls --skip-build)
     for d in "${DOMAINS[@]}"; do REBUILD_ARGS+=(--domain "$d"); done
     $DRY_RUN && REBUILD_ARGS+=(--dry-run)
     run env DB_SETUP=skip bash "$APP_DIR/deploy/install.sh" "${REBUILD_ARGS[@]}"
   else
-    warn "install.sh یا .env پیدا نشد؛ بلوک HTTPS را از deploy/nginx/nobino.tls.conf.snippet دستی بسازید."
+    warn "install.sh or .env not found; build the HTTPS block manually from deploy/nginx/nobino.tls.conf.snippet."
   fi
 fi
 
-# ── بررسی نهایی ─────────────────────────────────────────────────────
+# ── final check ─────────────────────────────────────────────────────
 SITE_URL="$(read_env SITE_URL)"
 if [[ -n "$SITE_URL" && "$SITE_URL" != https://* ]]; then
-  warn "SITE_URL در .env هنوز https نیست ($SITE_URL)؛ آن را https://$DOMAIN بگذارید و سرویس را restart کنید."
+  warn "SITE_URL in .env is still not https ($SITE_URL); set it to https://$DOMAIN and restart the service."
 fi
 
 if ! $DRY_RUN && [[ -f "$CERT_CRT" ]] && command -v openssl >/dev/null 2>&1; then
@@ -376,7 +376,7 @@ if ! $DRY_RUN && [[ -f "$CERT_CRT" ]] && command -v openssl >/dev/null 2>&1; the
 fi
 
 say ""
-say "${C_OK}مرحلهٔ SSL تمام شد.${C_OFF} بررسی کنید:"
+say "${C_OK}The SSL step is complete.${C_OFF} Check:"
 say "  nginx -t && systemctl reload nginx"
 say "  curl -sI https://$DOMAIN | head -3"
 say "  curl -s https://$DOMAIN/api/health?db=1"

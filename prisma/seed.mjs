@@ -1,11 +1,11 @@
 /**
- * prisma/seed.mjs — seed پایه (ادمین، آرایشگر، نماینده، یک سالن و پلن‌های SaaS)
+ * prisma/seed.mjs — base seed (admin, stylist, agent, one salon and the SaaS plans)
  *
- * اجرا:  npm run seed   (یا: node prisma/seed.mjs)
- * راهنما: node prisma/seed.mjs --help
- * گارد:  روی NODE_ENV=production (هر نگارشی) بدون ALLOW_PROD_SEED=1 اجرا نمی‌شود،
- *        چون ادمین 09120000000 با رمز معلوم Admin@1234 می‌سازد.
- * پرچم‌های مجاز ندارد؛ پرچم ناشناخته با خطا رد می‌شود تا اجرای CI نیمه‌کاره نماند.
+ * Run:  npm run seed   (or: node prisma/seed.mjs)
+ * Help: node prisma/seed.mjs --help
+ * Guard: does not run on NODE_ENV=production (in any form) without ALLOW_PROD_SEED=1,
+ *        because it creates admin 09120000000 with the known password Admin@1234.
+ * Accepts no flags; an unknown flag is rejected with an error so a CI run is not left half-done.
  */
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, scryptSync } from "node:crypto";
