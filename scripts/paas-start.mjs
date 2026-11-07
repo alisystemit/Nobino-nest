@@ -196,6 +196,22 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   });
 }
 
+// ── ۳.۵) آماده‌سازی خودکار مدل محلی ASR (بدون مسدود کردن بوت) ────────
+// کاربر/ادمین هیچ کاری نمی‌کند: بار اول مدل در پس‌زمینه دانلود می‌شود و تا آن
+// لحظه زنجیرهٔ STT از سرویس‌های ابری استفاده می‌کند (بدون خطا برای مشتری).
+if (/^(0|false|no|off)$/i.test(envValue("AUTO_ASR") || "1")) {
+  log("آماده‌سازی خودکار ASR خاموش است (AUTO_ASR=0)");
+} else {
+  log("آماده‌سازی مدل محلی ASR در پس‌زمینه (اجرای اول: ~۴۵۹MB مدل + ffmpeg)");
+  const asr = spawn(process.execPath, [join(ROOT, "scripts", "asr-setup.mjs")], {
+    cwd: ROOT,
+    env,
+    stdio: "inherit",
+  });
+  asr.unref();
+  asr.on("exit", (code) => log(`آماده‌سازی ASR پایان یافت (کد ${code ?? "-"})`));
+}
+
 // ── ۴) prerender خلفی بعد از بالا آمدن سرور ────────────────────────
 if (/^(0|false|no)$/i.test(env.PRERENDER_ON_BOOT || "")) {
   log("prerender خلفی خاموش (PRERENDER_ON_BOOT=0)");

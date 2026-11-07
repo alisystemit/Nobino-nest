@@ -101,6 +101,19 @@ function start(name, args, opts = {}) {
 // ۲) بک‌اند NestJS
 start("backend", [resolve(ROOT, "backend", "dist", "main.js")]);
 
+// ۲.۵) آماده‌سازی خودکار مدل محلی گفتار + ffmpeg (فقط بار اول؛ در پس‌زمینه)
+// تا نیازی به اجرای دستی «npm run asr:model» نباشد. با AUTO_ASR=0 خاموش می‌شود.
+if (!/^(0|false|no|off)$/i.test(readEnv("AUTO_ASR", "1"))) {
+  const asrLog = openSync(resolve(LOG_DIR, "asr.log"), "a");
+  const asr = spawn(process.execPath, [resolve(ROOT, "scripts", "asr-setup.mjs")], {
+    cwd: ROOT,
+    detached: true,
+    stdio: ["ignore", asrLog, asrLog],
+  });
+  asr.unref();
+  console.log("🧠 آماده‌سازی مدل محلی گفتار در پس‌زمینه (لاگ: .dev-logs/asr.log)");
+}
+
 // ۳) فرانت Vite (باینری مستقیم، بدون پوستهٔ npm تا PID قابل توقف بماند)
 const viteBin = resolve(ROOT, "frontend", "node_modules", "vite", "bin", "vite.js");
 if (existsSync(viteBin)) {

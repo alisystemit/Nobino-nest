@@ -21,6 +21,7 @@
     "build:frontend": "npm --prefix frontend run build",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev": "node scripts/dev-start.mjs",
+    "dev:fast": "node scripts/dev-start-fast.mjs",
     "stop": "node scripts/dev-stop.mjs",
     "build": "node scripts/build-release.mjs --skip-install --no-smoke",
     "build:release": "node scripts/build-release.mjs",
