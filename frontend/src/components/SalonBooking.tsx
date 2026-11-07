@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JalaliDatePicker from "@/components/ui/JalaliDatePicker";
 import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
+import { faDigits, gregorianToShamsiFa } from "@/mini/lib/format";
 
 type Service = {
   id: string;
@@ -14,27 +15,54 @@ type Service = {
   bufferMin?: number;
 };
 type Staff = { id: string; name: string; title?: string | null; services?: { id: string }[] };
-type Extracted = { name?: string; phone?: string; service?: string; date?: string; time?: string; note?: string };
+type Extracted = { name?: string; phone?: string; service?: string; staff?: string; date?: string; time?: string; note?: string };
 type Slot = { startAt: string; endAt: string };
 type Branch = { id: string; name: string; city?: string | null; address?: string | null };
-type FieldKey = "name" | "phone" | "service" | "date" | "time";
+type FieldKey = "name" | "phone" | "service" | "staff" | "date" | "time";
+type Candidate = { id: string; name: string; score: number };
+/** تطبیق سمت سرور با کاتالوگ واقعی سالن؛ شناسهٔ خالی یعنی «مبهم، باید پرسیده شود» */
+type Resolution = {
+  serviceId?: string;
+  staffId?: string;
+  staffAny?: boolean;
+  serviceCandidates?: Candidate[];
+  staffCandidates?: Candidate[];
+};
 
 const FIELD_LABELS: Record<FieldKey, string> = {
   name: "نام",
   phone: "شماره موبایل",
-  service: "نام خدمت",
+  service: "پکیج",
+  staff: "آرایشگر",
   date: "تاریخ",
   time: "ساعت",
 };
 
 const SAMPLE_SCRIPT =
-  "سلام، می‌خوام نوبت رزرو کنم: برای فردا ساعت ده صبح، خدمت کوتاهی مو، به نام سارا احمدی، شماره موبایل ۰۹۱۲۳۴۵۶۷۸۹";
+  "سلام، می‌خوام نوبت رزرو کنم: برای فردا ساعت ده صبح، پکیج کوتاهی مو با آرایشگر مریم رضایی، به نام سارا احمدی، شماره موبایل ۰۹۱۲۳۴۵۶۷۸۹";
 
-const REQUIRED_FIELDS: FieldKey[] = ["name", "phone", "date", "time"];
+/** نمایشِ مقدارِ خوانده‌شده: تاریخ شمسی و ارقام فارسی — منطق و مقدار فرم همان ISO/لاتین می‌ماند */
+function showValue(field: FieldKey, value: string): string {
+  return field === "date" ? gregorianToShamsiFa(value) : faDigits(value);
+}
+
+/** پکیج اجباری است؛ آرایشگر اختیاری */
+const REQUIRED_FIELDS: FieldKey[] = ["name", "phone", "service", "date", "time"];
 
 /** تبدیل ارقام فارسی به لاتین برای مقایسه ساعت */
 function toLatinDigits(s: string): string {
   return s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
+}
+
+/** پاسخ سرور → تطبیق کاتالوگ (شناسه‌ها و گزینه‌های مبهم) */
+function resolutionOf(data: Record<string, unknown>): Resolution {
+  return {
+    serviceId: typeof data.serviceId === "string" ? data.serviceId : "",
+    staffId: typeof data.staffId === "string" ? data.staffId : "",
+    staffAny: Boolean(data.staffAny),
+    serviceCandidates: Array.isArray(data.serviceCandidates) ? (data.serviceCandidates as Candidate[]) : [],
+    staffCandidates: Array.isArray(data.staffCandidates) ? (data.staffCandidates as Candidate[]) : [],
+  };
 }
 
 /** ساعت محلی سالن یک اسلات به شکل HH:MM لاتین */
@@ -124,6 +152,8 @@ export default function SalonBooking({
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [extracted, setExtracted] = useState<Extracted | null>(null);
+  const [resolution, setResolution] = useState<Resolution>({});
+  const [confirmDismissed, setConfirmDismissed] = useState(false);
   const [recField, setRecField] = useState<FieldKey | "">("");
   const [fragments, setFragments] = useState<{ field: FieldKey; text: string }[]>([]);
   const [voiceCallId, setVoiceCallId] = useState("");
@@ -261,16 +291,35 @@ export default function SalonBooking({
     } catch {}
   }
 
-  function applyExtracted(ex: Extracted) {
+  /** شناسه‌ها را سرور از کاتالوگ واقعی سالن گرفته است؛ خالی یعنی «پیدا نشد یا مبهم بود» */
+  function applyExtracted(ex: Extracted, resolved: Resolution) {
     setExtracted(ex);
+    setResolution(resolved);
+    setConfirmDismissed(false);
     if (ex.name) setName(ex.name);
     if (ex.phone) setPhone(ex.phone);
     if (ex.date) setDate(ex.date);
     if (ex.time) voiceTimeRef.current = ex.time;
-    if (ex.service) {
-      const matched = services.find((s) => ex.service && (s.name.includes(ex.service) || ex.service.includes(s.name)));
-      if (matched) setServiceIds([matched.id]);
-    }
+    const saidService = resolved.serviceId && services.some((s) => s.id === resolved.serviceId) ? resolved.serviceId : "";
+    if (saidService) setServiceIds([saidService]);
+    const eligible = saidService
+      ? staff.filter((s) => !s.services?.length || s.services.some((x) => x.id === saidService))
+      : staff;
+    const saidStaff =
+      resolved.staffAny || !resolved.staffId ? "" : eligible.some((s) => s.id === resolved.staffId) ? resolved.staffId : "";
+    setEmployeeId(saidStaff);
+  }
+
+  /** انتخاب یکی از گزینه‌های مبهم — همان شناسهٔ واقعی به فرم رزرو می‌نشیند */
+  function chooseCandidate(kind: "service" | "staff", candidate: Candidate) {
+    const nextEx = { ...(extracted ?? {}), [kind]: candidate.name };
+    const nextRes: Resolution = {
+      ...resolution,
+      [kind === "service" ? "serviceId" : "staffId"]: candidate.id,
+      [kind === "service" ? "serviceCandidates" : "staffCandidates"]: [],
+      ...(kind === "service" ? { staffId: "", staffCandidates: [] } : {}),
+    };
+    applyExtracted(nextEx, nextRes);
   }
 
   async function sendAudio() {
@@ -294,15 +343,20 @@ export default function SalonBooking({
       setTranscript(data.transcript);
       if (data.voiceCallId) setVoiceCallId(data.voiceCallId);
       const ex: Extracted = data.extracted ?? {};
-      applyExtracted(ex);
-      const missing = REQUIRED_FIELDS.filter((f) => !ex[f]);
+      const resolved = resolutionOf(data);
+      applyExtracted(ex, resolved);
+      const missing = REQUIRED_FIELDS.filter((f) => (f === "service" ? !resolved.serviceId : !ex[f]));
       if (missing.length > 0) {
         setMsg({
           ok: false,
-          text: `متن شما استخراج شد؛ ${missing.map((f) => FIELD_LABELS[f]).join("، ")} پیدا نشد. فقط همان موارد را بگویید یا در فرم تایپ کنید.`,
+          text: missing.includes("service")
+            ? (resolved.serviceCandidates?.length ?? 0) > 1
+              ? `«${ex.service ?? ""}» به چند پکیج می‌خورد — کدام را می‌خواهید؟`
+              : `«${ex.service || "پکیج"}» در فهرست این سالن پیدا نشد — بگویید چه چیزی رزرو شود یا انتخاب کنید.`
+            : `متن شما استخراج شد؛ ${missing.map((f) => FIELD_LABELS[f]).join("، ")} پیدا نشد. فقط همان موارد را بگویید یا در فرم تایپ کنید.`,
         });
       } else {
-        setMsg({ ok: true, text: "همه اطلاعات استخراج شد. خدمت، تاریخ و ساعت را بررسی و تأیید کنید." });
+        setMsg({ ok: true, text: "همه چیز را گفتید — پکیج، تاریخ و ساعت را ببینید و با تأیید شما ثبت می‌شود." });
       }
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "خطا" });
@@ -336,22 +390,22 @@ export default function SalonBooking({
       setFragments((prev) => [...prev, { field, text: data.transcript }]);
       if (data.voiceCallId) setVoiceCallId(data.voiceCallId);
       const ex: Extracted = data.extracted ?? {};
-      applyExtracted(ex);
+      applyExtracted(ex, resolutionOf(data));
       // اگر ساعت تازه کامل شد و اسلات‌ها از قبل بارگیری شده‌اند، ساعت مطابق انتخاب می‌شود
       if (field === "time" && data.fieldValue) {
         const iso = matchSlot(data.fieldValue, slots, timezone);
         if (iso) {
           setSlotISO(iso);
           voiceTimeRef.current = null;
-          setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${data.fieldValue}` });
+          setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${showValue(field, String(data.fieldValue))}` });
         } else if (slots.length > 0) {
           // C13: ساعتِ گفته‌شده در این روز آزاد نیست — وقت دیگری را جای آن نمی‌گذاریم
           setMsg({ ok: false, text: `ساعت ${data.fieldValue} در این روز آزاد نیست؛ از فهرست ساعت دلخواه را انتخاب کنید.` });
         } else {
-          setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${data.fieldValue}` });
+          setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${showValue(field, String(data.fieldValue))}` });
         }
       } else if (data.fieldValue) {
-        setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${data.fieldValue}` });
+        setMsg({ ok: true, text: `${FIELD_LABELS[field]} دریافت شد: ${showValue(field, String(data.fieldValue))}` });
       } else {
         setMsg({ ok: false, text: `${FIELD_LABELS[field]} باز هم قابل تشخیص نبود؛ لطفاً آن را تایپ کنید.` });
       }
@@ -364,7 +418,7 @@ export default function SalonBooking({
   }
 
   const submit = useCallback(async () => {
-    if (serviceIds.length === 0) return setMsg({ ok: false, text: "حداقل یک خدمت انتخاب کنید." });
+    if (serviceIds.length === 0) return setMsg({ ok: false, text: "حداقل یک پکیج انتخاب کنید." });
     if (!name.trim() || !phone.trim() || !date || !slotISO) {
       return setMsg({ ok: false, text: "نام، شماره موبایل، تاریخ و ساعت را کامل کنید." });
     }
@@ -395,6 +449,12 @@ export default function SalonBooking({
       setServiceIds([]);
       setEmployeeId("");
       setSlots([]);
+      setExtracted(null);
+      setResolution({});
+      setConfirmDismissed(false);
+      setTranscript("");
+      setFragments([]);
+      setVoiceCallId("");
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "خطا" });
     } finally {
@@ -408,7 +468,7 @@ export default function SalonBooking({
     <div className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-xl shadow-pink-500/5 sm:rounded-[2rem]">
       <div className="bg-gradient-to-l from-pink-600 to-purple-600 px-4 py-4 text-white sm:px-6">
         <h3 className="text-lg font-black">رزرو نوبت</h3>
-        <p className="text-xs text-white/80">خدمت (چند مورد هم ممکن است)، تاریخ و ساعت واقعاً آزاد را انتخاب کنید</p>
+        <p className="text-xs text-white/80">پکیج (چند مورد هم ممکن است)، تاریخ و ساعت واقعاً آزاد را انتخاب کنید</p>
       </div>
 
       <div className="p-4 sm:p-6">
@@ -424,7 +484,7 @@ export default function SalonBooking({
             </button>
           </div>
           <p className="mt-1 text-xs text-neutral-500">
-            میکروفون را بزنید و با صدای فارسی بگویید چه زمانی برای چه خدمتی نوبت می‌خواهید. اگر ربات بخشی را نفهمید، فقط همان بخش را دوباره می‌پرسد.
+            میکروفون را بزنید و با صدای فارسی بگویید چه پکیجی، چه روزی و چه ساعتی می‌خواهید؛ گفتن نام آرایشگر اختیاری است. اگر ربات بخشی را نفهمید، فقط همان بخش را دوباره می‌پرسد. نوبت تنها با تأیید شما ثبت می‌شود.
           </p>
 
           {showScript && (
@@ -475,7 +535,8 @@ export default function SalonBooking({
                   [
                     ["name", extracted.name],
                     ["phone", extracted.phone],
-                    ["service", extracted.service],
+                    ["service", services.find((s) => s.id === resolution.serviceId)?.name ?? extracted.service],
+                    ["staff", staff.find((s) => s.id === resolution.staffId)?.name ?? extracted.staff],
                     ["date", extracted.date],
                     ["time", extracted.time],
                   ] as [FieldKey, string | undefined][]
@@ -483,11 +544,32 @@ export default function SalonBooking({
                   .filter(([, v]) => Boolean(v))
                   .map(([k, v]) => (
                     <span key={k} className="rounded-full bg-purple-50 px-2.5 py-1 font-bold text-purple-700">
-                      ✓ {FIELD_LABELS[k]}: {v}
+                      ✓ {FIELD_LABELS[k]}: {showValue(k, String(v))}
                     </span>
                   ))}
               </div>
-              {REQUIRED_FIELDS.filter((f) => !extracted[f]).map((f) => (
+              {(["service", "staff"] as const).map((kind) => {
+                const options = kind === "service" ? resolution.serviceCandidates : resolution.staffCandidates;
+                if (!options || options.length < 2) return null;
+                return (
+                  <div key={kind} className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                    <span className="text-[11px] font-bold text-amber-700">
+                      «{extracted[kind]}» به چند {FIELD_LABELS[kind]} می‌خورد — کدام؟
+                    </span>
+                    {options.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => chooseCandidate(kind, c)}
+                        className="min-h-9 rounded-lg bg-amber-100 px-3 py-1.5 text-[11px] font-black text-amber-800 transition hover:bg-amber-200"
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+              {REQUIRED_FIELDS.filter((f) => (f === "service" ? !resolution.serviceId : !extracted[f])).map((f) => (
                 <div key={f} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
                   <span className="text-[11px] font-bold text-amber-700">ربات «{FIELD_LABELS[f]}» را متوجه نشد</span>
                   <button
@@ -524,18 +606,18 @@ export default function SalonBooking({
             </select>
           )}
 
-          {/* انتخاب چند خدمت */}
+          {/* انتخاب چند پکیج */}
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-bold text-neutral-600">۱. خدمات</span>
+              <span className="text-xs font-bold text-neutral-600">۱. پکیج</span>
               {selectedServices.length > 0 && (
                 <span className="text-[11px] text-neutral-500">
-                  {selectedServices.length} خدمت — {totalDuration.toLocaleString("fa-IR")} دقیقه
+                  {selectedServices.length} پکیج — {totalDuration.toLocaleString("fa-IR")} دقیقه
                 </span>
               )}
             </div>
             <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-xl border border-neutral-200 p-2">
-              {services.length === 0 && <p className="p-2 text-xs text-neutral-400">خدمتی ثبت نشده است.</p>}
+              {services.length === 0 && <p className="p-2 text-xs text-neutral-400">پکیجی ثبت نشده است.</p>}
               {services.map((s) => {
                 const checked = serviceIds.includes(s.id);
                 return (
@@ -665,7 +747,7 @@ export default function SalonBooking({
             {!loadingSlots && date && serviceIds.length > 0 && slots.length === 0 && (
               <div className="mt-2 rounded-lg bg-amber-50 p-3">
                 <p className="text-xs text-amber-700">
-                  برای این خدمت در این روز زمانی آزاد نیست؛ تاریخ دیگری را امتحان کنید
+                  برای این پکیج در این روز زمانی آزاد نیست؛ تاریخ دیگری را امتحان کنید
                   {name && phone && " یا در لیست انتظار قرار بگیرید."}
                 </p>
                 {name && phone && (
@@ -699,6 +781,44 @@ export default function SalonBooking({
 
             {!date && <p className="mt-2 text-[11px] text-neutral-400">برای دیدن زمان‌های آزاد، تاریخ را انتخاب کنید.</p>}
           </div>
+
+          {/* آلارت تأیید — همهٔ موارد گفته شده؛ ثبت فقط با تأیید صریح مشتری */}
+          {extracted && !confirmDismissed && REQUIRED_FIELDS.every((f) => (f === "service" ? resolution.serviceId : extracted[f])) && (
+            <div
+              role="alertdialog"
+              aria-labelledby="sb-voice-confirm-title"
+              className="rounded-2xl border-2 border-amber-400/70 bg-amber-50 p-4"
+            >
+              <p id="sb-voice-confirm-title" className="text-sm font-black text-amber-800">
+                همه چیز را گفتید — نوبت را ثبت کنم؟
+              </p>
+              <p className="mt-1.5 text-[11px] leading-6 text-amber-700">
+                پکیج «{services.find((s) => s.id === resolution.serviceId)?.name ?? extracted.service}»
+                {resolution.staffId ? ` با ${staff.find((s) => s.id === resolution.staffId)?.name ?? extracted.staff}` : " (آرایشگر به انتخاب سالن)"}
+                {extracted.date ? `، ${gregorianToShamsiFa(extracted.date)}` : ""}
+                {extracted.time ? ` ساعت ${faDigits(extracted.time)}` : ""}.
+                {slotISO ? " ساعتِ انتخاب‌شده واقعاً آزاد است." : " اول یک ساعتِ آزاد را از فهرست بالا انتخاب کنید."}
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={sending || serviceIds.length === 0 || !slotISO}
+                  className="h-11 flex-1 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-600 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition disabled:opacity-50"
+                >
+                  {sending ? "در حال ثبت..." : "بله، ثبت کن"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDismissed(true)}
+                  disabled={sending}
+                  className="h-11 rounded-xl border border-neutral-200 bg-white px-4 text-xs font-black text-neutral-700 transition disabled:opacity-50"
+                >
+                  نه، اصلاح می‌کنم
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             onClick={submit}

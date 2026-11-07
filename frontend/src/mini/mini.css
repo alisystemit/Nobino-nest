@@ -1139,6 +1139,26 @@ button.mini-item:active { transform: scale(0.985); }
 }
 .mini-vb-done-title { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 900; color: #15803d; margin-bottom: 10px; }
 .mini-root.dark .mini-vb-done-title { color: #86efac; }
+/* آلارتِ «همه چیز را گفتید — نوبت را ثبت کنم؟»؛ تا تأیید صریح مشتری، ثبتی انجام نمی‌شود. */
+.mini-vb-confirm {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1.5px solid rgba(234, 179, 8, 0.55);
+  border-radius: 20px;
+  background: rgba(234, 179, 8, 0.1);
+  animation: mini-vb-confirm-in 0.22s ease-out;
+}
+.mini-root.dark .mini-vb-confirm { background: rgba(234, 179, 8, 0.12); border-color: rgba(250, 204, 21, 0.45); }
+.mini-vb-confirm-title { display: flex; align-items: center; gap: 7px; font-size: 14.5px; font-weight: 900; color: #92610a; line-height: 1.8; }
+.mini-root.dark .mini-vb-confirm-title { color: #fcd34d; }
+.mini-vb-confirm-sub { margin: 6px 0 10px; font-size: 11.5px; line-height: 1.9; color: var(--m-muted); }
+@keyframes mini-vb-confirm-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mini-vb-confirm { animation: none; }
+}
 .mini-vb-quote { margin-top: 10px; padding: 9px 11px; border-radius: 14px; background: rgba(18, 18, 24, 0.04); }
 .mini-root.dark .mini-vb-quote { background: rgba(255, 255, 255, 0.06); }
 .mini-vb-quote b { font-size: 11px; color: var(--m-muted); }

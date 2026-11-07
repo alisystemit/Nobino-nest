@@ -21,7 +21,7 @@ import { startDepositPayment } from "@/mini/lib/deposit";
 import { dayLabel, duration, faDigits, isPhone, normalizePhone, timeLabel, toman, weekdayLabel, ymd } from "@/mini/lib/format";
 import { mapi, useMini } from "@/mini/lib/store";
 import type { AvailabilityResponse, MiniService, MiniStaff } from "@/mini/lib/types";
-import VoiceBooking, { type VoicePatch } from "./VoiceBooking";
+import VoiceBooking, { type VoicePatch, type VoiceResolution } from "./VoiceBooking";
 import { siteHref } from "./site-url";
 
 const DAYS_SHOWN = 14;
@@ -351,19 +351,22 @@ export default function BookingPanel({
     toast(r.error || "پرداخت بیعانه ممکن نشد؛ با سالن تماس بگیرید", "error");
   }
 
-  function applyVoice(patch: VoicePatch) {
+  /** شناسه‌ها را سرور از کاتالوگ واقعی سالن گرفته است؛ خالی یعنی «مبهم، باید پرسیده شود» */
+  function applyVoice(patch: VoicePatch, resolution?: VoiceResolution) {
     if (patch.name) setName(patch.name);
     if (patch.phone) setPhone(patch.phone);
     if (patch.date) setDay(patch.date);
     if (patch.time) voiceTimeRef.current = patch.time;
-    if (patch.service) {
-      const wanted = patch.service.trim();
-      const hit = services.find((s) => s.name.includes(wanted) || wanted.includes(s.name));
-      if (hit) {
-        setServiceIds([hit.id]);
-        setStartAt("");
-      }
+    const saidService = resolution?.serviceId && services.some((s) => s.id === resolution.serviceId) ? resolution.serviceId : "";
+    if (saidService) {
+      setServiceIds([saidService]);
+      setStartAt("");
     }
+    const eligible = eligibleStaff(staff, saidService ? [saidService] : serviceIds);
+    const saidStaff =
+      resolution?.staffAny || !resolution?.staffId ? "" : eligible.some((s) => s.id === resolution.staffId) ? resolution.staffId : "";
+    setStaffId(saidStaff);
+    if (saidService || saidStaff) setStartAt("");
   }
 
   const canBook = Boolean(bookingEnabled && serviceIds.length && day && startAt);
@@ -382,7 +385,15 @@ export default function BookingPanel({
           ) : null}
         </div>
 
-        <VoiceBooking salonId={salon.id} phone={phone} onApply={applyVoice} onNotice={(t, k) => toast(t, k ?? "info")} />
+        <VoiceBooking
+          salonId={salon.id}
+          phone={phone}
+          onApply={applyVoice}
+          onNotice={(t, k) => toast(t, k ?? "info")}
+          onConfirm={() => void submit()}
+          canConfirm={canBook && !submitting}
+          confirming={submitting}
+        />
 
         {branches.length > 1 ? (
           <>

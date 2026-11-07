@@ -25,13 +25,24 @@ import { formatJalali, toPersianDigits } from "@/lib/time/jalali";
 import { zonedTimeToIso } from "@/lib/time/zoned";
 
 type Service = { id: string; name: string; durationMin: number; price: number };
+type Staff = { id: string; name: string; isActive?: boolean; services?: { id: string }[] };
 type Branch = { id: string; name: string };
-type Extracted = { name?: string; phone?: string; service?: string; date?: string; time?: string; note?: string };
-type FieldKey = "name" | "phone" | "service" | "date" | "time";
+type Extracted = { name?: string; phone?: string; service?: string; staff?: string; date?: string; time?: string; note?: string };
+type FieldKey = "name" | "phone" | "service" | "staff" | "date" | "time";
 /** منبع ورودی گفتار: ضبط زنده، فایل صوتی آماده، یا جملهٔ تایپ‌شده */
 type SpeechSource = { audio?: Blob | File; text?: string };
-type Stage = "idle" | "recording" | "working" | "needs" | "done";
-type Booked = { name: string; date: string; time: string; service?: string; branch?: string };
+type Stage = "idle" | "recording" | "working" | "needs" | "confirm" | "done";
+type Booked = { name: string; date: string; time: string; service?: string; staff?: string; branch?: string };
+type Candidate = { id: string; name: string; score: number };
+/** تطبیق سمت سرور با کاتالوگ واقعی سالن؛ شناسهٔ خالی یعنی «مبهم، باید پرسیده شود» */
+type Resolution = {
+  serviceId?: string;
+  staffId?: string;
+  staffAny?: boolean;
+  serviceCandidates?: Candidate[];
+  staffCandidates?: Candidate[];
+};
+type ConfirmDraft = { name: string; phone: string; date: string; time: string; serviceId: string; staffId: string };
 
 type TranscribeResponse = {
   success?: boolean;
@@ -39,22 +50,25 @@ type TranscribeResponse = {
   transcript?: string;
   voiceCallId?: string;
   extracted?: Extracted;
-};
+} & Resolution;
 type ServicesResponse = { success?: boolean; services?: Service[] };
+type StaffResponse = { success?: boolean; staff?: Staff[] };
 type BookResponse = { success?: boolean; error?: string };
 
 const FIELD_LABELS: Record<FieldKey, string> = {
   name: "نام مشتری",
   phone: "شماره موبایل",
-  service: "نام خدمت",
+  service: "پکیج",
+  staff: "آرایشگر",
   date: "تاریخ",
   time: "ساعت",
 };
 
 const SAMPLE_SCRIPT =
-  "سلام، برای فردا ساعت ده صبح نوبت کوتاهی مو می‌خوام، به نام سارا احمدی، شماره موبایل ۰۹۱۲۳۴۵۶۷۸۹";
+  "سلام، برای فردا ساعت ده صبح پکیج کوتاهی مو می‌خوام، با آرایشگر مریم رضایی، به نام سارا احمدی، شماره موبایل ۰۹۱۲۳۴۵۶۷۸۹";
 
-const REQUIRED_FIELDS: FieldKey[] = ["name", "phone", "date", "time"];
+/** پکیج اجباری است؛ آرایشگر اختیاری */
+const REQUIRED_FIELDS: FieldKey[] = ["name", "phone", "service", "date", "time"];
 
 const inputCls =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-800 outline-none transition focus:border-pink-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100";
@@ -62,8 +76,11 @@ const inputCls =
 /**
  * صفحهٔ رزرو صوتیِ سبک برای گوشی.
  *
- * جریان: یک دکمهٔ بزرگِ ضبط → گفتار به متن → تشخیص نام/شماره/تاریخ/ساعت → ثبت خودکار نوبت.
+ * جریان: یک دکمهٔ بزرگِ ضبط → گفتار به متن → تشخیص نام/شماره/پکیج/آرایشگر/تاریخ/ساعت →
+ * آلارتِ «همه چیز را گفتید، نوبت را ثبت کنم؟» → ثبت فقط با تأیید صریح کاربر.
  * فرم کاملِ نوبت حذف شده؛ فقط اگر ربات چیزی را نفهمید، همان موارد ناقص پرسیده می‌شود.
+ * پکیج اجباری است و نام آرایشگر اختیاری؛ تطبیق هر دو با کاتالوگ واقعی سالن سمت سرور
+ * انجام می‌شود (`serviceId`/`staffId`) و در ابهام، گزینه‌ها برای انتخاب برمی‌گردند.
  * شعبه هم انتخاب دستی ندارد: صفحه شعبهٔ خودِ کاربر را از سرور می‌گیرد و همان را ثبت می‌کند.
  *
  * روی http (بدون https) مرورگر میکروفون را قفل می‌کند؛ برای همین ارسال فایل صوتی و
@@ -82,7 +99,11 @@ export default function AdminVoiceBooking({
 }) {
   const cap = useMicCapability();
   const [services, setServices] = useState<Service[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [serviceId, setServiceId] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [resolution, setResolution] = useState<Resolution>({});
+  const [confirmDraft, setConfirmDraft] = useState<ConfirmDraft | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [date, setDate] = useState("");
@@ -101,13 +122,16 @@ export default function AdminVoiceBooking({
 
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const autoSubmittedRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     (async () => {
-      const data = (await fetch(`/api/dashboard/salons/${salonId}/services`).then((r) => r.json())) as ServicesResponse;
-      if (data.success && data.services) setServices(data.services);
+      const [svc, people] = await Promise.all([
+        fetch(`/api/dashboard/salons/${salonId}/services`).then((r) => r.json()) as Promise<ServicesResponse>,
+        fetch(`/api/dashboard/salons/${salonId}/staff`).then((r) => r.json()) as Promise<StaffResponse>,
+      ]);
+      if (svc.success && svc.services) setServices(svc.services);
+      if (people.success && people.staff) setStaff(people.staff.filter((s) => s.isActive !== false));
     })();
   }, [salonId]);
 
@@ -122,6 +146,11 @@ export default function AdminVoiceBooking({
   const micReady = cap !== null && micReason === null;
   const processing = stage === "working";
   const bookedBranch = branches.find((b) => b.id === autoBranchId)?.name;
+  /** فقط آرایشگرانی که این پکیج را انجام می‌دهند (بدون پکیج: همه) */
+  const shownStaff = serviceId
+    ? staff.filter((s) => !s.services?.length || s.services.some((x) => x.id === serviceId))
+    : staff;
+  const staffValid = staffId === "" || shownStaff.some((s) => s.id === staffId);
 
   function startRecording() {
     setMsg(null);
@@ -133,7 +162,7 @@ export default function AdminVoiceBooking({
       });
       return;
     }
-    autoSubmittedRef.current = false;
+    setConfirmDraft(null);
     setSeconds(0);
     navigator.mediaDevices
       .getUserMedia({ audio: true })
@@ -200,6 +229,7 @@ export default function AdminVoiceBooking({
     setShowText(false);
     setTypedText("");
     setMsg(null);
+    setConfirmDraft(null);
     setStage("working");
     try {
       const res = await fetch("/api/voice/transcribe", { method: "POST", body: buildBody(source) });
@@ -208,17 +238,37 @@ export default function AdminVoiceBooking({
       setTranscript(data.transcript ?? "");
       if (data.voiceCallId) setVoiceCallId(data.voiceCallId);
       const ex: Extracted = data.extracted ?? {};
-      const matchedId = applyExtracted(ex);
-      const missing = REQUIRED_FIELDS.filter((f) => !ex[f]);
+      const resolved: Resolution = {
+        serviceId: data.serviceId ?? "",
+        staffId: data.staffId ?? "",
+        staffAny: Boolean(data.staffAny),
+        serviceCandidates: data.serviceCandidates ?? [],
+        staffCandidates: data.staffCandidates ?? [],
+      };
+      setResolution(resolved);
+      const matched = applyExtracted(ex, resolved);
+      // پکیج وقتی «گفته شده» حساب می‌شود که به یک شناسهٔ واقعیِ همین سالن رسیده باشد
+      const missing = REQUIRED_FIELDS.filter((f) => (f === "service" ? !matched.serviceId : !ex[f]));
       setMissingFields(missing);
       if (missing.length > 0) {
         setStage("needs");
         setMsg({
           ok: false,
-          text: `«${missing.map((f) => FIELD_LABELS[f]).join("، ")}» را متوجه نشدم — یک‌بار همان را بگویید یا بنویسید.`,
+          text: missing.includes("service")
+            ? (resolved.serviceCandidates?.length ?? 0) > 1
+              ? `«${ex.service ?? ""}» به چند پکیج می‌خورد — کدام را می‌خواهید؟`
+              : `«${ex.service || "پکیج"}» در فهرست این سالن پیدا نشد — بگویید چه چیزی رزرو شود یا انتخاب کنید.`
+            : `«${missing.map((f) => FIELD_LABELS[f]).join("، ")}» را متوجه نشدم — یک‌بار همان را بگویید یا بنویسید.`,
         });
       } else {
-        await maybeAutoSubmit(ex, matchedId);
+        askConfirmation({
+          name: ex.name!,
+          phone: ex.phone!,
+          date: ex.date!,
+          time: ex.time!,
+          serviceId: matched.serviceId,
+          staffId: matched.staffId,
+        });
       }
     } catch (e) {
       setStage("needs");
@@ -226,37 +276,38 @@ export default function AdminVoiceBooking({
     }
   }
 
-  function applyExtracted(ex: Extracted): string {
+  /** شناسه‌ها را سرور از کاتالوگ واقعی سالن گرفته است؛ خالی یعنی «پیدا نشد یا مبهم بود» */
+  function applyExtracted(ex: Extracted, resolved: Resolution): { serviceId: string; staffId: string } {
     setExtracted(ex);
     if (ex.name) setName(ex.name);
     if (ex.phone) setPhone(ex.phone);
     if (ex.date) setDate(ex.date);
     if (ex.time) setTime(ex.time);
-    let matchedId = serviceId;
-    if (ex.service) {
-      const m = services.find((x) => ex.service && x.name.includes(ex.service));
-      if (m) {
-        setServiceId(m.id);
-        matchedId = m.id;
-      }
-    }
-    return matchedId;
+    const matchedService = resolved.serviceId && services.some((s) => s.id === resolved.serviceId) ? resolved.serviceId : "";
+    if (matchedService) setServiceId(matchedService);
+    const eligible = matchedService
+      ? staff.filter((s) => !s.services?.length || s.services.some((x) => x.id === matchedService))
+      : staff;
+    const matchedStaff =
+      resolved.staffAny || !resolved.staffId ? "" : eligible.some((s) => s.id === resolved.staffId) ? resolved.staffId : "";
+    setStaffId(matchedStaff);
+    return { serviceId: matchedService, staffId: matchedStaff };
   }
 
-  async function submitAppointment(payload: {
-    name: string;
-    phone: string;
-    date: string;
-    time: string;
-    serviceId: string;
-  }): Promise<boolean> {
+  async function submitAppointment(payload: ConfirmDraft): Promise<boolean> {
+    if (!payload.serviceId) {
+      setStage("needs");
+      setMsg({ ok: false, text: "پکیج مورد نظر مشخص نیست؛ اول انتخاب کنید چه چیزی رزرو شود." });
+      return false;
+    }
     try {
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           salonId,
-          serviceId: payload.serviceId || undefined,
+          serviceId: payload.serviceId,
+          employeeId: payload.staffId || undefined,
           // شعبهٔ خودِ کاربر از سرور آمده است؛ هیچ انتخاب دستی و پیش‌فرض خالی وجود ندارد
           branchId: autoBranchId || undefined,
           customerName: payload.name,
@@ -264,6 +315,7 @@ export default function AdminVoiceBooking({
           // ساعت سالن (نه ساعت مرورگر) — وگرنه کاربر با TZ متفاوت، نوبت چند ساعت جابه‌جا می‌شود
           startAt: zonedTimeToIso(payload.date, payload.time, timezone),
           channel: "VOICE",
+          voiceCallId: voiceCallId || undefined,
         }),
       });
       const data = (await res.json()) as BookResponse;
@@ -273,8 +325,10 @@ export default function AdminVoiceBooking({
         date: payload.date,
         time: payload.time,
         service: services.find((s) => s.id === payload.serviceId)?.name ?? extracted?.service,
+        staff: staff.find((s) => s.id === payload.staffId)?.name,
         branch: bookedBranch,
       });
+      setConfirmDraft(null);
       setMsg(null);
       setStage("done");
       return true;
@@ -285,38 +339,34 @@ export default function AdminVoiceBooking({
     }
   }
 
-  /** اگر همهٔ فیلدهای اصلی از گفتار درآمد، نوبت بدون هیچ لمسی ثبت می‌شود */
-  async function maybeAutoSubmit(ex: Extracted, matchedServiceId: string) {
-    const missing = REQUIRED_FIELDS.filter((f) => !ex[f]);
-    if (missing.length > 0) return;
-    if (autoSubmittedRef.current) return;
-    const ok = await submitAppointment({
-      name: ex.name!,
-      phone: ex.phone!,
-      date: ex.date!,
-      time: ex.time!,
-      serviceId: matchedServiceId,
-    });
-    if (ok) autoSubmittedRef.current = true;
+  /** همهٔ موارد گفته شده → آلارت تأیید؛ نوبت تا تأیید صریح کاربر ثبت نمی‌شود */
+  function askConfirmation(draft: ConfirmDraft) {
+    setConfirmDraft(draft);
+    setMsg(null);
+    setStage("confirm");
+  }
+
+  async function confirmBooking() {
+    if (!confirmDraft) return;
+    setStage("working");
+    await submitAppointment(confirmDraft);
   }
 
   function submitTypedSentence() {
     const text = typedText.trim();
     if (text.length < 3) {
-      setMsg({ ok: false, text: "کمی کامل‌تر بنویسید؛ مثلاً «فردا ۱۰ صبح کوتاهی مو، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹»." });
+      setMsg({ ok: false, text: "کمی کامل‌تر بنویسید؛ مثلاً «فردا ۱۰ صبح کوتاهی مو با مریم رضایی، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹»." });
       return;
     }
     void transcribe({ text });
   }
 
-  async function submitForm() {
-    if (!name || !phone || !date || !time) {
-      setMsg({ ok: false, text: "نام، شماره، تاریخ و ساعت را کامل کنید." });
+  function submitForm() {
+    if (!name || !phone || !date || !time || !serviceId) {
+      setMsg({ ok: false, text: "نام، شماره، پکیج، تاریخ و ساعت را کامل کنید." });
       return;
     }
-    setMsg(null);
-    setStage("working");
-    await submitAppointment({ name, phone, date, time, serviceId });
+    askConfirmation({ name, phone, date, time, serviceId, staffId: staffValid ? staffId : "" });
   }
 
   /** اصلاح یک فیلد؛ extracted هم به‌روز می‌شود تا در گفتار بعدی از دست نرود */
@@ -329,14 +379,34 @@ export default function AdminVoiceBooking({
     if (field === "phone") setPhone(value);
     if (field === "date") setDate(value);
     if (field === "time") setTime(value);
-    if (field === "service") {
-      const m = services.find((x) => x.name.includes(value));
-      if (m) setServiceId(m.id);
-    }
+    if (field === "service") pickService(value);
+    if (field === "staff") pickStaff(value);
+    if (value) setMissingFields((prev) => prev.filter((f) => f !== field));
+  }
+
+  /** انتخاب پکیج از فهرست (یا از گزینه‌های مبهم) — نامش در extracted هم می‌نشیند */
+  function pickService(id: string) {
+    setServiceId(id);
+    setStaffId("");
+    setExtracted((prev) => ({ ...(prev ?? {}), service: services.find((s) => s.id === id)?.name ?? prev?.service }));
+    setResolution((prev) => ({ ...prev, serviceId: id, serviceCandidates: [], staffId: "", staffCandidates: [] }));
+    setMissingFields((prev) => prev.filter((f) => f !== "service" && f !== "staff"));
+  }
+
+  /** انتخاب آرایشگر — اختیاری؛ مقدار خالی یعنی «فرقی نمی‌کند» */
+  function pickStaff(id: string) {
+    setStaffId(id);
+    setExtracted((prev) => {
+      const next = { ...(prev ?? {}) };
+      const hit = staff.find((s) => s.id === id);
+      if (hit) next.staff = hit.name;
+      else delete next.staff;
+      return next;
+    });
+    setResolution((prev) => ({ ...prev, staffId: id, staffAny: !id, staffCandidates: [] }));
   }
 
   function reset() {
-    autoSubmittedRef.current = false;
     setTranscript("");
     setExtracted(null);
     setMissingFields([]);
@@ -345,6 +415,9 @@ export default function AdminVoiceBooking({
     setDate("");
     setTime("");
     setServiceId("");
+    setStaffId("");
+    setResolution({});
+    setConfirmDraft(null);
     setVoiceCallId("");
     setMsg(null);
     setBooked(null);
@@ -369,20 +442,26 @@ export default function AdminVoiceBooking({
       state: hasTranscript ? "done" : processing && !hasTranscript ? "active" : "idle",
     },
     {
-      title: "تشخیص نام، شماره و زمان",
+      title: "تشخیص نام، شماره، پکیج و زمان",
       desc: hasExtracted
         ? missingFields.length > 0
           ? `ناقص: ${missingFields.map((f) => FIELD_LABELS[f]).join("، ")}`
           : "همهٔ اطلاعات پیدا شد"
         : hasTranscript
           ? "در حال تشخیص…"
-          : "خودکار",
+          : "پکیج اجباری، آرایشگر اختیاری",
       state: hasExtracted ? "done" : hasTranscript && processing ? "active" : "idle",
     },
     {
-      title: "ثبت نوبت",
-      desc: booked ? "نوبت در دیتابیس ثبت شد" : stage === "working" && hasExtracted ? "در حال ثبت…" : "خودکار، بدون فرم",
-      state: booked ? "done" : stage === "working" && hasExtracted ? "active" : "idle",
+      title: "تأیید شما و ثبت نوبت",
+      desc: booked
+        ? "نوبت در دیتابیس ثبت شد"
+        : stage === "confirm"
+          ? "همه چیز گفته شد — منتظر تأیید شما"
+          : stage === "working" && hasExtracted
+            ? "در حال ثبت…"
+            : "بدون تأیید شما نوبتی ثبت نمی‌شود",
+      state: booked ? "done" : stage === "confirm" || (stage === "working" && hasExtracted) ? "active" : "idle",
     },
   ];
 
@@ -419,12 +498,14 @@ export default function AdminVoiceBooking({
                 ? `در حال شنیدن… ${mmss(seconds)}`
                 : processing
                   ? "در حال پردازش…"
-                  : stage === "needs"
-                    ? "یک‌بار دیگر بگویید یا موارد مانده را تکمیل کنید"
-                    : "لمس کنید و از روی متن بخوانید"}
+                  : stage === "confirm"
+                    ? "همه چیز را گفتید — نوبت را ثبت کنم؟"
+                    : stage === "needs"
+                      ? "یک‌بار دیگر بگویید یا موارد مانده را تکمیل کنید"
+                      : "لمس کنید و از روی متن بخوانید"}
             </p>
             <p className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">
-              یک جمله کافی است؛ نوبت خودکار ثبت می‌شود
+              یک جمله کافی است؛ پکیج را حتماً بگویید، نام آرایشگر اختیاری است
             </p>
           </div>
 
@@ -434,7 +515,7 @@ export default function AdminVoiceBooking({
               <Quote className="h-3.5 w-3.5" /> متن نمونه
             </p>
             <p className="mt-1.5 text-[13px] leading-6 text-neutral-700 dark:text-neutral-200">«{SAMPLE_SCRIPT}»</p>
-            <p className="mt-1 text-[10px] text-pink-500/80 dark:text-pink-400/70">نام، شماره و زمان را با اطلاعات واقعی مشتری بگویید.</p>
+            <p className="mt-1 text-[10px] text-pink-500/80 dark:text-pink-400/70">نام، شماره، پکیج و زمان را با اطلاعات واقعی مشتری بگویید. اگر نام آرایشگر گفته نشود، سالن خودش تعیین می‌کند.</p>
           </div>
 
           {/* راه‌های جایگزین — روی http میکروفون قفل است */}
@@ -491,7 +572,7 @@ export default function AdminVoiceBooking({
               </div>
               <textarea
                 className={`${inputCls} mt-2 h-20 resize-none text-[13px] leading-6`}
-                placeholder="فردا ۱۰ صبح کوتاهی مو، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹"
+                placeholder="فردا ۱۰ صبح کوتاهی مو با مریم رضایی، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹"
                 value={typedText}
                 onChange={(e) => setTypedText(e.target.value)}
               />
@@ -501,7 +582,7 @@ export default function AdminVoiceBooking({
                 disabled={processing}
                 className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-pink-600 to-purple-600 text-xs font-black text-white transition active:scale-[0.99] disabled:opacity-50"
               >
-                <Sparkles className="h-4 w-4" /> تبدیل و ثبت
+                <Sparkles className="h-4 w-4" /> تبدیل و بررسی
               </button>
             </div>
           )}
@@ -520,6 +601,7 @@ export default function AdminVoiceBooking({
               {formatJalali(booked.date)} — ساعت {toPersianDigits(booked.time)}
             </p>
             {booked.branch && <p className="mt-1.5 text-[10px] text-white/80">شعبه: {booked.branch}</p>}
+            {booked.staff && <p className="mt-1 text-[10px] text-white/80">آرایشگر: {booked.staff}</p>}
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Link
@@ -572,7 +654,7 @@ export default function AdminVoiceBooking({
       {/* اطلاعات استخراج‌شده */}
       {extracted && hasExtracted && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {(["name", "phone", "service", "date", "time"] as FieldKey[])
+          {(["name", "phone", "service", "staff", "date", "time"] as FieldKey[])
             .filter((k) => Boolean(extracted[k]))
             .map((k) => (
               <span
@@ -581,11 +663,15 @@ export default function AdminVoiceBooking({
               >
                 <Check className="h-3 w-3 text-emerald-500" />
                 {FIELD_LABELS[k]}:{" "}
-                {k === "date"
-                  ? formatJalali(String(extracted[k])) || String(extracted[k])
-                  : k === "time" || k === "phone"
-                    ? toPersianDigits(String(extracted[k]))
-                    : String(extracted[k])}
+                {k === "service"
+                  ? (services.find((s) => s.id === serviceId)?.name ?? String(extracted[k]))
+                  : k === "staff"
+                    ? (staff.find((s) => s.id === staffId)?.name ?? String(extracted[k]))
+                    : k === "date"
+                      ? formatJalali(String(extracted[k])) || String(extracted[k])
+                      : k === "time" || k === "phone"
+                        ? toPersianDigits(String(extracted[k]))
+                        : String(extracted[k])}
               </span>
             ))}
         </div>
@@ -601,6 +687,67 @@ export default function AdminVoiceBooking({
         >
           {msg.text}
         </p>
+      )}
+
+      {/* آلارت تأیید — همهٔ موارد گفته شده؛ ثبت فقط با تأیید صریح کاربر */}
+      {stage === "confirm" && confirmDraft && !booked && (
+        <section
+          role="alertdialog"
+          aria-labelledby="avb-confirm-title"
+          className="mt-3 rounded-2xl border-2 border-amber-400/70 bg-amber-50 p-4 dark:border-amber-500/50 dark:bg-amber-950/30"
+        >
+          <p id="avb-confirm-title" className="flex items-center gap-2 text-sm font-black text-amber-800 dark:text-amber-200">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            همه چیز را گفتید — نوبت را ثبت کنم؟
+          </p>
+          <p className="mt-1.5 text-[10px] leading-5 text-amber-700/80 dark:text-amber-300/70">
+            این اطلاعات از گفتار گرفته شد. با تأیید شما ثبت می‌شود و پیامک تأیید می‌رود.
+          </p>
+          <dl className="mt-3 space-y-1.5 rounded-xl bg-white/70 p-3 text-[11px] dark:bg-neutral-900/40">
+            {[
+              ["پکیج", services.find((s) => s.id === confirmDraft.serviceId)?.name ?? "—"],
+              ["آرایشگر", confirmDraft.staffId ? (staff.find((s) => s.id === confirmDraft.staffId)?.name ?? "—") : "فرقی نمی‌کند (انتخاب سالن)"],
+              ["نام مشتری", confirmDraft.name],
+              ["شماره", toPersianDigits(confirmDraft.phone)],
+              ["تاریخ", formatJalali(confirmDraft.date) || confirmDraft.date],
+              ["ساعت", toPersianDigits(confirmDraft.time)],
+              ...(bookedBranch ? [["شعبه", bookedBranch]] : []),
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-start justify-between gap-3">
+                <dt className="shrink-0 font-bold text-neutral-400 dark:text-neutral-500">{label}</dt>
+                <dd className="min-w-0 text-left font-black text-neutral-800 dark:text-neutral-100">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {transcript && (
+            <p className="mt-2 rounded-lg bg-white/60 px-2.5 py-2 text-[10px] leading-5 text-neutral-500 dark:bg-neutral-900/40 dark:text-neutral-400">
+              «{transcript}»
+            </p>
+          )}
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => void confirmBooking()}
+              disabled={processing}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-600 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition active:scale-[0.99] disabled:opacity-50"
+            >
+              {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} بله، ثبت کن
+            </button>
+            <button
+              type="button"
+              disabled={processing}
+              onClick={() => {
+                setConfirmDraft(null);
+                setStage("needs");
+                setMissingFields([]);
+                setMsg({ ok: false, text: "هر مورد را که می‌خواهید عوض کنید، بعد دوباره «ثبت نوبت» را بزنید." });
+              }}
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 transition active:scale-[0.99] disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+            >
+              <X className="h-4 w-4" /> نه، اصلاح می‌کنم
+            </button>
+          </div>
+        </section>
       )}
 
       {/* فقط موارد ناقص — فرم کامل وجود ندارد */}
@@ -636,9 +783,28 @@ export default function AdminVoiceBooking({
               <TimeField value={time} onChange={(v) => fillField("time", v)} />
             )}
           </div>
-          {!serviceId && services.length > 0 && (
-            <select className={`${inputCls} mt-2`} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-              <option value="">خدمت (اختیاری)</option>
+          {(resolution.serviceCandidates?.length ?? 0) > 1 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-black text-neutral-500 dark:text-neutral-400">کدام پکیج؟</span>
+              {resolution.serviceCandidates!.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => pickService(c.id)}
+                  className={`rounded-full px-3 py-1.5 text-[10px] font-black transition active:scale-95 ${
+                    serviceId === c.id
+                      ? "bg-pink-600 text-white"
+                      : "bg-white text-neutral-700 ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:ring-neutral-700"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {services.length > 0 && (
+            <select className={`${inputCls} mt-2`} value={serviceId} onChange={(e) => pickService(e.target.value)} aria-label="پکیج (لازم)">
+              <option value="">پکیج (لازم) — انتخاب کنید</option>
               {services.map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.name}
@@ -646,14 +812,45 @@ export default function AdminVoiceBooking({
               ))}
             </select>
           )}
+          {shownStaff.length > 0 && (
+            <>
+              {(resolution.staffCandidates?.length ?? 0) > 1 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-black text-neutral-500 dark:text-neutral-400">کدام آرایشگر؟</span>
+                  {resolution.staffCandidates!.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => pickStaff(c.id)}
+                      className={`rounded-full px-3 py-1.5 text-[10px] font-black transition active:scale-95 ${
+                        staffId === c.id
+                          ? "bg-pink-600 text-white"
+                          : "bg-white text-neutral-700 ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:ring-neutral-700"
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <select className={`${inputCls} mt-2`} value={staffValid ? staffId : ""} onChange={(e) => pickStaff(e.target.value)} aria-label="آرایشگر (اختیاری)">
+                <option value="">آرایشگر (اختیاری) — فرقی نمی‌کند</option>
+                {shownStaff.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
           <div className="mt-3 flex gap-2">
             <button
               type="button"
               onClick={submitForm}
-              disabled={processing}
+              disabled={processing || !serviceId}
               className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-pink-600 to-purple-600 text-xs font-black text-white shadow-lg shadow-pink-500/20 transition active:scale-[0.99] disabled:opacity-50"
             >
-              <CalendarCheck2 className="h-4 w-4" /> ثبت نوبت
+              <CalendarCheck2 className="h-4 w-4" /> بررسی و ثبت نوبت
             </button>
             <button
               type="button"

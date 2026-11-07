@@ -133,6 +133,23 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// تبدیل تاریخ میلادی به شمسی با اعداد فارسی
+export function gregorianToShamsiFa(isoDate: string): string {
+  if (!isoDate || isoDate.length < 10) return isoDate;
+  try {
+    const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
+    const fmt = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    });
+    const date = new Date(Date.UTC(y, m - 1, d));
+    return fmt.format(date);
+  } catch {
+    return isoDate;
+  }
+}
+
 export function useI18n() {
   return useContext(Ctx);
 }

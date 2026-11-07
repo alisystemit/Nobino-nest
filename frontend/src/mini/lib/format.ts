@@ -10,6 +10,28 @@ export function faDigits(input: string | number): string {
   return String(input).replace(/[0-9]/g, (d) => FA[Number(d)]);
 }
 
+/** تاریخ میلادی (YYYY-MM-DD) را به شمسی با اعداد فارسی تبدیل می‌کند */
+export function gregorianToShamsiFa(isoDate: string): string {
+  if (!isoDate || isoDate.length < 10) return isoDate;
+  try {
+    const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number);
+    const fmt = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      // ورودی تاریخِ خالص است؛ بدون UTC مرورگر در منطقهٔ غربی یک روز عقب نشان می‌دهد
+      timeZone: "UTC",
+    });
+    const date = new Date(Date.UTC(y, m - 1, d));
+    const formatted = fmt.format(date);
+    // اطمینان از بازگشت رشته معتبر
+    return formatted || isoDate;
+  } catch (e) {
+    console.warn("gregorianToShamsiFa failed:", e);
+    return isoDate;
+  }
+}
+
 /**
  * رقم‌های یک «متن فارسی» به ارقام فارسی تبدیل می‌شوند — برای نمایش نام‌ها و
  * توضیح‌هایی که مستقیم از دیتابیس می‌آیند (مثلاً «لمینت مژه 2-1»).
@@ -123,7 +145,12 @@ export function timeLabel(iso: string, tz?: string): string {
 /** تاریخ شمسی کوتاه: «۱ آذر» */
 export function dayLabel(dateKey: string, tz?: string): string {
   try {
-    return new Intl.DateTimeFormat("fa-IR", { day: "numeric", month: "long", ...opts(tz) }).format(new Date(`${dateKey}T12:00:00`));
+    return new Intl.DateTimeFormat("fa-IR", { 
+      day: "numeric", 
+      month: "long", 
+      calendar: "persian",
+      ...opts(tz) 
+    }).format(new Date(`${dateKey}T12:00:00`));
   } catch {
     return dateKey;
   }
@@ -191,7 +218,14 @@ function daysBetween(a: string, b: string): number {
 /** «۱۲ آذر ۱۴۰۴، دوشنبه ساعت ۱۴:۳۰» */
 export function fullLabel(iso: string, tz?: string): string {
   try {
-    const d = new Intl.DateTimeFormat("fa-IR", { weekday: "long", day: "numeric", month: "long", year: "numeric", ...opts(tz) }).format(new Date(iso));
+    const d = new Intl.DateTimeFormat("fa-IR", { 
+      weekday: "long", 
+      day: "numeric", 
+      month: "long", 
+      year: "numeric", 
+      calendar: "persian",
+      ...opts(tz) 
+    }).format(new Date(iso));
     return `${d} — ساعت ${timeLabel(iso, tz)}`;
   } catch {
     return iso;

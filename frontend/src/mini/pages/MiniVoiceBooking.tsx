@@ -3,10 +3,15 @@
  *
  * دو راه در یک صفحه:
  *  ۱) هوش مصنوعی (صوتی): ویس کاربر → `/api/voice/transcribe` (همان سرویس «رزرو صوتی»
- *     پنل: تبدیل گفتار فارسی به متن و سپس استخراج نام / شماره / خدمت / تاریخ / ساعت)
- *     → اگر همه‌چیز پیدا شد نوبت خودکار ثبت می‌شود و هر چه کم باشد فقط همان مورد
- *     پرسیده می‌شود (فرم کامل وجود ندارد).
- *  ۲) دستی: خدمت، آرایشگر، روز، ساعت و نام/شماره — با همان ساعت‌های واقعیِ سالن.
+ *     پنل: تبدیل گفتار فارسی به متن و سپس استخراج نام / شماره / پکیج / آرایشگر / تاریخ / ساعت)
+ *     → هر چه کم باشد فقط همان مورد پرسیده می‌شود (فرم کامل وجود ندارد). پکیج اجباری است و
+ *     آرایشگر اختیاری؛ وقتی همه‌چیز گفته شد یک آلارتِ «نوبت را ثبت کنم؟» می‌آید و ثبت فقط
+ *     با تأیید صریح مشتری انجام می‌شود.
+ *  ۲) دستی: پکیج، آرایشگر، روز، ساعت و نام/شماره — با همان ساعت‌های واقعیِ سالن.
+ *
+ * تطبیق نامِ گفته‌شده با پکیج/آرایشگر واقعیِ سالن سمت سرور انجام می‌شود (`serviceId` و
+ * `staffId` در پاسخ)؛ اگر دو گزینه هم‌امتیاز باشند سرور `…Candidates` می‌فرستد تا همین‌جا
+ * از مشتری پرسیده شود و چیزی حدسی ثبت نشود.
  *
  * روت تازه‌ای لازم ندارد: صدا و استخراج از `/api/voice/transcribe`، ساعت‌های خالی از
  * `/api/salons/:slug/availability` و ثبت نوبت از همان `POST /api/appointments` سایت
@@ -22,17 +27,28 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { DayStrip, ServicePicker, SlotGrid, StaffPicker, eligibleStaff, upcomingDays } from "../components/booking";
 import { Area, Button, EmptyState, Field, Icon, Row, SectionTitle, SkeletonList, Tabs } from "../components/ui";
 import { haptic } from "../lib/bridge";
-import { dayLabel, faDigits, fullLabel, isPhone, normalizePhone, relativeDayLabel, timeLabel, toman } from "../lib/format";
+import { dayLabel, faDigits, faText, fullLabel, isPhone, normalizePhone, relativeDayLabel, timeLabel, toman } from "../lib/format";
 import { useFavorites } from "../lib/favorites";
 import { SOURCE_LABEL, resolveHomeSalon, type HomeSalon } from "../lib/resolve";
 import { mapi, useMini } from "../lib/store";
 import { getUploadLimits, mbToBytes, sizeHintFa, uploadLimitsSync } from "@/lib/upload-limits";
 import type { AvailabilityResponse, MiniSalonDetail, MiniStaff } from "../lib/types";
 
-type Extracted = { name?: string; phone?: string; service?: string; date?: string; time?: string };
-type FieldKey = "name" | "phone" | "service" | "date" | "time";
+type Extracted = { name?: string; phone?: string; service?: string; staff?: string; date?: string; time?: string };
+type FieldKey = "name" | "phone" | "service" | "staff" | "date" | "time";
 type Mode = "ai" | "manual";
-type Stage = "idle" | "recording" | "working" | "needs" | "done";
+type Stage = "idle" | "recording" | "working" | "needs" | "confirm" | "done";
+type Candidate = { id: string; name: string; score: number };
+/** تطبیق سمت سرور با کاتالوگ واقعی سالن؛ شناسهٔ خالی یعنی «مبهم، باید پرسیده شود» */
+type Resolution = {
+  serviceId?: string;
+  staffId?: string;
+  staffAny?: boolean;
+  serviceCandidates?: Candidate[];
+  staffCandidates?: Candidate[];
+};
+/** مقدارهای لحظهٔ آلارت تأیید — state هنوز flush نشده، پس مستقیم نگه داشته می‌شوند */
+type ConfirmDraft = { serviceId: string; staffId: string; startAtIso: string; name: string; phone: string; voiceCallId: string };
 
 /**
  * سقف ضبط — از حجم مجاز ویسِ سوپرادمین مشتق می‌شود.
@@ -42,16 +58,18 @@ type Stage = "idle" | "recording" | "working" | "needs" | "done";
 const RECORD_MIN_SECONDS = 60;
 const BYTES_PER_SECOND = 8000;
 const DAYS_SHOWN = 14;
-/** فیلدهایی که بدون آن‌ها نوبتی ثبت نمی‌شود (خدمت اختیاری است، مثل پنل) */
-const REQUIRED_FIELDS: FieldKey[] = ["name", "phone", "date", "time"];
+/** فیلدهایی که بدون آن‌ها نوبتی ثبت نمی‌شود — پکیج اجباری است، آرایشگر اختیاری */
+const REQUIRED_FIELDS: FieldKey[] = ["name", "phone", "service", "date", "time"];
 const FIELD_LABELS: Record<FieldKey, string> = {
   name: "نام",
   phone: "شماره موبایل",
-  service: "خدمت",
+  service: "پکیج",
+  staff: "آرایشگر",
   date: "تاریخ",
   time: "ساعت",
 };
-const SAMPLE_SCRIPT = "سلام، برای فردا ساعت ده صبح نوبت کوتاهی مو می‌خوام، به نام سارا احمدی، شماره موبایل ۰۹۱۲۳۴۵۶۷۸۹";
+const SAMPLE_SCRIPT =
+  "سلام، برای فردا ساعت ده صبح پکیج کوتاهی مو می‌خوام، با آرایشگر مریم رضایی، به نام سارا احمدی، شماره موبایل ۰۹۱۲۳۴۵۶۷۸۹";
 
 /** رقم فارسی/عربی → لاتین، فقط برای مقایسهٔ ساعت */
 function latinDigits(value: string): string {
@@ -86,17 +104,6 @@ function clockToMinutes(clock: string): number {
   if (!m) return NaN;
   const hour = Number(m[1]) % 24; // «en-GB» گاه نیمه‌شب را ۲۴:۰۰ می‌دهد
   return hour * 60 + Number(m[2]);
-}
-
-/** تطبیق نام خدمتِ گفته‌شده با خدمات واقعی سالن (دوطرفه، بی‌توجه به فاصله‌های اضافه) */
-function matchServiceId(salon: MiniSalonDetail | null, spoken: string): string {
-  if (!salon || !spoken.trim()) return "";
-  const said = spoken.trim().replace(/\s+/g, " ");
-  const hit = salon.services.find((s) => {
-    const name = s.name.trim().replace(/\s+/g, " ");
-    return name === said || name.includes(said) || said.includes(name);
-  });
-  return hit?.id ?? "";
 }
 
 export default function MiniVoiceBooking() {
@@ -139,14 +146,15 @@ export default function MiniVoiceBooking() {
   const [adjusted, setAdjusted] = useState("");
   /** وقتی فقط یک مورد کم است، کاربر همان را جدا می‌گوید (حالت `field` سرویس رزرو صوتی) */
   const [pendingField, setPendingField] = useState<FieldKey | null>(null);
-  const [booked, setBooked] = useState<{ id: string; startAt: string; name?: string; phone?: string; service?: string } | null>(null);
+  const [booked, setBooked] = useState<{ id: string; startAt: string; name?: string; phone?: string; service?: string; staff?: string } | null>(null);
+  const [resolution, setResolution] = useState<Resolution>({});
+  const [confirmDraft, setConfirmDraft] = useState<ConfirmDraft | null>(null);
 
   const recRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const autoBookedRef = useRef(false);
   const startAtRef = useRef("");
   const stopRecordingRef = useRef<(() => void) | null>(null);
 
@@ -263,7 +271,7 @@ export default function MiniVoiceBooking() {
     [salon]
   );
 
-  /* با تغییر روز/خدمت/آرایشگر، ساعت‌ها تازه می‌شوند و انتخاب بی‌اعتبار پاک می‌شود */
+  /* با تغییر روز/پکیج/آرایشگر، ساعت‌ها تازه می‌شوند و انتخاب بی‌اعتبار پاک می‌شود */
   useEffect(() => {
     startAtRef.current = startAt;
   }, [startAt]);
@@ -281,7 +289,7 @@ export default function MiniVoiceBooking() {
   /* ── ثبت نوبت (مشترکِ هر دو حالت) ────────────────────────────────── */
   async function submit(
     source: Mode,
-    override?: { startAtIso?: string; serviceId?: string; name?: string; phone?: string; note?: string; voiceCallId?: string }
+    override?: { startAtIso?: string; serviceId?: string; employeeId?: string; name?: string; phone?: string; note?: string; voiceCallId?: string }
   ): Promise<boolean> {
     if (!salon) return false;
     // در مسیر صوتی، مقدارِ تازهٔ استخراج‌شده مستقیم پاس داده می‌شود؛ انتظار flush شدن state نمی‌رود
@@ -303,14 +311,20 @@ export default function MiniVoiceBooking() {
       return false;
     }
     const ids = override?.serviceId ? [override.serviceId] : serviceIds;
+    if (!ids.length) {
+      setMsg("پکیج مورد نظر مشخص نیست؛ اول بگویید یا انتخاب کنید چه چیزی رزرو شود.");
+      setStage("needs");
+      return false;
+    }
+    const employeeId = override?.employeeId ?? (staffValid ? staffId : "");
     setBusy(true);
     setMsg("");
     const res = await mapi<{ success: boolean; error?: string; appointment?: { id: string; startAt: string; depositAmount?: number } }>("/api/appointments", {
       method: "POST",
       body: JSON.stringify({
         salonId: salon.id,
-        serviceIds: ids.length ? ids : undefined,
-        employeeId: staffValid && staffId ? staffId : undefined,
+        serviceIds: ids,
+        employeeId: employeeId || undefined,
         customerName: cleanName,
         customerPhone: cleanPhone,
         startAt: iso,
@@ -335,8 +349,10 @@ export default function MiniVoiceBooking() {
       startAt: appointment.startAt,
       name: cleanName,
       phone: cleanPhone,
-      service: salon.services.find((s) => s.id === (ids[0] ?? ""))?.name ?? extracted?.service,
+      service: salon.services.find((s) => s.id === ids[0])?.name ?? extracted?.service,
+      staff: staff.find((s) => s.id === employeeId)?.name,
     });
+    setConfirmDraft(null);
     setStage("done");
     setMsg("");
     return true;
@@ -372,7 +388,7 @@ export default function MiniVoiceBooking() {
       transcript?: string;
       voiceCallId?: string;
       extracted?: Extracted;
-    }>("/api/voice/transcribe", { method: "POST", body: form });
+    } & Resolution>("/api/voice/transcribe", { method: "POST", body: form });
 
     if (!res.ok || !res.data?.success) {
       const error = res.data?.error || "تبدیل گفتار ممکن نشد.";
@@ -386,43 +402,61 @@ export default function MiniVoiceBooking() {
     const textSpoken = String(res.data.transcript ?? "");
     const ex: Extracted = res.data.extracted ?? {};
     const callId = res.data.voiceCallId ?? voiceCallId;
+    const resolved: Resolution = {
+      serviceId: res.data.serviceId ?? "",
+      staffId: res.data.staffId ?? "",
+      staffAny: Boolean(res.data.staffAny),
+      serviceCandidates: res.data.serviceCandidates ?? [],
+      staffCandidates: res.data.staffCandidates ?? [],
+    };
     if (res.data.voiceCallId) setVoiceCallId(res.data.voiceCallId);
     setTranscript(textSpoken);
     setExtracted(ex);
+    setResolution(resolved);
+    setConfirmDraft(null);
     if (onlyField) setPendingField(null);
     if (ex.name) setName(ex.name);
     if (ex.phone) setPhone(normalizePhone(ex.phone));
-    const spokenService = ex.service ?? "";
-    const serviceId = matchServiceId(salon, spokenService);
+
+    // شناسه‌ها را سرور از کاتالوگ واقعی سالن گرفته است؛ خالی یعنی «پیدا نشد یا مبهم بود».
+    const serviceId = resolved.serviceId && salon.services.some((s) => s.id === resolved.serviceId) ? resolved.serviceId : "";
+    const eligible = serviceId ? eligibleStaff(staff, [serviceId]) : staff;
+    const pickedStaff =
+      resolved.staffAny || !resolved.staffId ? "" : eligible.some((s) => s.id === resolved.staffId) ? resolved.staffId : "";
     const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(String(ex.date ?? "")) ? String(ex.date) : "";
     const clock = normalizeClock(String(ex.time ?? ""));
 
     const nextMissing = REQUIRED_FIELDS.filter((f) => {
       if (f === "name") return !ex.name;
       if (f === "phone") return !isPhone(String(ex.phone ?? ""));
+      if (f === "service") return !serviceId;
       if (f === "date") return !dateKey;
       return !clock;
     });
     setMissing(nextMissing);
 
-    // هر چه فهمیده شده حتی در حالت ناقص هم در فرم می‌نشیند (روز و خدمتِ درست، ساعت‌های همان روز)
+    // هر چه فهمیده شده حتی در حالت ناقص هم در فرم می‌نشیند (روز و پکیجِ درست، ساعت‌های همان روز)
     if (serviceId) setServiceIds([serviceId]);
+    setStaffId(pickedStaff);
     if (dateKey) setDay(dateKey);
 
     if (nextMissing.length > 0) {
       setStage("needs");
-      setMsg(`«${nextMissing.map((f) => FIELD_LABELS[f]).join("، ")}» را متوجه نشدم — یک‌بار همان را بگویید یا بنویسید.`);
+      if (nextMissing.includes("service")) {
+        const options = resolved.serviceCandidates ?? [];
+        setMsg(
+          options.length > 1
+            ? `«${ex.service ?? ""}» به چند پکیج می‌خورد — کدام را می‌خواهید؟`
+            : `«${ex.service || "پکیج"}» در فهرست این سالن پیدا نشد — بگویید چه چیزی رزرو شود یا از پایین انتخاب کنید.`
+        );
+      } else {
+        setMsg(`«${nextMissing.map((f) => FIELD_LABELS[f]).join("، ")}» را متوجه نشدم — یک‌بار همان را بگویید یا بنویسید.`);
+      }
       return;
     }
 
-    // همه‌چیز هست: خدمت + روز + ساعت → تطبیق با وقت‌های واقعی
-    const ids = serviceId ? [serviceId] : [];
-    if (!ids.length) {
-      setStage("needs");
-      setMsg(`«${spokenService || "خدمت"}» در لیست خدمات این سالن پیدا نشد — یکی را انتخاب کنید.`);
-      return;
-    }
-    const av = await fetchSlots(dateKey, ids, staffValid && staffId ? staffId : "");
+    // همه‌چیز هست: پکیج + روز + ساعت → تطبیق با وقت‌های واقعی
+    const av = await fetchSlots(dateKey, [serviceId], pickedStaff);
     const slots = av?.slots ?? [];
     if (!slots.length) {
       setStage("needs");
@@ -432,9 +466,9 @@ export default function MiniVoiceBooking() {
     const slotsTz = av?.timezone || timezone;
     const exact = slots.find((s) => clockInSalonTz(s.startAt, slotsTz) === clock);
 
-    // C13: اگر ساعتِ گفته‌شده آزاد نبود، دیگر بی‌صدا «اولین وقتِ روز» جایش نمی‌نشیند
-    // و ثبت/پیامک نمی‌شود. نزدیک‌ترین وقتِ آزاد واقعاً محاسبه و در فرم نشسته می‌شود،
-    // ولی ثبت فقط با دکمهٔ «ثبت نوبت» (تأیید صریح مشتری) انجام می‌شود.
+    // اگر ساعتِ گفته‌شده آزاد نبود، بی‌صدا «اولین وقتِ روز» جایش نمی‌نشیند و ثبت/پیامک
+    // نمی‌شود. نزدیک‌ترین وقتِ آزاد محاسبه و در فرم نشانده می‌شود، ولی ثبت فقط با تأیید
+    // صریح مشتری (دکمهٔ «ثبت نوبت») انجام می‌شود.
     if (!exact) {
       const wantMin = clockToMinutes(clock);
       const nearest = [...slots].sort(
@@ -451,19 +485,32 @@ export default function MiniVoiceBooking() {
       return;
     }
 
+    // همهٔ موارد گفته شده → آلارت تأیید؛ نوبت تا زمانی که مشتری «بله» نزند ثبت نمی‌شود.
     setStartAt(exact.startAt);
-    // مقادیر استخراج‌شده مستقیم پاس می‌شوند (state هنوز در همین تیک تازه نشده است)
-    const ok = await submit("ai", {
-      serviceId: ids[0],
+    setConfirmDraft({
+      serviceId,
+      staffId: pickedStaff,
       startAtIso: exact.startAt,
-      name: ex.name,
+      name: String(ex.name ?? ""),
       phone: normalizePhone(String(ex.phone ?? "")),
       voiceCallId: callId,
     });
-    if (ok) {
-      autoBookedRef.current = true;
-      return;
-    }
+    setMsg("");
+    setStage("confirm");
+    haptic("success");
+  }
+
+  /** تأیید صریح آلارت — تنها راه ثبت نوبت در مسیر صوتیِ کامل */
+  async function confirmBooking() {
+    if (!confirmDraft) return;
+    await submit("ai", {
+      serviceId: confirmDraft.serviceId,
+      employeeId: confirmDraft.staffId,
+      startAtIso: confirmDraft.startAtIso,
+      name: confirmDraft.name,
+      phone: confirmDraft.phone,
+      voiceCallId: confirmDraft.voiceCallId,
+    });
   }
 
   /* ── ضبط ویس ─────────────────────────────────────────────────────── */
@@ -487,7 +534,6 @@ export default function MiniVoiceBooking() {
       setMsg("میکروفون روی این آدرس قفل است (یا اتصال امن نیست). فایل صوتی بفرستید یا جمله را بنویسید.");
       return;
     }
-    autoBookedRef.current = false;
     setSeconds(0);
     const fieldForThisTake = pendingField ?? undefined;
     void navigator.mediaDevices
@@ -521,17 +567,15 @@ export default function MiniVoiceBooking() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    autoBookedRef.current = false;
     void transcribe({ audio: file }, pendingField ?? undefined);
   }
 
   function submitTyped() {
     const text = typed.trim();
     if (text.length < 3) {
-      setMsg("کمی کامل‌تر بنویسید؛ مثلاً «فردا ۱۰ صبح کوتاهی مو، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹».");
+      setMsg("کمی کامل‌تر بنویسید؛ مثلاً «فردا ۱۰ صبح کوتاهی مو با مریم رضایی، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹».");
       return;
     }
-    autoBookedRef.current = false;
     void transcribe({ text }, pendingField ?? undefined);
   }
 
@@ -543,43 +587,96 @@ export default function MiniVoiceBooking() {
     setExtracted(next);
     if (field === "name") setName(value);
     if (field === "phone") setPhone(value);
-    if (field === "service") {
-      const id = matchServiceId(salon, value);
-      if (id) setServiceIds([id]);
-    }
     if (field === "date") setDay(value);
     if (field === "time") setStartAt("");
+    const filled =
+      field === "phone"
+        ? isPhone(normalizePhone(value))
+        : field === "date"
+          ? /^\d{4}-\d{2}-\d{2}$/.test(value)
+          : field === "time"
+            ? Boolean(normalizeClock(value))
+            : Boolean(value.trim());
+    if (filled) setMissing((prev) => prev.filter((f) => f !== field));
   }
 
-  /** تکمیل نوبت پس از گفتار: ساعت انتخاب‌شده ثبت می‌شود؛ اگر فقط از صدا باشد، همان ساعت در وقت‌های آزاد جست‌وجو می‌شود */
+  /** انتخاب پکیج از فهرست (یا از گزینه‌های مبهم) — نامش در extracted هم می‌نشیند */
+  function pickService(id: string) {
+    const hit = salon?.services.find((s) => s.id === id);
+    setServiceIds([id]);
+    setStartAt("");
+    setExtracted((prev) => ({ ...(prev ?? {}), service: hit?.name ?? prev?.service }));
+    setResolution((prev) => ({ ...prev, serviceId: id, serviceCandidates: [] }));
+    setMissing((prev) => prev.filter((f) => f !== "service"));
+    haptic("light");
+  }
+
+  /** انتخاب آرایشگر از فهرست (یا از گزینه‌های مبهم) — نامش در extracted هم می‌نشیند */
+  function pickStaff(id: string) {
+    const hit = staff.find((s) => s.id === id);
+    setStaffId(id);
+    setStartAt("");
+    setExtracted((prev) => {
+      const next = { ...(prev ?? {}) };
+      if (hit) next.staff = hit.name;
+      else delete next.staff;
+      return next;
+    });
+    setResolution((prev) => ({ ...prev, staffId: id, staffAny: !id, staffCandidates: [] }));
+    haptic("light");
+  }
+
+  /** «آرایشگر فرقی نمی‌کند» — اختیاری بودنِ آرایشگر به‌صورت صریح */
+  function anyStaff() {
+    setStaffId("");
+    setStartAt("");
+    setExtracted((prev) => {
+      const next = { ...(prev ?? {}) };
+      delete next.staff;
+      return next;
+    });
+    setResolution((prev) => ({ ...prev, staffId: "", staffAny: true, staffCandidates: [] }));
+    haptic("light");
+  }
+
+  /** تکمیل نوبت پس از گفتار: ساعت انتخاب‌شده (یا ساعتِ گفته‌شده در وقت‌های آزاد) به آلارت تأیید می‌رود */
   async function confirmMissing() {
     if (!salon) return;
     if (!serviceIds.length) {
-      setMsg("یک خدمت انتخاب کنید تا ساعت‌های آزاد همان خدمت دیده شود.");
+      setMsg("یک پکیج انتخاب کنید تا ساعت‌های آزاد همان پکیج دیده شود.");
       return;
     }
-    if (startAt) {
-      await submit(mode === "ai" ? "ai" : "manual");
-      return;
+    let iso = startAt;
+    if (!iso) {
+      const clock = normalizeClock(String(extracted?.time ?? ""));
+      if (!clock) {
+        setMsg("ساعت را بگویید یا از فهرست ساعت‌های آزاد یکی را بزنید.");
+        return;
+      }
+      const av = await fetchSlots(day, serviceIds, staffValid ? staffId : "");
+      const hit = (av?.slots ?? []).find((s) => clockInSalonTz(s.startAt, av?.timezone || timezone) === clock);
+      if (!hit) {
+        setMsg(`ساعت ${faDigits(clock)} در ${dayLabel(day, timezone)} آزاد نیست؛ از ساعت‌های پایین انتخاب کنید.`);
+        return;
+      }
+      iso = hit.startAt;
+      setStartAt(iso);
     }
-    const clock = normalizeClock(String(extracted?.time ?? ""));
-    if (!clock) {
-      setMsg("ساعت را بگویید یا از فهرست ساعت‌های آزاد یکی را بزنید.");
-      return;
-    }
-    const av = await fetchSlots(day, serviceIds, staffValid && staffId ? staffId : "");
-    const hit = (av?.slots ?? []).find((s) => clockInSalonTz(s.startAt, av?.timezone || timezone) === clock);
-    if (!hit) {
-      setMsg(`ساعت ${faDigits(clock)} در ${dayLabel(day, timezone)} آزاد نیست؛ از ساعت‌های پایین انتخاب کنید.`);
-      return;
-    }
-    setStartAt(hit.startAt);
-    await submit(mode === "ai" ? "ai" : "manual", { startAtIso: hit.startAt });
+    setConfirmDraft({
+      serviceId: serviceIds[0],
+      staffId: staffValid ? staffId : "",
+      startAtIso: iso,
+      name: name.trim(),
+      phone: normalizePhone(phone),
+      voiceCallId,
+    });
+    setMsg("");
+    setStage("confirm");
+    haptic("success");
   }
 
   function reset() {
     releaseRecorder();
-    autoBookedRef.current = false;
     setStage("idle");
     setBooked(null);
     setTranscript("");
@@ -594,6 +691,9 @@ export default function MiniVoiceBooking() {
     setStartAt("");
     setSeconds(0);
     setNote("");
+    setResolution({});
+    setConfirmDraft(null);
+    setStaffId("");
   }
 
   /* ── نمایش نتیجه ─────────────────────────────────────────────────── */
@@ -641,20 +741,26 @@ export default function MiniVoiceBooking() {
       state: hasTranscript ? "done" : processing && !hasTranscript ? "active" : "idle",
     },
     {
-      title: "تشخیص نام، شماره و زمان",
+      title: "تشخیص نام، شماره، پکیج و زمان",
       desc: extracted
         ? missing.length > 0
           ? `ناقص: ${missing.map((f) => FIELD_LABELS[f]).join("، ")}`
           : "همهٔ اطلاعات پیدا شد"
         : hasTranscript
           ? "در حال تشخیص…"
-          : "خودکار",
+          : "پکیج اجباری، آرایشگر اختیاری",
       state: extracted ? "done" : hasTranscript ? "active" : "idle",
     },
     {
-      title: "تطبیق با ساعت آزاد و ثبت نوبت",
-      desc: booked ? "نوبت ثبت شد" : processing && hasTranscript ? "در حال ثبت…" : "اگر ساعت پر باشد، نزدیک‌ترین وقت پیشنهاد می‌شود",
-      state: booked ? "done" : processing && extracted ? "active" : "idle",
+      title: "تأیید شما و ثبت نوبت",
+      desc: booked
+        ? "نوبت ثبت شد"
+        : stage === "confirm"
+          ? "همه چیز گفته شد — منتظر تأیید شما"
+          : processing && hasTranscript
+            ? "در حال ثبت…"
+            : "بدون تأیید شما نوبتی ثبت نمی‌شود",
+      state: booked ? "done" : stage === "confirm" || (processing && extracted) ? "active" : "idle",
     },
   ];
 
@@ -687,7 +793,8 @@ export default function MiniVoiceBooking() {
                 </div>
                 <Row label="نام" value={booked.name ?? name} />
                 {booked.phone ? <Row label="شماره" value={faDigits(booked.phone)} /> : null}
-                {booked.service ? <Row label="خدمت" value={booked.service} /> : null}
+                {booked.service ? <Row label="پکیج" value={booked.service} /> : null}
+                {booked.staff ? <Row label="آرایشگر" value={booked.staff} /> : null}
                 <Row label="زمان" value={fullLabel(booked.startAt, timezone)} />
                 <Row label="سالن" value={salon.name} />
                 {adjusted ? (
@@ -732,16 +839,18 @@ export default function MiniVoiceBooking() {
                       ? `در حال شنیدن… ${mmss(seconds)}`
                       : processing
                         ? "در حال پردازش…"
-                        : pendingField
-                          ? `فقط «${FIELD_LABELS[pendingField]}» را بگویید`
-                          : stage === "needs"
-                            ? "یک‌بار دیگر بگویید یا موارد مانده را کامل کنید"
-                            : "لمس کنید و یک جملهٔ کامل بگویید"}
+                        : stage === "confirm"
+                          ? "همه چیز را گفتید — نوبت را ثبت کنم؟"
+                          : pendingField
+                            ? `فقط «${FIELD_LABELS[pendingField]}» را بگویید`
+                            : stage === "needs"
+                              ? "یک‌بار دیگر بگویید یا موارد مانده را کامل کنید"
+                              : "لمس کنید و یک جملهٔ کامل بگویید"}
                   </p>
                   <p className="mini-vb-sub">
                     {pendingField
                       ? "این بار همین یک مورد را جدا می‌گیریم و بقیهٔ اطلاعات حفظ می‌شود."
-                      : "نام، شماره، خدمت، روز و ساعت را در یک جمله بگویید؛ بقیه خودکار."}
+                      : "نام، شماره، پکیج، روز و ساعت را در یک جمله بگویید؛ گفتنِ نام آرایشگر اختیاری است."}
                   </p>
                 </div>
 
@@ -750,7 +859,7 @@ export default function MiniVoiceBooking() {
                     <Icon name="sparkle" size={14} /> متن نمونه
                   </b>
                   <p>«{SAMPLE_SCRIPT}»</p>
-                  <span>جای نام و شماره را با اطلاعات واقعی خودتان بگذارید.</span>
+                  <span>جای نام و شماره را با اطلاعات واقعی خودتان بگذارید. اگر نام آرایشگر را نگویید، سالن خودش تعیین می‌کند.</span>
                 </div>
 
                 {micBlocked && <div className="mini-note">میکروفون این آدرس قفل است (http). فایل صوتی بفرستید یا جمله را بنویسید.</div>}
@@ -786,11 +895,11 @@ export default function MiniVoiceBooking() {
                       rows={3}
                       value={typed}
                       onChange={(e) => setTyped(e.target.value)}
-                      placeholder="فردا ۱۰ صبح کوتاهی مو، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹"
+                      placeholder="فردا ۱۰ صبح کوتاهی مو با مریم رضایی، سارا احمدی، ۰۹۱۲۳۴۵۶۷۸۹"
                     />
                     <Button onClick={submitTyped} loading={processing}>
                       <Icon name="sparkle" size={17} />
-                      تبدیل و ثبت
+                      تبدیل و بررسی
                     </Button>
                   </div>
                 )}
@@ -812,18 +921,77 @@ export default function MiniVoiceBooking() {
 
                 {extracted && (
                   <div className="mini-vb-chips">
-                    {(["name", "phone", "service", "date", "time"] as FieldKey[])
+                    {(["name", "phone", "service", "staff", "date", "time"] as FieldKey[])
                       .filter((k) => Boolean(extracted[k]))
-                      .map((k) => (
-                        <span key={k} className="mini-vb-chip">
-                          <Icon name="check" size={12} />
-                          {FIELD_LABELS[k]}: {k === "date" ? dayLabel(String(extracted[k]), timezone) : k === "time" || k === "phone" ? faDigits(String(extracted[k])) : String(extracted[k])}
-                        </span>
-                      ))}
+                      .map((k) => {
+                        const shown =
+                          k === "service"
+                            ? faText(salon.services.find((s) => s.id === serviceIds[0])?.name ?? String(extracted[k]))
+                            : k === "staff"
+                              ? faText(staff.find((s) => s.id === staffId)?.name ?? String(extracted[k]))
+                              : k === "date"
+                                ? dayLabel(String(extracted[k]), timezone)
+                                : k === "time" || k === "phone"
+                                  ? faDigits(String(extracted[k]))
+                                  : String(extracted[k]);
+                        return (
+                          <span key={k} className="mini-vb-chip">
+                            <Icon name="check" size={12} />
+                            {FIELD_LABELS[k]}: {shown}
+                          </span>
+                        );
+                      })}
                   </div>
                 )}
 
                 {msg && !booked && <div className="mini-note is-warn">{msg}</div>}
+
+                {stage === "confirm" && confirmDraft && !booked && (
+                  <div className="mini-vb-confirm" role="alertdialog" aria-modal="false" aria-labelledby="vb-confirm-title">
+                    <div className="mini-vb-confirm-title" id="vb-confirm-title">
+                      <Icon name="sparkle" size={20} />
+                      همه چیز را گفتید — نوبت را ثبت کنم؟
+                    </div>
+                    <p className="mini-vb-confirm-sub">این اطلاعات از گفتار شما گرفته شد. با تأیید شما ثبت می‌شود و پیامک تأیید می‌آید.</p>
+                    <Row label="پکیج" value={faText(salon.services.find((s) => s.id === confirmDraft.serviceId)?.name ?? "")} />
+                    <Row label="آرایشگر" value={confirmDraft.staffId ? faText(staff.find((s) => s.id === confirmDraft.staffId)?.name ?? "") : "فرقی نمی‌کند (انتخاب سالن)"} />
+                    <Row label="نام" value={confirmDraft.name} />
+                    <Row label="شماره" value={faDigits(confirmDraft.phone)} />
+                    <Row label="زمان" value={fullLabel(confirmDraft.startAtIso, timezone)} />
+                    <Row label="سالن" value={salon.name} />
+                    {showPrices && (
+                      <Row
+                        label="قیمت تقریبی"
+                        value={toman(salon.services.filter((s) => s.id === confirmDraft.serviceId).reduce((a, s) => a + Number(s.price || 0), 0))}
+                      />
+                    )}
+                    {adjusted ? <div className="mini-note is-warn" style={{ marginTop: 10 }}>{adjusted}</div> : null}
+                    {transcript ? (
+                      <div className="mini-vb-quote">
+                        <b>چیزی که گفتید</b>
+                        <p>«{transcript}»</p>
+                      </div>
+                    ) : null}
+                    <div className="mini-actions" style={{ marginTop: 12 }}>
+                      <Button onClick={() => void confirmBooking()} loading={busy}>
+                        <Icon name="check" size={17} />
+                        بله، ثبت کن
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => {
+                          setConfirmDraft(null);
+                          setStage("needs");
+                          setMsg("هر مورد را که می‌خواهید عوض کنید، بعد دوباره «ثبت نوبت» را بزنید.");
+                        }}
+                      >
+                        <Icon name="edit" size={17} />
+                        نه، اصلاح می‌کنم
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {stage === "needs" && !booked && (
                   <div className="mini-vb-needs">
@@ -851,24 +1019,55 @@ export default function MiniVoiceBooking() {
                     {(missing.includes("phone") || !missing.length) && (
                       <Field label="شماره موبایل" name="vb_phone" dir="ltr" inputMode="numeric" value={phone} onChange={(e) => fillField("phone", e.target.value)} placeholder="09123456789" />
                     )}
+                    {(resolution.serviceCandidates?.length ?? 0) > 1 && (
+                      <div className="mini-vb-ask">
+                        <span>کدام پکیج؟</span>
+                        {resolution.serviceCandidates!.map((c) => (
+                          <button key={c.id} type="button" className={`mini-chip${serviceIds[0] === c.id ? " is-on" : ""}`} onClick={() => pickService(c.id)}>
+                            {faText(c.name)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="mini-vb-services">
-                      <b>خدمت</b>
+                      <b>پکیج (لازم)</b>
                       <ServicePicker
                         services={salon.services}
                         selected={serviceIds}
                         showPrices={showPrices}
-                        onToggle={(id) => setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [id]))}
+                        onToggle={(id) => pickService(id)}
                       />
                     </div>
+                    {shownStaff.length > 0 && (
+                      <>
+                        <SectionTitle title="آرایشگر" hint="اختیاری — می‌توانید نامش را بگویید" />
+                        <div className="mini-vb-ask">
+                          <button type="button" className={`mini-chip${!staffId ? " is-on" : ""}`} onClick={anyStaff}>
+                            فرقی نمی‌کند
+                          </button>
+                          {(resolution.staffCandidates?.length ?? 0) > 1 &&
+                            resolution.staffCandidates!.map((c) => (
+                              <button key={c.id} type="button" className={`mini-chip${staffId === c.id ? " is-on" : ""}`} onClick={() => pickStaff(c.id)}>
+                                {faText(c.name)}
+                              </button>
+                            ))}
+                        </div>
+                        <StaffPicker
+                          staff={shownStaff}
+                          value={staffValid ? staffId : ""}
+                          onChange={(id) => pickStaff(staffId === id ? "" : id)}
+                        />
+                      </>
+                    )}
                     <SectionTitle title="روز" hint={relativeDayLabel(day, timezone)} />
                     <DayStrip days={days} value={day || days[0]} timezone={timezone} onChange={(d) => setDay(d)} />
-                    <SectionTitle title="ساعت" hint={serviceIds.length ? `${faDigits(availability?.slots.length ?? 0)} وقت خالی` : "اول یک خدمت انتخاب کنید"} />
+                    <SectionTitle title="ساعت" hint={serviceIds.length ? `${faDigits(availability?.slots.length ?? 0)} وقت خالی` : "اول یک پکیج انتخاب کنید"} />
                     <SlotGrid
                       slots={availability?.slots ?? []}
                       value={startAt}
                       timezone={timezone}
                       loading={slotsLoading}
-                      emptyText={serviceIds.length ? "در این روز وقت خالی نیست؛ روز دیگر را انتخاب کنید." : "برای دیدن ساعت‌های آزاد، خدمت را انتخاب کنید."}
+                      emptyText={serviceIds.length ? "در این روز وقت خالی نیست؛ روز دیگر را انتخاب کنید." : "برای دیدن ساعت‌های آزاد، پکیج را انتخاب کنید."}
                       onSelect={(iso) => {
                         setStartAt(iso);
                         haptic("light");
@@ -877,7 +1076,7 @@ export default function MiniVoiceBooking() {
                     <div className="mini-actions" style={{ marginTop: 12 }}>
                       <Button onClick={() => void confirmMissing()} loading={busy} disabled={!serviceIds.length || !startAt}>
                         <Icon name="calendar" size={17} />
-                        ثبت نوبت
+                        بررسی و ثبت نوبت
                       </Button>
                       <Button
                         variant="ghost"
@@ -906,7 +1105,8 @@ export default function MiniVoiceBooking() {
                   </div>
                   <Row label="نام" value={booked.name ?? name} />
                   {booked.phone ? <Row label="شماره" value={faDigits(booked.phone)} /> : null}
-                  {booked.service ? <Row label="خدمت" value={booked.service} /> : null}
+                  {booked.service ? <Row label="پکیج" value={booked.service} /> : null}
+                  {booked.staff ? <Row label="آرایشگر" value={booked.staff} /> : null}
                   <Row label="زمان" value={fullLabel(booked.startAt, timezone)} />
                   <Row label="سالن" value={salon.name} />
                   <div className="mini-actions" style={{ marginTop: 12 }}>
@@ -921,7 +1121,7 @@ export default function MiniVoiceBooking() {
                 </div>
               ) : (
                 <>
-                  <SectionTitle title="خدمت" hint="یکی یا چند مورد" />
+                  <SectionTitle title="پکیج" hint="یکی یا چند مورد" />
                   <ServicePicker
                     services={salon.services}
                     selected={serviceIds}
@@ -954,13 +1154,13 @@ export default function MiniVoiceBooking() {
                     }}
                   />
 
-                  <SectionTitle title="ساعت" hint={serviceIds.length ? `${faDigits(availability?.slots.length ?? 0)} وقت خالی` : "اول خدمت را انتخاب کنید"} />
+                  <SectionTitle title="ساعت" hint={serviceIds.length ? `${faDigits(availability?.slots.length ?? 0)} وقت خالی` : "اول پکیج را انتخاب کنید"} />
                   <SlotGrid
                     slots={availability?.slots ?? []}
                     value={startAt}
                     timezone={timezone}
                     loading={slotsLoading}
-                    emptyText={serviceIds.length ? "در این روز وقت خالی نیست؛ روز دیگری را انتخاب کنید." : "برای دیدن ساعت‌های آزاد، خدمت را انتخاب کنید."}
+                    emptyText={serviceIds.length ? "در این روز وقت خالی نیست؛ روز دیگری را انتخاب کنید." : "برای دیدن ساعت‌های آزاد، پکیج را انتخاب کنید."}
                     onSelect={(iso) => {
                       setStartAt(iso);
                       haptic("light");

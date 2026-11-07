@@ -243,6 +243,39 @@
   padding: 6px 10px;
   cursor: pointer;
 }
+/* آلارتِ «همه چیز را گفتید — نوبت را ثبت کنم؟»؛ ثبت فقط با تأیید صریح مشتری */
+.salon-page .sm-voice-confirm {
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(234, 179, 8, 0.55);
+  background: rgba(234, 179, 8, 0.12);
+  animation: sm-confirm-in 0.22s ease-out;
+}
+.salon-page .sm-voice-confirm > b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #92610a;
+  line-height: 1.8;
+}
+.salon-page .sm-voice-confirm > p {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.9;
+  color: var(--m-text);
+  overflow-wrap: anywhere;
+}
+@keyframes sm-confirm-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .salon-page .sm-voice-confirm { animation: none; }
+}
 .salon-page .sm-script {
   margin-top: 10px;
   border-radius: 12px;
